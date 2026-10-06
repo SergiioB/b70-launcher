@@ -1,0 +1,3437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/assets/b70-launcher-32.png" type="image/png">
+<title>B70 Launcher v0.4.4</title>
+<style>
+  :root {
+    --bg-base: #080c14;
+    --bg-panel: #0b101b;
+    --bg-card: #0f172a;
+    --bg-subtle: #090d16;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --border-active: #2563eb;
+    --fg-primary: #ffffff;
+    --fg-secondary: #cbd5e1;
+    --fg-dim: #94a3b8;
+    --fg-faint: #64748b;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-light: #60a5fa;
+    --cyan: #00e5ff;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --err: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; width: 100%; overflow: hidden; background: var(--bg-base); color: var(--fg-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* App Window Layout */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    height: 52px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-base);
+    flex-shrink: 0;
+  }
+  .hdr-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .b70-logo-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #0071c5;
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: -0.5px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 2px 4px rgba(0,113,197,0.3);
+  }
+  .app-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+  .app-version {
+    font-size: 11px;
+    color: var(--fg-faint);
+    font-weight: 500;
+    margin-left: 2px;
+  }
+
+  .hdr-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hdr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11.5px;
+    color: var(--fg-dim);
+    text-decoration: none;
+    transition: border-color 0.15s;
+  }
+  .hdr-pill:hover {
+    border-color: var(--border-hover);
+  }
+  .hdr-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+  .hdr-pill .val-ok {
+    color: var(--ok);
+    font-weight: 600;
+  }
+  .hdr-pill svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  /* Steps Subheader */
+  .steps-bar {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-base);
+    flex-shrink: 0;
+  }
+  .step-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--border);
+    color: var(--fg-faint);
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .step-node.active .step-num {
+    background: var(--accent);
+    color: #fff;
+  }
+  .step-node.done .step-num {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--ok);
+  }
+  .step-txt {
+    display: flex;
+    flex-direction: column;
+  }
+  .step-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-dim);
+  }
+  .step-node.active .step-title {
+    color: #fff;
+  }
+  .step-sub {
+    font-size: 10px;
+    color: var(--fg-faint);
+  }
+  .step-node.active .step-sub {
+    color: var(--accent-light);
+  }
+  .step-arrow {
+    color: var(--border-hover);
+    font-size: 13px;
+  }
+
+  /* 3 Column Dashboard Grid */
+  .dashboard {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    padding: 14px 20px 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .col-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Column Headers */
+  .col-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  .col-num-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .col-head-text h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.2px;
+  }
+  .col-head-text p {
+    font-size: 11px;
+    color: var(--fg-faint);
+    margin-top: 1px;
+  }
+
+  /* Column 1: Model Library */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+  .search-wrap input {
+    width: 100%;
+    height: 36px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 12px 0 34px;
+    color: #fff;
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-wrap input:focus {
+    border-color: var(--accent);
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: var(--fg-faint);
+    stroke-width: 2;
+  }
+
+  .filters-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .chip-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px 10px;
+    color: var(--fg-dim);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .chip-btn:hover {
+    border-color: var(--border-hover);
+    color: #fff;
+  }
+  .chip-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .models-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+  }
+  .models-list::-webkit-scrollbar {
+    width: 5px;
+  }
+  .models-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  .model-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 12px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .model-card:hover {
+    border-color: var(--border-hover);
+  }
+  .model-card.sel {
+    border-color: var(--accent);
+    background: rgba(37, 99, 235, 0.08);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .model-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .badge-rec {
+    background: rgba(37, 99, 235, 0.2);
+    color: var(--accent-light);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .badge-disk {
+    font-size: 10.5px;
+    color: var(--ok);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .badge-disk .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+
+  .model-card-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .model-brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #141c2e;
+    border: 1px solid var(--border);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    padding: 6px;
+  }
+  .model-brand-icon img, .model-brand-icon svg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .model-card-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .model-card-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-card-sub {
+    font-size: 11px;
+    color: var(--fg-dim);
+    margin: 2px 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-card-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .model-card-chip {
+    background: #1e293b;
+    color: #cbd5e1;
+    font-size: 9.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .model-card-chevron {
+    color: var(--fg-faint);
+    font-size: 14px;
+    margin-left: 6px;
+  }
+
+  /* Column 2: Configuration */
+  .col2-scroll {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-right: 4px;
+  }
+  .col2-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+  .col2-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  .sec-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .sec-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sec-sub-tag {
+    font-size: 11px;
+    color: var(--ok);
+    font-weight: 500;
+  }
+
+  .engine-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .engine-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .engine-card:hover {
+    border-color: var(--border-hover);
+  }
+  .engine-card.sel {
+    border-color: var(--accent);
+    background: rgba(37, 99, 235, 0.08);
+  }
+  .engine-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: #141c2e;
+    border: 1px solid var(--border);
+    display: grid;
+    place-items: center;
+    margin-right: 10px;
+    padding: 5px;
+    flex-shrink: 0;
+  }
+  .engine-icon img, .engine-icon svg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .engine-info {
+    flex: 1;
+  }
+  .engine-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .engine-sub {
+    font-size: 10.5px;
+    color: var(--fg-dim);
+  }
+  .engine-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge-default {
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .radio-btn {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid #475569;
+    display: grid;
+    place-items: center;
+  }
+  .engine-card.sel .radio-btn {
+    border-color: var(--accent);
+  }
+  .engine-card.sel .radio-btn::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .file-input-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 6px 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .file-input-box svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--fg-faint);
+    fill: none;
+    stroke-width: 2;
+    flex-shrink: 0;
+  }
+  .file-input-box input {
+    background: none;
+    border: none;
+    color: var(--fg-dim);
+    font-size: 11.5px;
+    flex: 1;
+    outline: none;
+    min-width: 0;
+  }
+  .btn-browse {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--fg-secondary);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .btn-browse:hover {
+    border-color: var(--border-hover);
+    color: #fff;
+  }
+
+  .ctx-stepper-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .ctx-stepper-box input {
+    width: 100%;
+    background: none;
+    border: none;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    outline: none;
+  }
+  .ctx-subtext {
+    font-size: 10.5px;
+    color: var(--fg-faint);
+    margin-bottom: 12px;
+  }
+
+  .adv-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--fg-secondary);
+    font-size: 11.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 0;
+    cursor: pointer;
+  }
+  .adv-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 11px;
+  }
+  .adv-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .adv-row input, .adv-row select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    outline: none;
+  }
+
+  .recipe-notes-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 12px;
+    font-size: 11.5px;
+    color: var(--fg-dim);
+    line-height: 1.5;
+    margin-top: 10px;
+    margin-bottom: 12px;
+  }
+  .recipe-notes-title {
+    font-weight: 600;
+    color: var(--fg-secondary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sys-rec-box {
+    border: 1px solid #1d4ed8;
+    background: rgba(30, 58, 138, 0.15);
+    border-radius: 8px;
+    padding: 11px 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .sys-rec-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .sys-rec-title {
+    color: #38bdf8;
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .sys-rec-desc {
+    color: var(--fg-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  /* Column 3: Launch & Open */
+  .col3-scroll {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-right: 4px;
+  }
+  .col3-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+  .col3-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  .launch-summary-card {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 14px;
+  }
+  .launch-summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .launch-summary-head span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-edit {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--accent-light);
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn-edit:hover {
+    border-color: var(--accent);
+  }
+
+  .sum-grid {
+    display: grid;
+    grid-template-columns: 85px 1fr;
+    gap: 7px 10px;
+    font-size: 11.5px;
+    align-items: center;
+  }
+  .sum-label {
+    color: var(--fg-faint);
+  }
+  .sum-val {
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sum-pill {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .sum-pill.rec {
+    background: rgba(37, 99, 235, 0.25);
+    color: var(--accent-light);
+  }
+  .sum-pill.def {
+    background: #1e3a8a;
+    color: #93c5fd;
+  }
+
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 14px;
+  }
+  .app-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .app-card:hover {
+    border-color: var(--border-hover);
+  }
+  .app-card.sel {
+    border-color: var(--accent);
+    background: rgba(37, 99, 235, 0.08);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .app-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+  }
+  .app-icon img, .app-icon svg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .app-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+  }
+  .app-desc {
+    font-size: 9px;
+    color: var(--fg-faint);
+    margin-top: 2px;
+    line-height: 1.1;
+  }
+
+  /* Launch Split Button */
+  .launch-btn-row {
+    display: flex;
+    height: 44px;
+    margin-bottom: 14px;
+    position: relative;
+    gap: 0;
+  }
+  .launch-main-btn {
+    flex: 1;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px 0 0 8px;
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 12px;
+  }
+  .launch-main-btn:hover {
+    background: var(--accent-hover);
+  }
+  .launch-main-btn.running-stop {
+    background: #991b1b;
+    color: #fecaca;
+  }
+  .launch-main-btn.running-stop:hover {
+    background: #b91c1c;
+    color: #fff;
+  }
+  .launch-action-btn {
+    flex: 1;
+    background: #1e3a8a;
+    border: none;
+    border-left: 1px solid rgba(255,255,255,0.15);
+    color: #93c5fd;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 10px;
+  }
+  .launch-action-btn:hover {
+    background: #2563eb;
+    color: #fff;
+  }
+  .launch-split-btn {
+    width: 36px;
+    background: #1d4ed8;
+    border: none;
+    border-left: 1px solid rgba(255,255,255,0.15);
+    border-radius: 0 8px 8px 0;
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .launch-split-btn:hover {
+    background: #1e40af;
+  }
+
+  .launch-dropdown {
+    position: absolute;
+    bottom: 50px;
+    right: 0;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    width: 220px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .launch-dropdown.open {
+    display: flex;
+  }
+  .launch-dropdown button {
+    background: none;
+    border: none;
+    color: var(--fg-secondary);
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .launch-dropdown button:hover {
+    background: var(--border);
+    color: #fff;
+  }
+
+  .conn-details-card {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 11.5px;
+  }
+  .conn-title {
+    font-weight: 600;
+    color: var(--fg-secondary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .conn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .conn-key {
+    color: var(--fg-faint);
+  }
+  .conn-val-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #e2e8f0;
+  }
+  .conn-copy-btn {
+    background: none;
+    border: none;
+    color: var(--fg-faint);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    line-height: 1;
+  }
+  .conn-copy-btn:hover {
+    color: #fff;
+  }
+  .conn-status-line {
+    font-size: 10.5px;
+    color: var(--fg-faint);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .conn-status-line .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+
+  /* Footer Telemetry */
+  footer {
+    height: 72px;
+    background: var(--bg-base);
+    border-top: 1px solid var(--border);
+    padding: 10px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .gpu-tele-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .gpu-tele-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .gpu-tele-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .gpu-tele-name svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--accent-light);
+    fill: none;
+    stroke-width: 2;
+  }
+  .gpu-tele-status {
+    font-size: 10px;
+    color: var(--ok);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 20px;
+  }
+  .gpu-tele-status .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+
+  .gpu-metrics-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .metric-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .metric-lbl {
+    font-size: 9.5px;
+    color: var(--fg-faint);
+  }
+  .metric-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .metric-bar-bg {
+    width: 64px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .metric-bar-fill {
+    height: 100%;
+    background: var(--cyan);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  
+  /* Column Focus Pulse */
+  .col-panel.focused-pulse {
+    animation: colPulse 1.4s ease-out;
+  }
+  @keyframes colPulse {
+    0% { box-shadow: 0 0 0 2px var(--accent), 0 0 20px rgba(37, 99, 235, 0.4); }
+    100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  }
+
+  /* Size Filter Dropdown */
+  .filters-wrap {
+    position: relative;
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  .size-dropdown-menu {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    z-index: 100;
+    width: 190px;
+    display: none;
+    flex-direction: column;
+    padding: 5px;
+    gap: 2px;
+  }
+  .size-dropdown-menu.open {
+    display: flex;
+  }
+  .size-opt-btn {
+    background: none;
+    border: none;
+    color: var(--fg-secondary);
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .size-opt-btn:hover {
+    background: var(--border);
+    color: #fff;
+  }
+  .size-opt-btn.active {
+    background: rgba(37, 99, 235, 0.2);
+    color: var(--accent-light);
+    font-weight: 600;
+  }
+
+  /* Context Presets */
+  .ctx-presets-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    margin-bottom: 12px;
+  }
+  .ctx-preset-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 10px;
+    color: var(--fg-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ctx-preset-chip:hover {
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* Browse & Artifacts Modal */
+  .artifact-list-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    margin: 8px 0;
+  }
+  .artifact-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #cbd5e1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .artifact-item:hover {
+    border-color: var(--accent);
+    background: rgba(37, 99, 235, 0.1);
+  }
+
+  /* Test Inference Button */
+  .test-prompt-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--accent-light);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .test-prompt-btn:hover {
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* Dry-run / Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-box {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    width: 720px;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .modal-box pre {
+    background: #090d16;
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 6px;
+    color: var(--fg-secondary);
+    font-family: monospace;
+    font-size: 11.5px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    max-height: 300px;
+  }
+  .modal-close-btn {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  /* Keyboard focus */
+  :focus-visible {
+    outline: 2px solid var(--accent-light);
+    outline-offset: 1px;
+    border-radius: 4px;
+  }
+
+  /* Empty / first-run states */
+  .empty-state {
+    background: var(--bg-subtle);
+    border: 1px dashed var(--border-hover);
+    border-radius: 10px;
+    padding: 18px 14px;
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .empty-state strong {
+    color: var(--fg-secondary);
+  }
+
+  /* Get-this-model block (not-detected path) */
+  .getmodel-box {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 11.5px;
+    color: var(--fg-dim);
+    line-height: 1.5;
+  }
+  .getmodel-box strong {
+    color: var(--fg-secondary);
+    font-weight: 600;
+  }
+  .getmodel-title {
+    color: var(--fg-secondary);
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .getmodel-cmd {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-top: 8px;
+  }
+  .getmodel-cmd code {
+    flex: 1;
+    font-family: monospace;
+    font-size: 10.5px;
+    color: #e2e8f0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-width: 0;
+  }
+  .getmodel-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  a.btn-browse {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Easy-mode reassurance line (under launch summary) */
+  .easy-note {
+    font-size: 11px;
+    color: var(--fg-faint);
+    margin: -6px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Launch blockers checklist + last launch error */
+  .recipe-update-box {
+    display: none;
+    background: rgba(217, 119, 6, 0.10);
+    border: 1px solid rgba(217, 119, 6, 0.55);
+    border-radius: 8px;
+    padding: 9px 11px;
+    margin-bottom: 10px;
+    font-size: 11.5px;
+    color: var(--fg-secondary);
+    line-height: 1.45;
+  }
+  .recipe-update-box .ru-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: #fbbf24;
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+  .recipe-update-box .ru-note {
+    color: var(--fg-dim);
+  }
+  .recipe-update-box .ru-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+  }
+  .recipe-update-box button.ru-apply {
+    background: rgba(217, 119, 6, 0.22);
+    border: 1px solid rgba(217, 119, 6, 0.6);
+    color: #fcd34d;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .recipe-update-box button.ru-apply:hover { background: rgba(217, 119, 6, 0.38); }
+  .recipe-update-box button.ru-apply:disabled { opacity: 0.5; cursor: default; }
+  .recipe-update-box .ru-ver {
+    font-size: 10px;
+    color: var(--fg-faint);
+    margin-left: auto;
+  }
+  .badge-recipe-new {
+    background: rgba(217, 119, 6, 0.18);
+    border: 1px solid rgba(217, 119, 6, 0.6);
+    color: #fbbf24;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .catalog-news {
+    background: rgba(217, 119, 6, 0.10);
+    border: 1px solid rgba(217, 119, 6, 0.5);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    font-size: 11.5px;
+    color: var(--fg-secondary);
+    line-height: 1.45;
+  }
+  .catalog-news .cn-title {
+    font-weight: 700;
+    color: #fbbf24;
+    font-size: 11.5px;
+    margin-bottom: 2px;
+  }
+  .catalog-news .cn-note { color: var(--fg-dim); font-size: 11px; }
+  .catalog-news button {
+    background: rgba(217, 119, 6, 0.22);
+    border: 1px solid rgba(217, 119, 6, 0.6);
+    color: #fcd34d;
+    border-radius: 6px;
+    padding: 2px 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 5px;
+  }
+  .catalog-news button:hover { background: rgba(217, 119, 6, 0.38); }
+
+  .launch-needs {
+    font-size: 11px;
+    color: var(--warn);
+    margin-bottom: 10px;
+    line-height: 1.45;
+  }
+  .launch-needs .needs-label {
+    color: var(--fg-dim);
+    font-weight: 600;
+  }
+  .launch-err {
+    font-size: 11px;
+    color: var(--err);
+    margin-bottom: 10px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  /* Not-detected size hint on model cards */
+  .badge-need {
+    font-size: 10.5px;
+    color: var(--warn);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Narrow layouts: stack the three columns */
+  @media (max-width: 1100px) {
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .col-panel {
+      flex: none;
+      overflow: visible;
+    }
+    .models-list {
+      max-height: 340px;
+    }
+    .col2-scroll, .col3-scroll {
+      overflow: visible;
+      padding-right: 0;
+    }
+    footer {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .gpu-metrics-row {
+      flex-wrap: wrap;
+    }
+  }
+  @media (max-width: 640px) {
+    header {
+      height: auto;
+      min-height: 52px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      row-gap: 6px;
+    }
+    .hdr-right {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .steps-bar {
+      gap: 12px;
+      padding: 0 8px;
+    }
+    .step-sub {
+      display: none;
+    }
+    .dashboard {
+      padding: 10px 10px 0;
+    }
+    footer {
+      padding: 8px 10px;
+    }
+  }
+
+  /* Toast Notification */
+  #toast {
+    position: fixed;
+    bottom: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: none;
+    z-index: 2000;
+  }
+
+#update-banner {
+  display: none;
+  background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+  color: #fff;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+#update-banner a {
+  color: #fef08a;
+  text-decoration: underline;
+  font-weight: 700;
+  margin-left: 8px;
+}
+#update-banner button {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  float: right;
+  cursor: pointer;
+}
+
+</style>
+</head>
+<body>
+
+<div id="update-banner">
+  <span id="update-text">A newer version of B70 Launcher is available.</span>
+  <a id="update-link" href="https://xecores.com/match" target="_blank">Download update &rarr;</a>
+  <button onclick="document.getElementById('update-banner').style.display='none'">&times;</button>
+</div>
+
+<div id="app">
+  <!-- Top Header -->
+  <header>
+    <div class="hdr-left">
+      <div class="b70-logo-badge">B70</div>
+      <span class="app-title">B70 Launcher</span>
+      <span class="app-version" id="hdr-ver">v0.4.7</span>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-pill">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+        <span id="hdr-gpus">Detecting GPUs…</span>
+        <span class="dot"></span>
+        <span class="val-ok" id="hdr-gpu-state">…</span>
+      </div>
+      <div class="hdr-pill">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span id="hdr-artifacts">Scanning disk…</span>
+        <span style="color: var(--fg-faint);">•</span>
+        <span id="hdr-disk-avail">…</span>
+      </div>
+      <a href="https://xecores.com" target="_blank" class="hdr-pill">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span>xecores.com ↗</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Steps Bar -->
+  <div class="steps-bar">
+    <div class="step-node active" id="step-node-1" onclick="focusStep(1)">
+      <div class="step-num">1</div>
+      <div class="step-txt">
+        <span class="step-title">Model</span>
+        <span class="step-sub">Choose a model</span>
+      </div>
+    </div>
+    <div class="step-arrow">&gt;</div>
+    <div class="step-node" id="step-node-2" onclick="focusStep(2)">
+      <div class="step-num">2</div>
+      <div class="step-txt">
+        <span class="step-title">Configuration</span>
+        <span class="step-sub">Set engine &amp; parameters</span>
+      </div>
+    </div>
+    <div class="step-arrow">&gt;</div>
+    <div class="step-node" id="step-node-3" onclick="focusStep(3)">
+      <div class="step-num">3</div>
+      <div class="step-txt">
+        <span class="step-title">Launch</span>
+        <span class="step-sub">Start and open in your favorite app</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main 3-Column Dashboard -->
+  <main class="dashboard">
+    <!-- COLUMN 1: Model Library -->
+    <section class="col-panel">
+      <div class="col-head">
+        <div class="col-num-badge">1</div>
+        <div class="col-head-text">
+          <h2>Model Library</h2>
+          <p>Discover and select a model to run on your B70s</p>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="modelsearch" placeholder="Search models..." />
+      </div>
+      <div class="filters-wrap">
+        <div class="filters-row">
+          <button class="chip-btn active" id="flt-rec" onclick="setFilter('rec')">★ Recommended</button>
+          <button class="chip-btn" id="flt-all" onclick="setFilter('all')">All Models</button>
+          <button class="chip-btn" id="flt-disk" onclick="setFilter('disk')">On Disk</button>
+          <button class="chip-btn" id="flt-size" onclick="toggleSizeDrop()">All Sizes ˅</button>
+        </div>
+        <div class="size-dropdown-menu" id="size-dropdown">
+          <button class="size-opt-btn active" onclick="setSizeFilter('all', 'All Sizes ˅')">All Sizes</button>
+          <button class="size-opt-btn" onclick="setSizeFilter('small', '< 30B (Dense 27B)')">&lt; 30B (Dense 27B)</button>
+          <button class="size-opt-btn" onclick="setSizeFilter('medium', '30B - 40B (MoE 35B)')">30B - 40B (MoE 35B)</button>
+          <button class="size-opt-btn" onclick="setSizeFilter('large', '> 70B (180B MoE)')">&gt; 70B (180B MoE)</button>
+        </div>
+      </div>
+      <div class="catalog-news" id="catalog-news" style="display: none;"></div>
+      <div class="models-list" id="models-list"></div>
+    </section>
+
+    <!-- COLUMN 2: Configuration -->
+    <section class="col-panel">
+      <div class="col-head">
+        <div class="col-num-badge">2</div>
+        <div class="col-head-text">
+          <h2>Configuration</h2>
+          <p>Set up the engine and parameters</p>
+        </div>
+      </div>
+      <div class="col2-scroll">
+        <div class="sec-head-row">
+          <span class="sec-label">Engine <span title="The server software that runs the model — each engine trades ease of use, speed, and features. DEFAULT is the recommended pick.">ⓘ</span></span>
+          <span class="sec-sub-tag" id="engine-rec-tag">Recommended for B70</span>
+        </div>
+        <div class="engine-cards" id="engine-cards"></div>
+
+        <div class="sec-head-row">
+          <span class="sec-label">Model file <span title="The model weights on your disk — the launcher finds them automatically during the disk scan">ⓘ</span></span>
+          <span class="sec-sub-tag" id="file-status-tag" style="color: var(--fg-faint);">Checking disk…</span>
+        </div>
+        <div class="file-input-box">
+          <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <input type="text" id="modelfile" readonly value="..." />
+          <button class="btn-browse" id="btn-download" style="display: none;" onclick="startDownload()">↓ Download</button>
+          <button class="btn-browse" onclick="openBrowseModal()">Browse...</button>
+        </div>
+        <div class="ctx-subtext" id="file-hint" style="display: none; margin-top: -8px;"></div>
+        <div class="getmodel-box" id="getmodel-box" style="display: none;"></div>
+
+        <div class="sec-head-row" style="margin-top: 4px;">
+          <span class="sec-label">Context size <span title="How much text the model remembers at once — bigger needs more VRAM">ⓘ</span></span>
+        </div>
+        <div class="ctx-stepper-box">
+          <input type="number" id="ctx" step="1024" min="2048" max="1048576" value="262144" />
+        </div>
+        <div class="ctx-subtext" id="ctx-subtext">Set from the model (recommended)</div>
+        <div class="ctx-presets-row">
+          <button class="ctx-preset-chip" id="ctx-safe-btn" onclick="setCtxSafe()">Safe</button>
+          <button class="ctx-preset-chip" id="ctx-max-btn" onclick="setCtxMax()">Max</button>
+        </div>
+        <div class="ctx-subtext" style="margin-top: -6px;">How much text the model remembers at once — bigger uses more VRAM.</div>
+
+        <button class="adv-toggle-btn" id="adv-toggle" onclick="toggleAdv()">
+          <span>⚙ Advanced settings</span>
+          <span id="adv-arrow">3 settings ˅</span>
+        </button>
+        <div class="adv-box" id="adv-box" style="display: none;">
+          <div class="adv-row">
+            <span>Server HTTP Port:</span>
+            <input type="number" id="port" value="8000" style="width: 80px;" />
+          </div>
+          <div class="adv-row">
+            <span>Power Mode: <span title="Maximum GPU power draw in watts — higher can be a little faster but runs hotter">ⓘ</span></span>
+            <select id="powermode">
+              <option value="150">150W - MoE sweet spot</option>
+              <option value="180">180W - dense sweet spot</option>
+              <option value="230">230W - burst / stock TDP</option>
+            </select>
+          </div>
+          <div class="adv-row">
+            <span>KV Cache Type: <span title="Format for the model's short-term memory of the conversation — smaller types save VRAM with little quality loss">ⓘ</span></span>
+            <select id="kvtype"></select>
+          </div>
+        </div>
+
+        <div class="recipe-notes-box">
+          <div class="recipe-notes-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Recipe notes
+          </div>
+          <div id="recipe-notes-body">
+            Pick a model and engine to see its validated recipe notes.
+          </div>
+        </div>
+
+        <div class="sys-rec-box">
+          <div class="sys-rec-icon">💡</div>
+          <div>
+            <div class="sys-rec-title">System recommendation</div>
+            <div class="sys-rec-desc" id="sys-rec-desc">
+              Pick a model to see the recommended setup for your GPU.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUMN 3: Launch & Open -->
+    <section class="col-panel">
+      <div class="col-head">
+        <div class="col-num-badge">3</div>
+        <div class="col-head-text">
+          <h2>Launch &amp; Open</h2>
+          <p>Start the model and open it in your favorite app</p>
+        </div>
+      </div>
+      <div class="col3-scroll">
+        <div class="launch-summary-card">
+          <div class="launch-summary-head">
+            <span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Launch summary
+            </span>
+            <button class="btn-edit" onclick="focusStep(2)">Edit</button>
+          </div>
+          <div class="sum-grid">
+            <span class="sum-label">Model</span>
+            <div class="sum-val">
+              <span id="sum-model">Qwen3.6-35B-A3B</span>
+              <span class="sum-pill rec" id="sum-rec-pill">Recommended</span>
+            </div>
+            <span class="sum-label">Engine</span>
+            <div class="sum-val">
+              <span id="sum-engine">OpenVINO (OVMS)</span>
+              <span class="sum-pill def" id="sum-engine-pill">Default</span>
+            </div>
+            <span class="sum-label">Context size</span>
+            <div class="sum-val" id="sum-ctx">262,144</div>
+            <span class="sum-label">Model file</span>
+            <div class="sum-val" id="sum-file">—</div>
+            <span class="sum-label">GPUs</span>
+            <div class="sum-val" id="sum-gpus">2 × Arc Pro B70 <span style="color: var(--ok); font-weight: 500;">(Ready)</span></div>
+          </div>
+        </div>
+        <div class="easy-note" id="easy-note" style="display: none;">
+          <span style="color: var(--ok);">✔</span> Recommended setup — ready to launch.
+        </div>
+
+        <div class="sec-head-row" style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="sec-label">After launch, open in: <span title="Which chat app to open automatically once the model is running">ⓘ</span></span>
+          <button class="btn-browse" style="padding: 2px 9px; font-size: 11px; margin-left: auto;" id="btn-open-harness" onclick="openSelectedHarness()">Open in Pi ↗</button>
+        </div>
+        <div class="app-grid">
+          <div class="app-card sel" id="app-pi" onclick="onAppCardClick('pi')" ondblclick="openHarnessNow('pi')" title="Click to select / launch Pi">
+            <div class="app-icon"><img src="/assets/pi.svg" alt="Pi" /></div>
+            <div class="app-name">Pi</div>
+            <div class="app-desc">Local AI chat</div>
+          </div>
+          <div class="app-card" id="app-droid" onclick="onAppCardClick('droid')" ondblclick="openHarnessNow('droid')" title="Click to select / launch Factory Droid">
+            <div class="app-icon"><img src="/assets/factory-droid.svg" alt="Factory Droid" /></div>
+            <div class="app-name">Factory Droid</div>
+            <div class="app-desc">Model workflow</div>
+          </div>
+          <div class="app-card" id="app-omp" onclick="onAppCardClick('omp')" ondblclick="openHarnessNow('omp')" title="Click to select / launch OMP">
+            <div class="app-icon"><img src="/assets/omp.svg" alt="OMP" /></div>
+            <div class="app-name">OMP</div>
+            <div class="app-desc">Open model platform</div>
+          </div>
+          <div class="app-card" id="app-webui" onclick="onAppCardClick('webui')" ondblclick="openHarnessNow('webui')" title="Click to select / open Open Web UI">
+            <div class="app-icon"><img src="/assets/openwebui.svg" alt="Open Web UI" /></div>
+            <div class="app-name">Open Web UI</div>
+            <div class="app-desc">In browser</div>
+          </div>
+        </div>
+
+        <div class="recipe-update-box" id="recipe-update-box"></div>
+        <div class="launch-needs" id="launch-needs" style="display: none;"></div>
+        <div class="launch-err" id="launch-err" style="display: none;"></div>
+        <div class="launch-btn-row">
+          <button class="launch-main-btn" id="launch-btn" onclick="launchModel(false)">
+            <span>▶</span> Launch Model
+          </button>
+          <button class="launch-action-btn" id="btn-reopen-harness" style="display: none;" onclick="openSelectedHarness()">
+            <span>↗</span> Open Pi
+          </button>
+          <button class="launch-split-btn" id="launch-split-btn" onclick="toggleLaunchDrop()">▼</button>
+          <div class="launch-dropdown" id="launch-dropdown">
+            <button onclick="launchModel(true)">Preview Command (Dry Run)</button>
+            <button onclick="launchModel(false, true)">Launch Detached (Background)</button>
+          </div>
+        </div>
+
+        <div class="conn-details-card">
+          <div class="conn-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Connection details (after launch)
+          </div>
+          <div class="conn-row">
+            <span class="conn-key">HTTP endpoint</span>
+            <div class="conn-val-box">
+              <span id="conn-http">http://localhost:8000</span>
+              <button class="conn-copy-btn" onclick="copyConn('conn-http')">⧉</button>
+            </div>
+          </div>
+          <div class="conn-row">
+            <span class="conn-key">OpenAI-compatible</span>
+            <div class="conn-val-box">
+              <span id="conn-openai">http://localhost:8000/v1</span>
+              <button class="conn-copy-btn" onclick="copyConn('conn-openai')">⧉</button>
+            </div>
+          </div>
+          <div class="conn-row">
+            <span class="conn-key">Model name</span>
+            <div class="conn-val-box">
+              <span id="conn-model-name">Qwen3.6-35B-A3B</span>
+              <button class="conn-copy-btn" onclick="copyConn('conn-model-name')">⧉</button>
+            </div>
+          </div>
+          <div class="conn-status-line" style="justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;">
+              <span class="dot"></span>
+              <span id="conn-status-msg" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">Endpoint will be available after launch</span>
+            </div>
+            <button class="test-prompt-btn" id="btn-test-prompt" onclick="openTestModal()">⚡ Test Prompt</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer Telemetry -->
+  <footer>
+    <div class="gpu-tele-card">
+      <div class="gpu-tele-meta">
+        <div class="gpu-tele-name">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+          <span id="g0-name">GPU 0 Arc Pro B70</span>
+        </div>
+        <div class="gpu-tele-status">
+          <span class="dot"></span>
+          <span>Active</span>
+        </div>
+      </div>
+      <div class="gpu-metrics-row">
+        <div class="metric-col">
+          <span class="metric-lbl" title="Current clock speed vs rated max — the xe driver doesn't expose a busy% counter. Higher = GPU is being driven harder.">GPU clock</span>
+          <span class="metric-val"><span style="color: var(--ok); font-size: 10px;">✔</span> <span id="g0-util">38%</span></span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g0-util-bar" style="width: 38%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">VRAM</span>
+          <span class="metric-val" id="g0-vram">12.4 GB / 24 GB</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g0-vram-bar" style="width: 52%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">Power draw</span>
+          <span class="metric-val" id="g0-watts">53.8 W / 150 W</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g0-watts-bar" style="width: 36%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">Temperature</span>
+          <span class="metric-val" id="g0-temp">54 °C</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g0-temp-bar" style="width: 54%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gpu-tele-card">
+      <div class="gpu-tele-meta">
+        <div class="gpu-tele-name">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+          <span id="g1-name">GPU 1 Arc Pro B70</span>
+        </div>
+        <div class="gpu-tele-status">
+          <span class="dot"></span>
+          <span>Active</span>
+        </div>
+      </div>
+      <div class="gpu-metrics-row">
+        <div class="metric-col">
+          <span class="metric-lbl" title="Current clock speed vs rated max — the xe driver doesn't expose a busy% counter. Higher = GPU is being driven harder.">GPU clock</span>
+          <span class="metric-val"><span style="color: var(--ok); font-size: 10px;">✔</span> <span id="g1-util">32%</span></span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g1-util-bar" style="width: 32%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">VRAM</span>
+          <span class="metric-val" id="g1-vram">11.1 GB / 24 GB</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g1-vram-bar" style="width: 46%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">Power draw</span>
+          <span class="metric-val" id="g1-watts">45.5 W / 150 W</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g1-watts-bar" style="width: 30%;"></div></div>
+        </div>
+        <div class="metric-col">
+          <span class="metric-lbl">Temperature</span>
+          <span class="metric-val" id="g1-temp">51 °C</span>
+          <div class="metric-bar-bg"><div class="metric-bar-fill" id="g1-temp-bar" style="width: 51%;"></div></div>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<div id="modal" class="modal-overlay" style="display: none;">
+  <div class="modal-box">
+    <h3 id="modal-title" style="color: #fff; font-size: 15px;">Command Preview</h3>
+    <pre id="modal-code"></pre>
+    <button class="modal-close-btn" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+
+<div id="browse-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #fff; font-size: 15px;">📁 Select Model Artifact on Disk</h3>
+      <button style="background: none; border: none; color: var(--fg-faint); font-size: 16px; cursor: pointer;" onclick="closeBrowseModal()">✕</button>
+    </div>
+    <p style="font-size: 11px; color: var(--fg-faint);">Detected local model directories and weights across system roots:</p>
+    <div class="artifact-list-box" id="artifact-list-box"></div>
+    <div style="display: flex; gap: 8px; margin-top: 6px;">
+      <input type="text" id="custom-model-path" placeholder="/path/to/custom/weights" style="flex: 1; background: var(--bg-card); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 11.5px; outline: none;" />
+      <button class="btn-browse" style="padding: 6px 14px;" onclick="applyCustomPath()">Set Custom Path</button>
+    </div>
+  </div>
+</div>
+
+<div id="test-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #fff; font-size: 15px;">⚡ Quick Inference Test</h3>
+      <button style="background: none; border: none; color: var(--fg-faint); font-size: 16px; cursor: pointer;" onclick="closeTestModal()">✕</button>
+    </div>
+    <p style="font-size: 11px; color: var(--fg-faint);">Sends a real completion request to the active local model endpoint:</p>
+    <textarea id="test-prompt-input" style="width: 100%; height: 70px; background: var(--bg-subtle); border: 1px solid var(--border); color: #fff; padding: 8px; border-radius: 6px; font-size: 12px; outline: none; resize: none;">Why is dual Intel Arc Pro B70 effective for local MoE inference?</textarea>
+    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <button class="btn-browse" id="btn-run-test" style="background: var(--accent); color: #fff; border-color: var(--accent); padding: 6px 14px; font-weight: 600;" onclick="runInferenceTest()">Send Request</button>
+    </div>
+    <div id="test-response-box" style="background: #090d16; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11.5px; color: var(--fg-secondary); max-height: 200px; overflow-y: auto; white-space: pre-wrap; display: none;"></div>
+  </div>
+</div>
+
+
+<div id="logs-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-box" style="width: 860px; max-width: 95vw;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #fff; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+        <span class="dot" style="background: var(--ok); width: 8px; height: 8px; border-radius: 50%;"></span>
+        <span id="logs-modal-title">Live Engine Logs</span>
+      </h3>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="btn-browse" style="padding: 4px 10px; font-size: 11px;" onclick="fetchLogsNow()">↻ Refresh</button>
+        <button style="background: none; border: none; color: var(--fg-faint); font-size: 18px; cursor: pointer; padding: 0 4px;" onclick="closeLogsModal()">✕</button>
+      </div>
+    </div>
+    <pre id="logs-modal-content" style="background: #050810; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; color: #a5f3fc; height: 380px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;"></pre>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API_TOKEN = "__API_TOKEN__";
+
+async function post(path, body) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Launcher-Token": API_TOKEN
+    },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+let S = null;
+let SC = {};
+let SC_CATALOG = [];
+let SEL = null;
+let CUSTOM_PATH = null;
+let ENGINE = "openvino";
+let HARNESS = "pi";
+let FILTER = "rec";
+
+const $ = (id) => document.getElementById(id);
+
+const ENG_MAP = { openvino: "OpenVINO (OVMS)", vllm: "vLLM XPU", llamacpp: "llama.cpp SYCL", exl3: "EXL3 XPU" };
+
+function fmtSizeGB(mib) {
+  if (mib == null || !isFinite(mib) || mib <= 0) return null;
+  if (mib >= 1024) {
+    const gb = mib / 1024;
+    return (gb >= 100 ? Math.round(gb) : Math.round(gb * 10) / 10) + " GB";
+  }
+  return Math.round(mib) + " MB";
+}
+
+function catalogSizeFor(path) {
+  if (!path || !SC_CATALOG) return null;
+  const hit = SC_CATALOG.find((c) => c.path === path);
+  return hit ? hit.size_mib : null;
+}
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// Parse "…~19 GB…" / "(95 GB) + MTP draft (2.5 GB)" style hints into total GB.
+function parseSizeGB(str) {
+  if (!str) return null;
+  const re = /(\d+(?:\.\d+)?)\s*(GB|GiB|MB|MiB|TB|TiB)\b/gi;
+  let total = 0, found = false, mm;
+  while ((mm = re.exec(str))) {
+    let v = parseFloat(mm[1]);
+    const u = mm[2].toLowerCase();
+    if (u === "mb" || u === "mib") v /= 1024;
+    else if (u === "tb" || u === "tib") v *= 1024;
+    total += v;
+    found = true;
+  }
+  return found ? total : null;
+}
+
+// Best size estimate (GB) for a model+engine artifact, from recipe quant hint
+// or the model's chips (e.g. "~19 GB").
+function recipeSizeGB(m, eng) {
+  const rec = ((m && m.recipes) || {})[eng] || {};
+  const dl = rec.download || {};
+  const sources = [dl.quant].concat((m && m.chips) || []);
+  for (const s of sources) {
+    const g = parseSizeGB(s);
+    if (g != null) return g;
+  }
+  return null;
+}
+
+function sizeLabelApprox(m, eng) {
+  const g = recipeSizeGB(m, eng);
+  if (g == null) return null;
+  return "~" + (g >= 100 ? Math.round(g) : Math.round(g * 10) / 10) + " GB";
+}
+
+// size_mib of a detected artifact for a model — prefers the given engine,
+// falls back to any detected recipe, then to the scan catalog.
+function detectedSizeMib(modelId, eng) {
+  const mm = SC[modelId];
+  if (!mm) return null;
+  const order = eng ? [eng].concat(Object.keys(mm)) : Object.keys(mm);
+  for (const e of order) {
+    const d = mm[e];
+    if (d && d.detected) {
+      if (d.size_mib != null) return d.size_mib;
+      const c = catalogSizeFor(d.path);
+      if (c != null) return c;
+    }
+  }
+  return null;
+}
+
+function copyText(txt) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(
+      () => toast("Copied to clipboard!", "ok"),
+      () => copyTextFallback(txt));
+  } else {
+    copyTextFallback(txt);
+  }
+}
+
+function copyTextFallback(txt) {
+  const ta = document.createElement("textarea");
+  ta.value = txt;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+    toast("Copied to clipboard!", "ok");
+  } catch (e) {
+    toast("Copy failed — select the text and copy it manually", "err");
+  }
+  document.body.removeChild(ta);
+}
+
+function copyTextEl(id) {
+  const el = $(id);
+  if (el) copyText(el.textContent);
+}
+
+function recommendedEngine(m) {
+  if (!m || !m.recipes) return null;
+  const keys = Object.keys(m.recipes);
+  return (m.recommended_engine && keys.includes(m.recommended_engine))
+    ? m.recommended_engine
+    : (keys[0] || null);
+}
+
+function detectedGpuCount() {
+  if (S && S.preflight) {
+    if (S.preflight.profile && typeof S.preflight.profile.b70_count === "number") {
+      return S.preflight.profile.b70_count;
+    }
+    if (Array.isArray(S.preflight.devices)) return S.preflight.devices.length;
+  }
+  return 0;
+}
+
+function toast(msg, type) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  t.style.borderColor = type === "ok" ? "var(--ok)" : "var(--accent)";
+  setTimeout(() => { t.style.display = "none"; }, 2500);
+}
+
+function copyConn(id) {
+  copyText($(id).textContent);
+}
+
+function focusStep(n) {
+  [1, 2, 3].forEach((i) => {
+    const el = $("step-node-" + i);
+    if (el) {
+      if (i === n) el.classList.add("active");
+      else el.classList.remove("active");
+    }
+  });
+}
+
+function setFilter(f) {
+  FILTER = f;
+  ["rec", "all", "disk", "size"].forEach((k) => {
+    const btn = $("flt-" + k);
+    if (btn) btn.classList.toggle("active", k === f);
+  });
+  renderModels();
+}
+
+function toggleAdv() {
+  const box = $("adv-box");
+  const arrow = $("adv-arrow");
+  const open = box.style.display !== "none";
+  box.style.display = open ? "none" : "flex";
+  arrow.textContent = open ? "3 settings ˅" : "3 settings ⌃";
+}
+
+function toggleLaunchDrop() {
+  const d = $("launch-dropdown");
+  d.classList.toggle("open");
+}
+
+function selectApp(appId) {
+  HARNESS = appId;
+  const labels = {
+    pi: "Pi (Local AI chat)",
+    droid: "Factory Droid (Workflow)",
+    omp: "OMP (Open Model Platform)",
+    webui: "Open Web UI (Browser)"
+  };
+  const shortNames = {
+    pi: "Pi",
+    droid: "Factory Droid",
+    omp: "OMP",
+    webui: "Open Web UI"
+  };
+  ["pi", "droid", "omp", "webui"].forEach((id) => {
+    const card = $("app-" + id);
+    if (card) card.classList.toggle("sel", id === appId);
+  });
+  const btn = $("btn-open-harness");
+  if (btn) {
+    btn.textContent = `Open in ${shortNames[appId] || appId} ↗`;
+  }
+  const reopenBtn = $("btn-reopen-harness");
+  if (reopenBtn) {
+    reopenBtn.innerHTML = `<span>↗</span> Open ${shortNames[appId] || appId}`;
+    reopenBtn.title = `Launch another ${shortNames[appId] || appId} session connected to endpoint`;
+  }
+  toast(`Selected ${labels[appId] || appId}`, "ok");
+}
+
+async function openSelectedHarness() {
+  await openHarnessNow(HARNESS);
+}
+
+function onAppCardClick(appId) {
+  if (HARNESS === appId) {
+    openHarnessNow(appId);
+  } else {
+    selectApp(appId);
+  }
+}
+
+async function openHarnessNow(appId) {
+  selectApp(appId);
+  const port = (ACTIVE_SERVER && ACTIVE_SERVER.port) ? ACTIVE_SERVER.port : (parseInt($("port").value, 10) || 8000);
+  const modelId = (ACTIVE_SERVER && (ACTIVE_SERVER.model_id || ACTIVE_SERVER.model)) ? (ACTIVE_SERVER.model_id || ACTIVE_SERVER.model) : (SEL ? SEL.id : "default");
+  const modelName = (ACTIVE_SERVER && ACTIVE_SERVER.model) ? ACTIVE_SERVER.model : (SEL ? SEL.name : "");
+  const engine = (ACTIVE_SERVER && ACTIVE_SERVER.engine) ? ACTIVE_SERVER.engine : ENGINE;
+  toast(`Opening ${appId.toUpperCase()} with ${modelName || modelId} on :${port} ...`, "ok");
+  try {
+    const res = await post("/api/harness", {
+      harness: appId,
+      port: port,
+      model: modelId,
+      model_id: modelId,
+      model_name: modelName,
+      engine: engine
+    });
+    if (res.line) {
+      toast(`Launched ${appId}: ${res.line}`, "ok");
+    } else {
+      toast(`Triggered ${appId}`, "ok");
+    }
+  } catch (err) {
+    toast(`Failed to open ${appId}: ${err}`, "err");
+  }
+}
+
+function getBrandLogo(brand, modelId) {
+  brand = (brand || "").toLowerCase();
+  if (brand === "qwen" || modelId.startsWith("qwen")) return "/assets/qwen.svg";
+  if (brand === "nvidia" || modelId.includes("nemotron")) return "/assets/nvidia.svg";
+  if (brand === "meta" || brand === "llama" || modelId.includes("llama")) return "/assets/llama.svg";
+  if (brand === "mistral" || modelId.includes("mistral")) return "/assets/mistral.svg";
+  if (brand === "intel" || modelId.includes("intel")) return "/assets/intel.svg";
+  return "/assets/b70-launcher.svg";
+}
+
+function isDetected(modelId, eng) {
+  const m = SC[modelId];
+  if (!m) return false;
+  if (eng) return !!(m[eng] && m[eng].detected);
+  return Object.values(m).some((d) => d.detected);
+}
+
+function renderModels() {
+  renderCatalogNews();
+  if (!S || !S.recipes || !S.recipes.models) return;
+  const list = $("models-list");
+  list.innerHTML = "";
+  const q = ($("modelsearch").value || "").trim().toLowerCase();
+
+  const filtered = S.recipes.models.filter((m) => {
+    if (q) {
+      const match = m.name.toLowerCase().includes(q) || (m.subtitle || "").toLowerCase().includes(q) || (m.arch || "").toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (SIZE_FILTER === 'small') {
+      const isSmall = (m.subtitle || '').includes('27B') || (m.arch || '').includes('27B');
+      if (!isSmall) return false;
+    } else if (SIZE_FILTER === 'medium') {
+      const isMed = (m.subtitle || '').includes('35B') || (m.arch || '').includes('35B') || (m.arch || '').includes('30B');
+      if (!isMed) return false;
+    } else if (SIZE_FILTER === 'large') {
+      const isLarge = (m.subtitle || '').includes('180B') || (m.arch || '').includes('180B') || (m.arch || '').includes('70B');
+      if (!isLarge) return false;
+    }
+    if (FILTER === "rec") return m.badge || (m.chips && m.chips.includes("Instruct")) || m.id.startsWith("qwen36") || m.id.startsWith("qwen38");
+    if (FILTER === "disk") return isDetected(m.id);
+    return true;
+  });
+
+  // First-run hint: nothing at all was found on disk.
+  const totalDetected = Object.values(SC).reduce(
+    (acc, mm) => acc + Object.values(mm || {}).filter((d) => d.detected).length, 0);
+  if (totalDetected === 0 && SC_CATALOG.length === 0) {
+    const notice = document.createElement("div");
+    notice.className = "empty-state";
+    notice.innerHTML = `<strong>No models found on this PC yet.</strong><br>
+      Pick a model below, then use <strong>↓ Download</strong> (when offered) or
+      <strong>Browse…</strong> to point the launcher at a file you already have.`;
+    list.appendChild(notice);
+  }
+
+  if (filtered.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = FILTER === "disk"
+      ? `<strong>Nothing on disk yet.</strong><br>Pick a model, then use ↓ Download or Browse… to add its file.`
+      : (q ? `<strong>No matches.</strong><br>Try a different search, or clear the filters above.`
+          : `<strong>No models to show.</strong><br>Try the "All Models" filter above.`);
+    list.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((m) => {
+    const isSel = SEL && SEL.id === m.id;
+    const detected = isDetected(m.id);
+    const card = document.createElement("div");
+    card.className = "model-card" + (isSel ? " sel" : "");
+    card.onclick = () => selectModel(m);
+
+    const isRec = m.badge || m.id.startsWith("qwen36") || m.id === "qwen38-flashnext";
+    const brandSvg = getBrandLogo(m.brand, m.id);
+    const chips = m.chips || ["LLM", "Instruct"];
+    const recEng = recommendedEngine(m);
+    let diskBadge = "";
+    if (detected) {
+      const sz = fmtSizeGB(detectedSizeMib(m.id, recEng));
+      diskBadge = `<span class='badge-disk'><span class='dot'></span>On disk${sz ? " · " + sz : ""}</span>`;
+    } else {
+      const need = sizeLabelApprox(m, recEng);
+      diskBadge = need ? `<span class='badge-need' title="Approximate download size — not on disk yet">Needs ${need}</span>` : "";
+    }
+
+    card.innerHTML = `
+      <div class="model-card-top">
+        ${isRec ? "<span class='badge-rec'>Recommended</span>" : "<span></span>"}
+        ${hasRecipeNotice(m) ? "<span class='badge-recipe-new' title='A newer recipe for this model is published — select it to review'>New recipe</span>" : ""}
+        ${diskBadge}
+      </div>
+      <div class="model-card-body">
+        <div class="model-brand-icon">
+          <img src="${brandSvg}" alt="${m.brand || 'brand'}" />
+        </div>
+        <div class="model-card-info">
+          <div class="model-card-name">${m.name}</div>
+          <div class="model-card-sub">${m.subtitle || m.arch || 'High performance model'}</div>
+          <div class="model-card-chips">
+            ${chips.map((c) => `<span class='model-card-chip'>${c}</span>`).join("")}
+          </div>
+        </div>
+        <div class="model-card-chevron">&gt;</div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function selectModel(m) {
+  SEL = m;
+  CUSTOM_PATH = null;
+  const engKeys = Object.keys(m.recipes);
+  if (!engKeys.includes(ENGINE)) {
+    ENGINE = recommendedEngine(m) || "openvino";
+  }
+  renderModels();
+  renderEngines(); renderServerState(S.running);
+  updateConfigView();
+  updateSummary();
+}
+
+function renderEngines() {
+  if (!SEL) return;
+  const container = $("engine-cards");
+  container.innerHTML = "";
+
+  const meta = {};
+  ((S && S.recipes && S.recipes.engines) || []).forEach((e) => { meta[e.id] = e; });
+  const recEng = recommendedEngine(SEL);
+  const fallbackSubs = {
+    openvino: "Easiest • Intel's official server",
+    vllm: "Fastest • many users at once",
+    llamacpp: "Single GGUF file • most control",
+    exl3: "Smallest download • longest context"
+  };
+  const iconFor = (id) => "/assets/eng-" + (id === "openvino" ? "ovms" : id) + ".svg";
+  const allEngines = ["openvino", "vllm", "llamacpp", "exl3"].map((id) => ({
+    id,
+    name: (meta[id] && meta[id].label) || ENG_MAP[id] || id,
+    sub: (meta[id] && meta[id].tagline) || fallbackSubs[id] || "",
+    icon: iconFor(id),
+    isDef: id === recEng
+  }));
+
+  const recTag = $("engine-rec-tag");
+  if (recTag) {
+    recTag.textContent = "Recommended: " + ((meta[recEng] && meta[recEng].label) || ENG_MAP[recEng] || recEng || "—");
+  }
+
+  allEngines.forEach((eng) => {
+    const isAvail = !!SEL.recipes[eng.id];
+    const isSel = ENGINE === eng.id;
+    const card = document.createElement("div");
+    card.className = "engine-card" + (isSel ? " sel" : "") + (!isAvail ? " disabled" : "");
+    if (!isAvail) card.style.opacity = "0.5";
+    card.title = isAvail
+      ? ((meta[eng.id] && meta[eng.id].note) || eng.sub || eng.name)
+      : ((meta[eng.id] && meta[eng.id].note) || eng.name) + " — no recipe for this model";
+    card.onclick = () => {
+      if (isAvail) {
+        ENGINE = eng.id;
+        renderEngines(); renderServerState(S.running);
+        updateConfigView();
+        updateSummary();
+      }
+    };
+
+    card.innerHTML = `
+      <div class="engine-icon">
+        <img src="${eng.icon}" alt="${eng.id}" />
+      </div>
+      <div class="engine-info">
+        <div class="engine-name">${eng.name}</div>
+        <div class="engine-sub">${eng.sub}</div>
+      </div>
+      <div class="engine-right">
+        ${eng.isDef && isAvail ? "<span class='badge-default'>DEFAULT</span>" : ""}
+        <div class="radio-btn"></div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// ---- Recipe-update notices (remote catalog is newer than shipped) ----
+
+function recipeNoticeFor(mid, eng) {
+  const n = (S && S.recipe_notices) || {};
+  return n[mid + ":" + eng] || null;
+}
+
+function hasRecipeNotice(m) {
+  if (!m || !m.recipes) return false;
+  return Object.keys(m.recipes).some((e) => !!recipeNoticeFor(m.id, e));
+}
+
+// Notices for models not in the shipped catalog at all — render an
+// "add" strip on top of the library so they are discoverable.
+function renderCatalogNews() {
+  const box = $("catalog-news");
+  if (!box) return;
+  const fresh = Object.values((S && S.recipe_notices) || {}).filter((n) => n.is_new);
+  if (!fresh.length) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = fresh.map((n) =>
+    `<div class="cn-title">✦ New in the catalog: ${esc(n.model_name)}</div>` +
+    (n.note ? `<div class="cn-note">${esc(n.note)}</div>` : "") +
+    `<div><button onclick="applyRecipeUpdate('${String(n.model_id).replace(/[^a-zA-Z0-9_.-]/g, "")}','${String(n.engine).replace(/[^a-zA-Z0-9_.-]/g, "")}')">↓ Add ${esc(n.model_name)}</button></div>`
+  ).join("");
+  box.style.display = "block";
+}
+
+function renderRecipeNotice() {
+  const box = $("recipe-update-box");
+  if (!box) return;
+  const n = (SEL && ENGINE) ? recipeNoticeFor(SEL.id, ENGINE) : null;
+  if (!n) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  const title = n.is_new ? "New recipe available" : "A better recipe is available";
+  const sub = n.is_new
+    ? `The published catalog now includes <strong>${esc(n.engine)}</strong> support for ${esc(n.model_name)}.`
+    : `Recipe <strong>${esc(n.remote_ver)}</strong> improves on your installed <strong>${esc(n.local_ver || "—")}</strong>.`;
+  const note = n.note ? `<div class="ru-note">${esc(n.note)}</div>` : "";
+  const applyBtn = n.can_apply
+    ? `<button class="ru-apply" id="ru-apply-btn" onclick="applyRecipeUpdate()">↓ Get updated recipe</button>`
+    : "";
+  box.innerHTML =
+    `<div class="ru-title">✦ ${title}${n.recommended ? " — recommended" : ""}</div>` +
+    `<div>${sub}</div>${note}` +
+    `<div class="ru-actions">${applyBtn}` +
+    `<span class="ru-ver">${esc(n.local_ver || "shipped")} → ${esc(n.remote_ver)}</span></div>`;
+  box.style.display = "block";
+}
+
+async function applyRecipeUpdate(mid, eng) {
+  mid = mid || SEL.id;
+  eng = eng || ENGINE;
+  const btn = $("ru-apply-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Updating…"; }
+  try {
+    const res = await post("/api/recipes/update", { model_id: mid, engine: eng });
+    if (res.error) {
+      toast("Recipe update failed: " + res.error, "err");
+      renderRecipeNotice();
+      renderCatalogNews();
+      return;
+    }
+    toast("Recipe updated to catalog " + (res.catalog_ver || "?") + " — refreshing…", "ok");
+    // pull fresh state so S.recipes and S.recipe_notices reflect the overlay
+    const [stateRes, scanRes] = await Promise.all([
+      fetch("/api/state").then((r) => r.json()),
+      fetch("/api/scan").then((r) => r.json()).catch(() => null),
+    ]);
+    if (stateRes && stateRes.recipes) {
+      S = stateRes;
+      // select the freshly added/updated model so the user sees it
+      SEL = S.recipes.models.find((m) => m.id === mid) ||
+            S.recipes.models.find((m) => m.id === SEL.id) || SEL;
+      if (SEL.recipes && SEL.recipes[eng]) ENGINE = eng;
+    }
+    if (scanRes) {
+      SC = scanRes.matches || SC;
+      SC_CATALOG = scanRes.catalog || SC_CATALOG;
+    }
+    renderModels();
+    renderEngines();
+    updateConfigView();
+    updateSummary();
+  } catch (e) {
+    toast("Recipe update failed: " + e, "err");
+    renderRecipeNotice();
+    renderCatalogNews();
+  }
+}
+
+// ---- Get-this-model helpers ----
+
+// Manual command(s) for a download spec, matching how the launcher fetches:
+//   kind=file     -> one curl per file (incl. extra_files)
+//   kind=snapshot -> hf download + git clone alternative
+function buildDownloadCmds(dl) {
+  const repo = (dl.repo || "").trim();
+  if (!repo) return null;
+  if ((dl.kind || "file") === "file") {
+    const files = [dl.name].concat(dl.extra_files || []).filter(Boolean);
+    if (!files.length) return `hf download ${repo}`;
+    return files
+      .map((f) => `curl -L -o ${f} "https://huggingface.co/${repo}/resolve/main/${f}"`)
+      .join("\n");
+  }
+  return `hf download ${repo}\n# or: git clone https://huggingface.co/${repo}`;
+}
+
+// Where an artifact should land on disk for the current engine.
+function downloadDestHint(dl) {
+  const settings = (S && S.settings) || {};
+  const repo = (dl.repo || "").trim();
+  const base = (dl.kind === "snapshot" && ENGINE === "openvino")
+    ? (settings.ovms_repo || "~/models/ovms-repo")
+    : (settings.models_dir || "~/models");
+  if (dl.kind === "snapshot" && repo) {
+    return base.replace(/\/+$/, "") + "/" + repo.split("/").pop();
+  }
+  return base;
+}
+
+function renderGetModel(detInfo) {
+  const box = $("getmodel-box");
+  if (!box) return;
+  const recipe = (SEL && SEL.recipes[ENGINE]) || {};
+  const dl = recipe.download || {};
+  if (detInfo && detInfo.detected) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+
+  const engLabel = ENG_MAP[ENGINE] || ENGINE;
+  const want = dl.name || dl.search || recipe.search_name ||
+    (recipe.source_model || recipe.gguf || recipe.model_path || "").split("/").pop() ||
+    (SEL.name + " weights");
+  const sz = sizeLabelApprox(SEL, ENGINE);
+  const quantTxt = dl.quant ? " · " + dl.quant : "";
+  const dest = downloadDestHint(dl);
+  const repo = (dl.repo || "").trim();
+  const searchQ = dl.hf_search || dl.search || "";
+
+  let html = `<div class="getmodel-title">↓ Get this model</div>`;
+  html += `<div><strong>${esc(want)}</strong>${esc(quantTxt)}${sz ? " — " + esc(sz) : ""} is needed to run ${esc(SEL.name)} on ${esc(engLabel)}.</div>`;
+
+  if (repo) {
+    const cmds = buildDownloadCmds(dl);
+    html += `<div style="margin-top:6px;">The <strong>↓ Download</strong> button above fetches it into <code>${esc(dest)}</code> automatically. Or run this in a terminal:</div>`;
+    if (cmds) {
+      html += `<div class="getmodel-cmd"><code id="gm-cmd">${esc(cmds)}</code><button class="conn-copy-btn" title="Copy command to clipboard" onclick="copyTextEl('gm-cmd')">⧉</button></div>`;
+    }
+    html += `<div style="margin-top:6px;">Files under <code>${esc(dest)}</code> (or any scanned folder) are picked up automatically — use Browse… afterwards if it does not show up.</div>`;
+  } else if (searchQ) {
+    const url = "https://huggingface.co/models?search=" + encodeURIComponent(searchQ);
+    html += `<div style="margin-top:6px;">No approved auto-download for this recipe — grab it manually:</div>`;
+    html += `<div class="getmodel-actions">` +
+      `<a class="btn-browse" href="${esc(url)}" target="_blank" rel="noopener">Get it manually — search Hugging Face ↗</a>` +
+      `</div>`;
+    html += `<div style="margin-top:6px;">Look for <strong>${esc(dl.name || searchQ)}</strong>${esc(quantTxt)}, place it under <code>${esc(dest)}</code>, then rescan:</div>`;
+    html += `<div class="getmodel-actions"><button class="btn-browse" onclick="rescanNow()">↻ Rescan disk</button></div>`;
+  } else {
+    const docUrl = recipe.doc || recipe.doc_url || recipe.docs || SEL.doc || SEL.doc_url || SEL.url;
+    if (docUrl) {
+      html += `<div class="getmodel-actions"><a class="btn-browse" href="${esc(docUrl)}" target="_blank" rel="noopener">Open recipe docs ↗</a></div>`;
+    } else {
+      html += `<div style="margin-top:6px;">No approved download source — see the recipe notes below.</div>`;
+    }
+    html += `<div style="margin-top:4px;">If you already have the file, use <strong>Browse…</strong> or Set Custom Path to point the launcher at it.</div>`;
+  }
+  box.innerHTML = html;
+  box.style.display = "block";
+}
+
+async function rescanNow() {
+  toast("Rescanning disk…", "ok");
+  try {
+    const sc = await fetch("/api/scan").then((r) => r.json());
+    SC = sc.matches || SC;
+    SC_CATALOG = sc.catalog || SC_CATALOG;
+    renderModels();
+    updateConfigView();
+    updateSummary();
+    toast("Rescan complete", "ok");
+  } catch (e) {
+    toast("Rescan failed: " + e, "err");
+  }
+}
+
+// Short, readable label for a hardware-preflight blocker string.
+function shortBlocker(b) {
+  const s = String(b || "").toLowerCase();
+  if (s.indexOf("docker") !== -1) return "Docker running";
+  if (s.indexOf("drm") !== -1 || s.indexOf("driver") !== -1) return "GPU driver working";
+  if (s.indexOf("b70") !== -1) return "Arc Pro B70 detected";
+  return b;
+}
+
+// "Needs: …" checklist above the Launch button (preflight blockers + missing artifact).
+function updateLaunchNeeds(detInfo) {
+  const el = $("launch-needs");
+  if (!el) return;
+  const needs = [];
+  ((S && S.preflight && S.preflight.blockers) || []).forEach((b) => needs.push(shortBlocker(b)));
+  // while a server is already up the button is Stop/Open — skip the artifact hint
+  if (!ACTIVE_SERVER && !(detInfo && detInfo.detected)) needs.push("model file on disk");
+  if (!needs.length) {
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `<span class="needs-label">Needs:</span> ` + needs.map((n) => esc(n)).join(" · ");
+  el.style.display = "block";
+}
+
+// True when the selection is the out-of-the-box recommended setup that is
+// already on disk — used for the one-line "ready to launch" reassurance.
+function isDefaultSetup(detInfo) {
+  if (!SEL || !detInfo || !detInfo.detected) return false;
+  const def = (S && S.preflight && S.preflight.default) || null;
+  const models = (S && S.recipes && S.recipes.models) || [];
+  const defModelId = (def && def.model_id) || (models[0] && models[0].id);
+  if (SEL.id !== defModelId) return false;
+  return ENGINE === recommendedEngine(SEL);
+}
+
+function updateConfigView() {
+  if (!SEL) return;
+  const recipe = SEL.recipes[ENGINE] || {};
+  const detInfo = (SC[SEL.id] && SC[SEL.id][ENGINE]) || {};
+
+  // KV options are engine-specific: llama.cpp wants --cache-type pairs,
+  // vLLM takes --kv-cache-dtype fp8; other engines leave it to the recipe.
+  const kvSel = $("kvtype");
+  if (kvSel) {
+    const opts = {
+      llamacpp: [["recipe default", "recipe default"],
+                 ["q5_0/q4_1", "q5_0 K + q4_1 V (recommended)"],
+                 ["q8_0", "q8_0 (conservative)"],
+                 ["q8_0/q4_1", "q8_0 K + q4_1 V"],
+                 ["f16", "f16 (not recommended)"]],
+      vllm: [["recipe default", "recipe default"], ["fp8", "fp8"]],
+      exl3: [["recipe default", "recipe default"], ["fp8", "fp8"]],
+      openvino: [["recipe default", "recipe default"]]
+    }[ENGINE] || [["recipe default", "recipe default"]];
+    const cur = kvSel.value;
+    kvSel.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+    kvSel.value = opts.some(([v]) => v === cur) ? cur : "recipe default";
+  }
+
+  // Model file status — honest detected vs not-detected states
+  const fileTag = $("file-status-tag");
+  const fileInput = $("modelfile");
+  const fileHint = $("file-hint");
+  const dlBtn = $("btn-download");
+  const dl = recipe.download || {};
+  const sizeTxt = fmtSizeGB(detInfo.size_mib != null ? detInfo.size_mib : catalogSizeFor(detInfo.path));
+  if (CUSTOM_PATH) {
+    fileTag.textContent = "➤ Custom artifact";
+    fileTag.style.color = "var(--accent)";
+    fileInput.value = ".../" + CUSTOM_PATH.split("/").slice(-2).join("/");
+    fileInput.title = CUSTOM_PATH;
+    fileInput.style.color = "";
+    if (dlBtn) dlBtn.style.display = "none";
+    if (fileHint) {
+      fileHint.style.display = "block";
+      fileHint.textContent = "Custom file overrides this recipe's artifact — pick a model card to revert.";
+    }
+  } else if (detInfo.detected && detInfo.path) {
+    fileTag.textContent = "✔ Found on disk" + (sizeTxt ? ` (${sizeTxt})` : "");
+    fileTag.style.color = "var(--ok)";
+    fileInput.value = ".../" + detInfo.path.split("/").slice(-2).join("/");
+    fileInput.title = detInfo.path;
+    fileInput.style.color = "";
+    if (fileHint) fileHint.style.display = "none";
+    if (dlBtn) dlBtn.style.display = "none";
+  } else {
+    fileTag.textContent = "⚠ Not found on disk";
+    fileTag.style.color = "var(--warn)";
+    const expected = dl.name || dl.search || recipe.search_name ||
+      (recipe.source_model || recipe.gguf || recipe.model_path || "").split("/").pop() ||
+      (SEL.name + " weights");
+    fileInput.value = "Needed: " + expected;
+    fileInput.title = expected;
+    fileInput.style.color = "var(--warn)";
+    if (dlBtn) {
+      const canAutoDl = !!(dl.repo || "").trim();
+      dlBtn.style.display = canAutoDl ? "inline-block" : "none";
+      const needSz = sizeLabelApprox(SEL, ENGINE);
+      dlBtn.textContent = "↓ Download" + (needSz ? " " + needSz : "");
+      dlBtn.title = "Fetch the approved artifact into your models folder";
+    }
+    if (fileHint) {
+      fileHint.style.display = "block";
+      fileHint.textContent = (dl.repo || "").trim()
+        ? "Not installed — use ↓ Download to fetch it, or Browse… if you already have the file."
+        : "Not installed — see Get this model below, or Browse… to point at a file you have.";
+    }
+  }
+
+  // "Get this model" block (only when the artifact is missing)
+  renderGetModel(detInfo);
+
+  // Improved-recipe notice (remote catalog newer than shipped)
+  renderRecipeNotice();
+
+  // Selection changed — stale launch errors no longer apply
+  const launchErr = $("launch-err");
+  if (launchErr) launchErr.style.display = "none";
+
+  // Context size
+  const engineCtx = recipe.ctx_safe || recipe.ctx || detInfo.ctx_native || 262144;
+  const ceiling = recipe.ctx_max || engineCtx;
+  window.CTX_SAFE = Math.min(engineCtx, ceiling);
+  window.CTX_MAX = ceiling;
+  $("ctx").max = ceiling;
+  $("ctx").value = window.CTX_SAFE;
+  $("ctx-safe-btn").textContent = "Safe · " + window.CTX_SAFE.toLocaleString();
+  $("ctx-max-btn").textContent = "Max · " + ceiling.toLocaleString();
+  $("ctx-subtext").textContent = ceiling < 262144
+    ? "Engine ceiling: " + ceiling.toLocaleString() + " (model native: 262,144)"
+    : "Full model context supported: " + ceiling.toLocaleString();
+
+  // Recipe notes — only claim dual-GPU when the recipe actually uses 2 cards
+  const gpuCount = detectedGpuCount();
+  const wantsDual = recipe.tp > 1 || (recipe.gpus && recipe.gpus.length > 1);
+  const engLabel = ENG_MAP[ENGINE] || ENGINE;
+  const notesBody = $("recipe-notes-body");
+  const lines = [];
+  if (wantsDual) {
+    lines.push(gpuCount >= 2
+      ? "Multi-GPU recipe — work is split across both B70 cards."
+      : "⚠ This recipe is designed for 2× B70, but only " + (gpuCount === 1 ? "1 GPU was" : "no GPUs were") + " detected on this PC.");
+  } else {
+    lines.push("Validated " + engLabel + " recipe for Arc Pro B70.");
+  }
+  if (recipe.ctx_note) lines.push("Context: " + recipe.ctx_note);
+  if (recipe.perf) lines.push("Performance: " + recipe.perf);
+  if (recipe.spec_tokens || recipe.speculative || recipe.draft_model) {
+    lines.push('<span title="Speculative decoding: a small draft model guesses the next tokens so the big model only verifies them — replies generate faster">Speculative decoding (MTP) enabled ⓘ</span>');
+  }
+  if (lines.length === 1) lines.push("Supports long-context chat, RAG, and coding workloads.");
+  notesBody.innerHTML = lines.join("<br>");
+
+  // Recommendation
+  const gpuWord = gpuCount > 1 ? `your ${gpuCount}× B70 setup` : (gpuCount === 1 ? "your B70" : "Arc Pro B70");
+  $("sys-rec-desc").textContent = SEL.recommendation ||
+    `Validated recipe for ${gpuWord} — runs well with ${engLabel}.`;
+}
+
+function updateSummary() {
+  if (!SEL) return;
+  $("sum-model").textContent = SEL.name;
+  const isRec = SEL.badge || SEL.id.startsWith("qwen36") || SEL.id === "qwen38-flashnext";
+  $("sum-rec-pill").style.display = isRec ? "inline-block" : "none";
+
+  $("sum-engine").textContent = ENG_MAP[ENGINE] || ENGINE;
+  $("sum-engine-pill").style.display = ENGINE === recommendedEngine(SEL) ? "inline-block" : "none";
+
+  const ctxVal = parseInt($("ctx").value || 262144, 10);
+  $("sum-ctx").textContent = ctxVal.toLocaleString();
+
+  // Honest model-file status in the summary
+  const detInfo = (SC[SEL.id] && SC[SEL.id][ENGINE]) || {};
+  const sumFile = $("sum-file");
+  if (detInfo.detected && detInfo.path) {
+    const sizeTxt = fmtSizeGB(detInfo.size_mib != null ? detInfo.size_mib : catalogSizeFor(detInfo.path));
+    sumFile.textContent = "On disk" + (sizeTxt ? ` (${sizeTxt})` : "");
+    sumFile.style.color = "";
+  } else {
+    sumFile.textContent = "Not on disk";
+    sumFile.style.color = "var(--warn)";
+  }
+  $("conn-model-name").textContent = SEL.name;
+
+  const gpuCount = detectedGpuCount();
+  $("sum-gpus").innerHTML = gpuCount > 0
+    ? `${gpuCount} × Arc Pro B70 <span style="color: var(--ok); font-weight: 500;">(Ready)</span>`
+    : `No B70 detected <span style="color: var(--warn); font-weight: 500;">(check drivers)</span>`;
+
+  // Easy-mode reassurance line — only for the all-default, on-disk setup
+  const easyNote = $("easy-note");
+  if (easyNote) easyNote.style.display = isDefaultSetup(detInfo) ? "flex" : "none";
+
+  // "Needs: …" checklist above the Launch button
+  updateLaunchNeeds(detInfo);
+
+  const portVal = $("port").value || 8000;
+  $("conn-http").textContent = `http://localhost:${portVal}`;
+  $("conn-openai").textContent = `http://localhost:${portVal}/v1`;
+}
+
+function closeModal() {
+  $("modal").style.display = "none";
+}
+
+async function waitForEndpoint(port, rid, timeoutMs = 900000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/v1/models`, { signal: AbortSignal.timeout(3000) });
+      if (r.ok) return true;
+    } catch (e) {}
+    let lastLine = "";
+    try {
+      const lr = await fetch(`/api/logs?id=${encodeURIComponent(rid)}`, { signal: AbortSignal.timeout(3000) });
+      const lj = await lr.json();
+      const lines = (lj.lines || []).filter(l => l.trim());
+      lastLine = lines.length ? lines[lines.length - 1].trim() : "";
+    } catch (e) {}
+    const secs = Math.round((Date.now() - t0) / 1000);
+    const el = Math.floor(secs / 60) + "m " + (secs % 60) + "s";
+    $("conn-status-msg").textContent = lastLine
+      ? `Loading… ${el} — ${lastLine.slice(-110)}`
+      : `Model loading on port ${port}… (${el})`;
+    $("conn-status-msg").style.color = "var(--warn, #e0a030)";
+    await new Promise(res => setTimeout(res, 5000));
+  }
+  return false;
+}
+
+async function launchModel(dryRun = false, detached = false) {
+  $("launch-dropdown").classList.remove("open");
+  if (!SEL) return;
+  if (!dryRun && ACTIVE_SERVER) {
+    // a server is already up — never relaunch; just open the chosen client
+    toast("Server already running — opening " + (HARNESS || "client") + " against :" + ACTIVE_SERVER.port, "ok");
+    await openHarnessNow(HARNESS);
+    return;
+  }
+  const cfg = {
+    model: SEL.id,
+    model_id: CUSTOM_PATH ? "__custom__" : SEL.id,
+    custom_path: CUSTOM_PATH || undefined,
+    engine: ENGINE,
+    ctx: parseInt($("ctx").value, 10),
+    port: parseInt($("port").value, 10),
+    power: parseInt($("powermode").value, 10),
+    kv: $("kvtype").value,
+    harness: HARNESS,
+    dry_run: dryRun,
+    gpu0: 0,
+    slots: 1
+  };
+
+  try {
+    const res = await post("/api/launch", cfg);
+
+    if (dryRun) {
+      $("modal-title").textContent = "Dry Run Command Preview";
+      let txt = res.cmd || res.cmd_line || "";
+      if (!txt && res.error) txt = "Error: " + res.error;
+      if (!txt) txt = JSON.stringify(res, null, 2);
+      if (res.env && Object.keys(res.env).length) {
+        txt += "\n\n# Environment:\n" + Object.entries(res.env).map(([k, v]) => k + "=" + v).join("\n");
+      }
+      if (res.warnings && res.warnings.length) {
+        txt += "\n\n# Warnings:\n" + res.warnings.map((w) => "# - " + w).join("\n");
+      }
+      if (res.power_cmd) {
+        txt += "\n\n# Power: " + res.power_cmd;
+      }
+      if (res.recipe_notice) {
+        txt += "\n\n# Note: recipe " + res.recipe_notice.remote_ver + " is published" +
+          (res.recipe_notice.note ? " — " + res.recipe_notice.note : "") +
+          " (your install: " + (res.recipe_notice.local_ver || "shipped") + ")";
+      }
+      if (res.harness_line) txt += "\n\n# Client launch:\n" + res.harness_line;
+      $("modal-code").textContent = txt;
+      $("modal").style.display = "flex";
+    } else if (res.error) {
+      toast("Error: " + res.error, "err");
+      const le = $("launch-err");
+      if (le) {
+        le.textContent = "Launch failed: " + res.error;
+        le.style.display = "block";
+      }
+      updateLaunchNeeds((SC[SEL.id] && SC[SEL.id][ENGINE]) || {});
+    } else if (res.already_running) {
+      toast("Server already running — opening client on :" + cfg.port, "ok");
+    } else {
+      const le = $("launch-err");
+      if (le) le.style.display = "none";
+      const eta = { exl3: "~5-8 min (kernel JIT compile)", vllm: "~2-4 min (weight load + graph capture)", openvino: "~1-3 min (IR compile)", llamacpp: "~1-2 min" }[cfg.engine] || "a few minutes";
+      const noticeTxt = res.recipe_notice ? " — a newer recipe is published (see notice)" : "";
+      toast("Model launched — ETA " + eta + noticeTxt + ". Watching endpoint :" + cfg.port + "…", "ok");
+      renderRecipeNotice();
+      window.MODEL_LOADING = true;
+      $("conn-status-msg").textContent = "Model loading on port " + cfg.port + "…";
+      $("conn-status-msg").style.color = "var(--warn, #e0a030)";
+      const live = await waitForEndpoint(cfg.port, res.id || `${cfg.model}-${cfg.engine}-${cfg.port}`);
+      window.MODEL_LOADING = false;
+      if (live) {
+        toast("Endpoint live! Opening " + (HARNESS || "client") + "…", "ok");
+        $("conn-status-msg").textContent = "Endpoint is active on port " + cfg.port;
+        $("conn-status-msg").style.color = "var(--ok)";
+        await openHarnessNow(HARNESS);
+      } else {
+        toast("Server started but endpoint did not come up in time — check live engine logs.", "err");
+        $("conn-status-msg").textContent = "Endpoint did not respond on port " + cfg.port;
+      }
+    }
+  } catch (err) {
+    toast("Request failed: " + err, "err");
+  }
+}
+
+async function pollTelemetry() {
+  try {
+    const metrics = await fetch("/api/metrics").then((r) => r.json());
+    if (metrics && metrics.power && metrics.power.length) {
+      const g0 = metrics.power[0];
+      const g1 = metrics.power[1] || g0;
+      // Single-GPU systems: don't mirror GPU 0 into the GPU 1 card
+      const teleCards = document.querySelectorAll(".gpu-tele-card");
+      if (teleCards[1]) teleCards[1].style.display = metrics.power.length > 1 ? "" : "none";
+      const footerEl = document.querySelector("footer");
+      if (footerEl && metrics.power.length < 2) footerEl.style.gridTemplateColumns = "1fr";
+
+      const paint = (g, p) => {
+        if (!g) return;
+        const el = (s) => $(p + "-" + s);
+        el("name").textContent = g.name || "GPU Arc Pro B70";
+        el("util").textContent = g.util_pct != null ? g.util_pct + "%" : "—";
+        el("util-bar").style.width = (g.util_pct || 0) + "%";
+        el("vram").textContent = (g.vram_used_gb != null && g.vram_total_gb != null)
+          ? g.vram_used_gb + " GB / " + g.vram_total_gb + " GB" : "—";
+        el("vram-bar").style.width = (g.vram_used_gb != null && g.vram_total_gb)
+          ? Math.round((g.vram_used_gb / g.vram_total_gb) * 100) + "%" : "0%";
+        const cap = g.cap_w || 150;
+        el("watts").textContent = g.watts != null ? g.watts + " W / " + cap + " W" : "— W / " + cap + " W";
+        el("watts-bar").style.width = g.watts != null ? Math.round((g.watts / cap) * 100) + "%" : "0%";
+        el("temp").textContent = g.temp_c != null ? g.temp_c + " °C" : "—";
+        el("temp-bar").style.width = g.temp_c != null ? Math.min(100, Math.round((g.temp_c / 90) * 100)) + "%" : "0%";
+      };
+      paint(g0, "g0"); paint(g1, "g1");
+    }
+  } catch (e) {}
+}
+
+
+let ACTIVE_SERVER = null;
+let LOGS_INTERVAL = null;
+
+function renderServerState(runningList) {
+  const launchBtn = $('launch-btn');
+  const reopenBtn = $('btn-reopen-harness');
+  const running = (runningList || []).find(s => s.status === 'starting' || (s.status || '').startsWith('running'));
+  ACTIVE_SERVER = running || null;
+
+  const shortNames = {
+    pi: "Pi",
+    droid: "Factory Droid",
+    omp: "OMP",
+    webui: "Open Web UI"
+  };
+  const currentApp = shortNames[HARNESS] || "Pi";
+
+  if (running) {
+    launchBtn.classList.add('running-stop');
+    const loading = window.MODEL_LOADING || running.status === 'starting';
+    let elapsed = "";
+    if (running.started) {
+      const t0 = new Date(running.started.replace(' ', 'T'));
+      const secs = Math.max(0, Math.round((Date.now() - t0) / 1000));
+      if (secs > 5) elapsed = ` ${Math.floor(secs/60)}m${secs%60}s`;
+    }
+    launchBtn.innerHTML = loading
+      ? `<span>⏳</span> Loading${elapsed}… <span style="font-size:10px;opacity:.8">(click to stop)</span>`
+      : `<span>■</span> Stop Server (${running.port})`;
+    launchBtn.title = loading
+      ? `${running.model} is still loading on port ${running.port} — click to abort`
+      : `Stop active server ${running.model} running on port ${running.port}`;
+    launchBtn.onclick = () => stopRunningServer(running.id);
+
+    if (reopenBtn) {
+      reopenBtn.style.display = 'flex';
+      reopenBtn.innerHTML = `<span>↗</span> Open ${currentApp}`;
+      reopenBtn.title = `Launch another ${currentApp} session connected to :${running.port}`;
+      reopenBtn.onclick = () => openSelectedHarness();
+    }
+    
+    if (!window.MODEL_LOADING) {
+      $('conn-status-msg').textContent = `● Server active on port ${running.port} (inference ready)`;
+      $('conn-status-msg').style.color = 'var(--ok)';
+    }
+
+    renderLaunchDropdown(true);
+
+    let logsBtn = $('btn-live-logs');
+    if (!logsBtn) {
+      logsBtn = document.createElement('button');
+      logsBtn.id = 'btn-live-logs';
+      logsBtn.className = 'test-prompt-btn';
+      logsBtn.style.marginTop = '8px';
+      logsBtn.style.width = '100%';
+      logsBtn.style.justifyContent = 'center';
+      logsBtn.innerHTML = '📄 View Live Engine Logs';
+      logsBtn.onclick = () => openLogsModal(running.id);
+      $('launch-btn').parentElement.after(logsBtn);
+    }
+  } else {
+    launchBtn.classList.remove('running-stop');
+    launchBtn.innerHTML = '<span>▶</span> Launch Model';
+    launchBtn.title = 'Launch selected model and engine';
+    launchBtn.onclick = () => launchModel(false);
+
+    if (reopenBtn) {
+      reopenBtn.style.display = 'none';
+    }
+    
+    renderLaunchDropdown(false);
+
+    const logsBtn = $('btn-live-logs');
+    if (logsBtn) logsBtn.remove();
+    
+    if (!window.MODEL_LOADING) {
+      $('conn-status-msg').textContent = 'Endpoint will be available after launch';
+      $('conn-status-msg').style.color = 'var(--fg-faint)';
+    }
+  }
+}
+
+function renderLaunchDropdown(isRunning) {
+  const dd = $('launch-dropdown');
+  if (!dd) return;
+  if (isRunning) {
+    dd.innerHTML = `
+      <div style="font-size: 10px; color: var(--fg-faint); padding: 4px 8px; font-weight: 600; text-transform: uppercase;">Open in client:</div>
+      <button onclick="openHarnessNow('pi')">↗ Open Pi (Local AI chat)</button>
+      <button onclick="openHarnessNow('omp')">↗ Open OMP (Open Model Platform)</button>
+      <button onclick="openHarnessNow('droid')">↗ Open Factory Droid</button>
+      <button onclick="openHarnessNow('webui')">↗ Open in Browser (Web UI)</button>
+    `;
+  } else {
+    dd.innerHTML = `
+      <button onclick="launchModel(true)">Preview Command (Dry Run)</button>
+      <button onclick="launchModel(false, true)">Launch Detached (Background)</button>
+    `;
+  }
+}
+
+async function stopRunningServer(id) {
+  if (!confirm('Stop the running inference server?')) return;
+  try {
+    const res = await post('/api/stop', { id: id });
+    toast('Server stopped.', 'ok');
+    setTimeout(refreshState, 1000);
+  } catch (e) {
+    toast('Stop failed: ' + e, 'err');
+  }
+}
+
+function openLogsModal(srvId) {
+  $('logs-modal').style.display = 'flex';
+  $('logs-modal-title').textContent = 'Live Engine Logs — Server ' + (srvId || '');
+  fetchLogsNow();
+  if (LOGS_INTERVAL) clearInterval(LOGS_INTERVAL);
+  LOGS_INTERVAL = setInterval(fetchLogsNow, 2000);
+}
+
+function closeLogsModal() {
+  $('logs-modal').style.display = 'none';
+  if (LOGS_INTERVAL) {
+    clearInterval(LOGS_INTERVAL);
+    LOGS_INTERVAL = null;
+  }
+}
+
+async function fetchLogsNow() {
+  if (!ACTIVE_SERVER) return;
+  try {
+    const res = await fetch('/api/logs?id=' + encodeURIComponent(ACTIVE_SERVER.id)).then(r => r.json());
+    const box = $('logs-modal-content');
+    if (res.lines) {
+      box.textContent = res.lines.join('\n');
+      box.scrollTop = box.scrollHeight;
+    }
+  } catch (e) {}
+}
+
+async function refreshState() {
+  try {
+    const state = await fetch('/api/state').then(r => r.json());
+    if (state && state.running) {
+      renderServerState(state.running);
+    }
+  } catch (e) {}
+}
+
+async function init() {
+  try {
+    const [stateRes, scanRes] = await Promise.all([
+      fetch("/api/state").then((r) => r.json()),
+      fetch("/api/scan").then((r) => r.json()).catch(() => ({ matches: {}, catalog: [] }))
+    ]);
+    S = stateRes;
+    SC = scanRes.matches || {};
+    SC_CATALOG = scanRes.catalog || [];
+
+    // Header info
+    if (S.version) $("hdr-ver").textContent = "v" + S.version;
+
+    if (S.update && S.update.has_update) {
+      const ub = document.getElementById("update-banner");
+      const ut = document.getElementById("update-text");
+      const ul = document.getElementById("update-link");
+      if (ub && ut && ul) {
+        ut.textContent = S.update.message || "This recipe has improved since you last used it! A new version of B70 Launcher is available.";
+        ul.href = S.update.download_url || "https://xecores.com/match";
+        ub.style.display = "block";
+      }
+    }
+
+    if (S.preflight && S.preflight.profile) {
+      const cnt = S.preflight.profile.b70_count || 0;
+      $("hdr-gpus").textContent = cnt ? `${cnt}× Arc Pro B70` : "No B70 detected";
+      const st = $("hdr-gpu-state");
+      st.textContent = cnt ? "Ready" : "Not found";
+      st.style.color = cnt ? "" : "var(--warn)";
+    }
+    const hits = Object.values(SC).reduce((acc, m) => acc + Object.values(m).filter((d) => d.detected).length, 0);
+    $("hdr-artifacts").textContent = `${hits} artifact${hits === 1 ? "" : "s"} on disk`;
+    const diskEl = $("hdr-disk-avail");
+    if (scanRes.free_gb != null) {
+      diskEl.textContent = scanRes.free_gb >= 1024
+        ? `~${(Math.round(scanRes.free_gb / 102.4) / 10)} TB free`
+        : `~${Math.round(scanRes.free_gb)} GB free`;
+    } else {
+      diskEl.style.display = "none";
+      if (diskEl.previousElementSibling) diskEl.previousElementSibling.style.display = "none";
+    }
+
+    // Select default model
+    SEL = S.recipes.models.find((m) => m.id === "qwen36-35b") || S.recipes.models[0];
+    ENGINE = recommendedEngine(SEL) || "openvino";
+    renderModels();
+    renderEngines(); renderServerState(S.running);
+    updateConfigView();
+    updateSummary();
+
+    // Telemetry polling
+    pollTelemetry();
+    setInterval(pollTelemetry, 2500);
+    setInterval(refreshState, 3500);
+  } catch (err) {
+    console.error("Init failed:", err);
+  }
+}
+
+$("ctx").addEventListener("input", updateSummary);
+$("port").addEventListener("input", updateSummary);
+$("modelsearch").addEventListener("input", renderModels);
+
+
+let SIZE_FILTER = 'all';
+
+function toggleSizeDrop() {
+  const d = $('size-dropdown');
+  d.classList.toggle('open');
+}
+
+function setSizeFilter(size, label) {
+  SIZE_FILTER = size;
+  const btn = $('flt-size');
+  btn.textContent = label;
+  const drop = $('size-dropdown');
+  drop.classList.remove('open');
+  drop.querySelectorAll('.size-opt-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === label || (size === 'all' && b.textContent === 'All Sizes'));
+  });
+  renderModels();
+}
+
+function setCtxSafe() { $("ctx").value = window.CTX_SAFE || 65536; updateSummary(); }
+function setCtxMax() { $("ctx").value = window.CTX_MAX || 262144; updateSummary(); }
+
+function setCtxPreset(val) {
+  $('ctx').value = Math.min(val, parseInt($('ctx').max, 10) || val);
+  updateSummary();
+  toast('Context size set to ' + val.toLocaleString(), 'ok');
+}
+
+function focusStep(n) {
+  [1, 2, 3].forEach((i) => {
+    const el = $('step-node-' + i);
+    if (el) {
+      if (i === n) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+  });
+  const cols = document.querySelectorAll('.col-panel');
+  if (cols[n - 1]) {
+    cols[n - 1].classList.remove('focused-pulse');
+    void cols[n - 1].offsetWidth; // trigger reflow
+    cols[n - 1].classList.add('focused-pulse');
+    cols[n - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function openBrowseModal() {
+  const box = $('artifact-list-box');
+  box.innerHTML = '';
+  const detectedList = [];
+  if (SEL && SC[SEL.id]) {
+    Object.entries(SC[SEL.id]).forEach(([eng, d]) => {
+      if (d.detected && d.path) detectedList.push({ path: d.path, eng: eng });
+    });
+  }
+  SC_CATALOG.forEach(cat => {
+    if (!detectedList.some(d => d.path === cat.path)) {
+      detectedList.push({ path: cat.path, eng: 'scan' });
+    }
+  });
+
+  if (detectedList.length === 0) {
+    box.innerHTML = '<div style="color: var(--fg-faint); padding: 8px; font-size: 11px;">No model files found in scan roots. Specify a path below.</div>';
+  } else {
+    detectedList.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'artifact-item';
+      row.innerHTML = `<span>📁 ${item.path}</span><span style="color: var(--ok); font-size: 9.5px;">SELECT</span>`;
+      row.onclick = () => applyCustomPath(item.path);
+      box.appendChild(row);
+    });
+  }
+  $('browse-modal').style.display = 'flex';
+}
+
+function closeBrowseModal() {
+  $('browse-modal').style.display = 'none';
+}
+
+function applyCustomPath(p) {
+  const val = (p || $('custom-model-path').value).trim();
+  if (val) {
+    CUSTOM_PATH = val;
+    updateConfigView();
+    toast('Custom artifact set — engine must match its format', 'ok');
+    closeBrowseModal();
+  }
+}
+
+async function startDownload() {
+  if (!SEL || !ENGINE) return;
+  try {
+    const res = await post("/api/download", { model_id: SEL.id, engine: ENGINE });
+    if (res.error) {
+      toast(res.error, "err");
+      return;
+    }
+    toast("Download started — fetching model files…", "ok");
+    pollDownload();
+  } catch (e) {
+    toast("Download failed: " + e, "err");
+  }
+}
+
+async function pollDownload() {
+  if (!SEL) return;
+  const did = SEL.id + "-" + ENGINE;
+  try {
+    const res = await fetch("/api/downloads").then((r) => r.json());
+    const d = res[did];
+    const fileTag = $("file-status-tag");
+    if (!d || !fileTag) return;
+    if (d.state === "queued" || d.state === "resolving" || d.state === "downloading") {
+      fileTag.textContent = (d.state === "downloading" && d.pct != null)
+        ? `↓ Downloading… ${d.pct}%`
+        : "↓ Downloading…";
+      fileTag.style.color = "var(--accent-light)";
+      setTimeout(pollDownload, 2000);
+    } else if (d.state === "done") {
+      toast("Download finished — rescanning disk…", "ok");
+      const sc = await fetch("/api/scan").then((r) => r.json()).catch(() => null);
+      if (sc) {
+        SC = sc.matches || SC;
+        SC_CATALOG = sc.catalog || SC_CATALOG;
+        renderModels();
+        updateConfigView();
+        updateSummary();
+      }
+    } else if (d.state === "error") {
+      fileTag.textContent = "⚠ Download failed";
+      fileTag.style.color = "var(--err)";
+      toast("Download failed: " + (d.error || "unknown error"), "err");
+    }
+  } catch (e) {}
+}
+
+function openTestModal() {
+  $('test-modal').style.display = 'flex';
+  $('test-response-box').style.display = 'none';
+  $('test-response-box').textContent = '';
+}
+
+function closeTestModal() {
+  $('test-modal').style.display = 'none';
+}
+
+async function runInferenceTest() {
+  const btn = $('btn-run-test');
+  const box = $('test-response-box');
+  const prompt = $('test-prompt-input').value.trim() || 'Why is dual Intel Arc Pro B70 effective for local MoE inference?';
+  const port = (ACTIVE_SERVER && ACTIVE_SERVER.port) ? ACTIVE_SERVER.port : (parseInt($('port').value, 10) || 8000);
+  const modelId = (ACTIVE_SERVER && ACTIVE_SERVER.model_id) ? ACTIVE_SERVER.model_id : (SEL ? SEL.id : '');
+  box.style.display = 'block';
+  box.textContent = 'Connecting via launcher to endpoint on port ' + port + ' ...\n';
+  btn.disabled = true;
+
+  try {
+    const data = await post('/api/test_prompt', {
+      prompt: prompt,
+      port: port,
+      model: modelId
+    });
+    if (data.ok) {
+      box.textContent = `[HTTP 200 OK in ${data.latency_s}s — ${data.tokens} completion tokens — Model: ${data.model}]\n\n${data.reply}`;
+    } else {
+      box.textContent = `[Inference Test Failed]\n${data.error || 'Endpoint offline or loading'}`;
+    }
+  } catch (err) {
+    box.textContent += 'Connection failed: ' + err.message + '\n(Endpoint is offline or still loading weights)';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Escape closes any open modal/dropdown
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  ['modal', 'browse-modal', 'test-modal', 'logs-modal'].forEach((id) => {
+    const el = $(id);
+    if (el) el.style.display = 'none';
+  });
+  if (LOGS_INTERVAL) {
+    clearInterval(LOGS_INTERVAL);
+    LOGS_INTERVAL = null;
+  }
+  const sd = $('size-dropdown');
+  if (sd) sd.classList.remove('open');
+  const ld = $('launch-dropdown');
+  if (ld) ld.classList.remove('open');
+});
+
+// Global click to close dropdowns
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#flt-size') && !e.target.closest('#size-dropdown')) {
+    const d = $('size-dropdown');
+    if (d) d.classList.remove('open');
+  }
+  if (!e.target.closest('.launch-split-btn') && !e.target.closest('#launch-dropdown')) {
+    const d = $('launch-dropdown');
+    if (d) d.classList.remove('open');
+  }
+});
+
+window.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

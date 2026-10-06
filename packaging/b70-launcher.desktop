@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=B70 Launcher
+Comment=Inspect local hardware and launch selected B70 inference recipes
+Exec=b70-launcher
+Icon=b70-launcher
+Categories=Utility;
+StartupWMClass=b70-launcher

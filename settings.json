@@ -1,0 +1,69 @@
+{
+  "port": 7570,
+  "scan_dirs": [
+    "~/models",
+    "~/Downloads"
+  ],
+  "ovms_repo": "~/models/ovms-repo",
+  "models_dir": "~/models",
+  "llama_bin": "",
+  "exl3_data_root": "~/.local/share/b70-exl3",
+  "vllm_kv_options": [
+    "recipe default",
+    "fp8"
+  ],
+  "llamacpp_kv_options": [
+    "q8_0",
+    "q8_0/q4_1",
+    "f16"
+  ],
+  "power_modes": [
+    {
+      "watts": 150,
+      "label": "150W - MoE sweet spot"
+    },
+    {
+      "watts": 180,
+      "label": "180W - dense sweet spot"
+    },
+    {
+      "watts": 230,
+      "label": "230W - burst / stock TDP"
+    }
+  ],
+  "harnesses": [
+    {
+      "id": "pi",
+      "label": "Pi Local AI Chat",
+      "cmd": "pi"
+    },
+    {
+      "id": "droid",
+      "label": "Factory Droid Workflow",
+      "cmd": "droid"
+    },
+    {
+      "id": "omp",
+      "label": "OMP Open Model Platform",
+      "cmd": "omp"
+    },
+    {
+      "id": "webui",
+      "label": "Open Web UI Browser",
+      "cmd": "xdg-open"
+    }
+  ],
+  "terminal_linux": [
+    "x-terminal-emulator",
+    "-e",
+    "sh",
+    "-c"
+  ],
+  "terminal_windows": [
+    "cmd",
+    "/c",
+    "start",
+    "cmd",
+    "/k"
+  ]
+}
