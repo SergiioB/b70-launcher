@@ -1,0 +1,26 @@
+{
+  "files": {
+    "README.md": "c67691749f097a35ffe3e19045b62e75d5ff8b480a8da898eb56ec0ca61bcfa6",
+    "appwindow.py": "97f812a1ee4493d71e480120b1d5fde3e00a222bb089dd8af502aec2230a6d05",
+    "launcher.py": "e1adaf84a20777c238279973adb6fe2a51ae227e93945ccfa900916f043e3dc9",
+    "packaging/b70-launcher.desktop": "00ccb041b951e0fe073915c3f9b7131b2c30b57b8fc0f81b019a2a7bdb648eaf",
+    "packaging/install.sh": "65ee98b4542deee1f4eaf65d7bf02fa9e991bc9aca2883b8dcc4133658e862db",
+    "patches/patch_mtp_boundary.py": "41d2f74e5fef1f074b76b5a90dd1016de437228431802cfb1fa7bd7ce4cc9b50",
+    "patches/patch_mtp_nightly.py": "070c59980a435a4c5360fbd46437f38749e356c90818605cec655f9760eed604",
+    "patches/patch_vllm_worker_affinity.py": "37597260d92dc9fd15d7f546cc51645416baf600053ba219040b9b4016898727",
+    "patches/patch_xpu_grouped_topk_native_v2.py": "ea65513442e08fc427394693210fb3e2ad6c938e168a5f85b8bca3185bcad990",
+    "recipes.json": "44ffc2d50b337df51f1ea7caf54471873541a5135ada883b68d3fb72ffc97399",
+    "settings.json": "b589464ed37f4434f91262f201f322e3fe82de49f86b953baa0816a1088fa916",
+    "web/assets/b70-launcher-128.png": "4e17cafdc831847302ef7f374486923d4fca24c2925759199e40bf7a38486b66",
+    "web/assets/b70-launcher-16.png": "bd6858bdea6036d4002cdaa190e6fcc95b9f01e9a5f0b026f3fdce0fe1743500",
+    "web/assets/b70-launcher-256.png": "ddfde8c904fe9e202620e77e67308367959c65b2c1340766bfb4eb6f0d153ede",
+    "web/assets/b70-launcher-32.png": "a332dc4efc6d5bbe0eeee83e56a041dcfbf7dc72a873eafef99ef1c40cf38c19",
+    "web/assets/b70-launcher-48.png": "1893e4a43aa0e5ff77424a8a951240f00b1df6822d8f969ccbc17841c46d6e53",
+    "web/assets/b70-launcher-512.png": "5cde533d0b342f6a6b46269380f297cd858b7aa4eeddda5a7738daf788ad3540",
+    "web/assets/b70-launcher.svg": "8c17bbe1ae2fc1f71462e84fe967eacd8da840d91908b791ddcd15aabca70275",
+    "web/index.html": "26eb83d005a96a46d9430c033fbb27dbccab133a99aac01d584d77fa6c72790d",
+    "webwindow.py": "7e5d62095c5d7445d658ee0d4e8a735722e29afb322e7ad9fb3934107689aa69"
+  },
+  "platform": "Linux source (Python 3.9+)",
+  "version": "0.4.6"
+}

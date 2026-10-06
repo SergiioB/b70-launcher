@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=B70 Launcher
+Comment=Launch AI models on the Intel Arc Pro B70
+Exec=/home/sergio/b70-launcher/dist/b70-launcher/b70-launcher
+Icon=/home/sergio/b70-launcher/dist/b70-launcher/web/assets/b70-launcher.svg
+Terminal=false
+Categories=Utility;Development;
+StartupWMClass=b70-launcher

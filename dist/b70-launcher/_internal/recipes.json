@@ -1,0 +1,587 @@
+{
+  "engines": [
+    {
+      "id": "openvino",
+      "label": "OpenVINO (OVMS)",
+      "tag": "OVMS",
+      "tagline": "official \u00b7 best default",
+      "note": "Official OpenAI-compatible server. Best default: Intel-verified on B70, agentic (tools + reasoning + vision)."
+    },
+    {
+      "id": "vllm",
+      "label": "vLLM XPU",
+      "tag": "vLLM",
+      "tagline": "fastest \u00b7 multi-user",
+      "note": "Best throughput and multi-user batching. Pinned container image."
+    },
+    {
+      "id": "llamacpp",
+      "label": "llama.cpp SYCL",
+      "tag": "SYCL",
+      "tagline": "GGUF \u00b7 most control",
+      "note": "GGUF route. Best quantization control and VRAM knobs."
+    }
+  ],
+  "models": [
+    {
+      "id": "qwen38-flashnext",
+      "name": "Qwen3.8-Flash-Next",
+      "arch": "180B MoE (37B active) \u00b7 3-Tiered Memory",
+      "blurb": "Maximum intelligence tier on 2\u00d7 B70. Active layers in 64GB VRAM (split 49/51%), Engram memory table in host RAM, zero-copy NVMe weights streaming.",
+      "badge": "MAXIMUM INTELLIGENCE \u00b7 2\u00d7 B70 TIERED",
+      "tags": [
+        {
+          "t": "Top tier 180B",
+          "c": "violet"
+        },
+        {
+          "t": "2\u00d7 B70 Tiered",
+          "c": "green"
+        },
+        {
+          "t": "SYCL + MTP",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "llamacpp": {
+          "kind": "gguf-tiered",
+          "gguf": "/mnt/nvme-wd-sn770-500gb-data/models/signal-3.8-flash-next/hf-dl/AP-Q4_K_XL/Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
+          "search_name": "Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "llama_bin": "/mnt/sata-wd-500gb-data/qwenflash-llama-pinned-9723942/build-qwen4exp/bin/llama-server",
+          "ctx": 8192,
+          "ctx_max": 131072,
+          "ctx_note": "8K standard (up to 128K near-boundary validated on 2\u00d7 B70)",
+          "power": 195,
+          "perf": "30.7\u201333.3 tok/s decode matched (37.4 tok/s wired MTP) on 2\u00d7 B70",
+          "gpus": [
+            0,
+            1
+          ],
+          "tensor_split": "49,51",
+          "split_mode": "layer",
+          "offload_tensors": "per_layer_token_embd=CPU,blk.([0-5]|4[2-7]).ffn_(up|gate|down)_exps.weight=CPU",
+          "draft_model": "/mnt/nvme-wd-sn770-500gb-data/mtp-draft/Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf",
+          "draft_device": "SYCL1",
+          "spec_tokens": 3,
+          "spec_p_min": 0.75,
+          "fixed_flags": [
+            "-fa",
+            "on",
+            "-t",
+            "6",
+            "-tb",
+            "14",
+            "-np",
+            "1",
+            "-b",
+            "512",
+            "-ub",
+            "512",
+            "--cache-type-k",
+            "q8_0",
+            "--cache-type-v",
+            "q4_1"
+          ],
+          "topology": {
+            "vram": "Dual B70 (64 GB) \u00b7 Active MoE Compute (GPU0 49% / GPU1 51%) with XMX Xe2 acceleration",
+            "ram": "Host RAM (~30+ GB) \u00b7 51B Engram / PLE Token Embedding table + Boundary MoE Experts (-ot offload)",
+            "nvme": "PCIe Gen4 NVMe (/mnt/nvme-wd-sn770-500gb-data) \u00b7 Zero-Copy direct OS mmap weight streaming"
+          },
+          "download": {
+            "kind": "file",
+            "name": "Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
+            "search": "Signal-3.8-Flash-Next",
+            "match": "signal-3.8-flash-next",
+            "quant": "AP-Q4_K_XL (95 GB) + MTP draft (2.5 GB)"
+          }
+        }
+      }
+    },
+    {
+      "id": "qwen36-35b",
+      "name": "Qwen3.6-35B-A3B",
+      "arch": "MoE 35B / 3B active",
+      "blurb": "Intel's documented B70 agentic path. Reasoning + tool parsers on.",
+      "badge": "BEST DEFAULT",
+      "tags": [
+        {
+          "t": "Top smart",
+          "c": "violet"
+        },
+        {
+          "t": "150W MoE sweet",
+          "c": "green"
+        },
+        {
+          "t": "Agents & tools",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "openvino": {
+          "kind": "ovms",
+          "source_model": "OpenVINO/Qwen3.6-35B-A3B-int4-ov",
+          "tool_parser": "qwen3coder",
+          "reasoning_parser": "qwen3",
+          "image": "openvino/model_server:2026.2.1-gpu",
+          "ctx": 131072,
+          "ctx_note": "128K with cache_interval_multiplier 64 on linear-attention MoE (OVMS 2026.2.1)",
+          "perf": "B70-verified (Intel OVMS docs + engine sweep 2026-07-05)",
+          "cim_long_ctx": 64,
+          "download": {
+            "kind": "snapshot",
+            "repo": "OpenVINO/Qwen3.6-35B-A3B-int4-ov",
+            "match": "qwen3.6-35b",
+            "quant": "INT4-OV IR (whole-model)",
+            "verify": [
+              "openvino_language_model.bin",
+              "config.json"
+            ]
+          }
+        },
+        "vllm": {
+          "kind": "vllm-mtp",
+          "model_path": "/models/Qwen3.6-35B-A3B-GPTQ-Int4",
+          "search_name": "Qwen3.6-35B-A3B-GPTQ-Int4",
+          "speculative": "SergiioB/Qwen3.6-35B-A3B-MTP",
+          "spec_tokens": 4,
+          "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+          "ctx": 131072,
+          "ctx_note": "128K native MTP4 (cookbook: 170.9 tok/s peak decode)",
+          "power": 150,
+          "perf": "MTP4 p512/g128 170.9 tok/s client post-first (cookbook)",
+          "download": {
+            "kind": "snapshot",
+            "repo": "",
+            "search": "Qwen3.6-35B-A3B-GPTQ-Int4",
+            "match": "qwen3.6-35b",
+            "prefer": [
+              "gptq"
+            ],
+            "quant": "GPTQ-INT4",
+            "verify": [
+              "config.json"
+            ]
+          }
+        },
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+          "search_name": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 131072,
+          "ctx_note": "128K",
+          "power": 150,
+          "perf": "UD-Q4_K_XL 21 GB (cookbook quant-quality table)",
+          "download": {
+            "kind": "file",
+            "name": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+            "repo": "",
+            "search": "Qwen3.6-35B-A3B-UD-Q4_K_XL",
+            "match": "qwen3.6-35b",
+            "quant": "UD-Q4_K_XL (Unsloth Dynamic) ~21 GB"
+          }
+        }
+      }
+    },
+    {
+      "id": "qwen38-27b",
+      "name": "Qwen3.8-27B",
+      "arch": "Dense 27B",
+      "blurb": "Long-context dense. llama.cpp serves the full 256K on one B70.",
+      "tags": [
+        {
+          "t": "Top smart",
+          "c": "violet"
+        },
+        {
+          "t": "180W dense sweet",
+          "c": "amber"
+        },
+        {
+          "t": "Long docs 256K",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "vllm": {
+          "kind": "vllm-mtp",
+          "model_path": "/models/Qwen3.8-27B-GPTQ-Int4",
+          "search_name": "Qwen3.8-27B-GPTQ-Int4",
+          "spec_tokens": 4,
+          "fixed_flags": [
+            "--language-model-only"
+          ],
+          "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+          "ctx": 102400,
+          "ctx_max": 102400,
+          "ctx_note": "100K is the single-card vLLM config ceiling (engine comparison 2026-09-14)",
+          "power": 180,
+          "perf": "MTP4 106.7 tok/s decode at 180W (cookbook)",
+          "download": {
+            "kind": "snapshot",
+            "repo": "",
+            "search": "Qwen3.8-27B-GPTQ-Int4",
+            "match": "qwen3.8-27b",
+            "prefer": [
+              "gptq"
+            ],
+            "quant": "GPTQ-INT4",
+            "verify": [
+              "config.json"
+            ]
+          }
+        },
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/Qwen3.8-27B-UD-Q4_K_M.gguf",
+          "search_name": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 262144,
+          "ctx_max": 262144,
+          "ctx_note": "full 256K served (37.8 @512 -> 16.0 @256K); add -md <draft.gguf> via extra flags for speed",
+          "power": 180,
+          "perf": "UD-Q4_K_M + draft is the only single-card 256K path (engine comparison)",
+          "download": {
+            "kind": "file",
+            "name": "Qwen3.8-27B-UD-Q4_K_M.gguf",
+            "repo": "",
+            "search": "Qwen3.8-27B-UD-Q4_K_M",
+            "match": "qwen3.8-27b",
+            "prefer": [
+              "q4_k_m"
+            ],
+            "quant": "UD-Q4_K_M (Unsloth Dynamic)"
+          }
+        },
+        "openvino": {
+          "kind": "ovms",
+          "source_model": "OpenVINO/Qwen3.8-27B-int8-ov",
+          "search_name": "Qwen3.8-27B-int8-ov",
+          "image": "openvino/model_server:2026.2.1-gpu",
+          "ctx": 32768,
+          "ctx_max": 131072,
+          "ctx_note": "32K standard, verified resident 25.8/32 GB with MTP5 (B70 verified)",
+          "power": 180,
+          "perf": "INT8-OV + MTP5: 61.6 tok/s @192 ctx, 25.8/32 GB resident (B70 verified)",
+          "download": {
+            "kind": "snapshot",
+            "repo": "OpenVINO/Qwen3.8-27B-int8-ov",
+            "search": "Qwen3.8-27B-int8-ov",
+            "match": "qwen3.8-27b",
+            "prefer": [
+              "int8-ov",
+              "int8"
+            ],
+            "quant": "INT8-OV IR (26 GB)",
+            "verify": [
+              "openvino_language_model.bin",
+              "openvino_language_model.xml"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "qwen38-27b-fp8-tp2",
+      "name": "Qwen3.8-27B FP8 TP2",
+      "arch": "Dense 27B \u00b7 Dual B70 TP2",
+      "blurb": "Official 29 GB FP8 model on sata-tforce running across dual B70s with vLLM tensor parallelism.",
+      "badge": "DUAL B70 TENSOR PARALLEL",
+      "tags": [
+        {
+          "t": "Dual B70 TP2",
+          "c": "violet"
+        },
+        {
+          "t": "FP8 Native",
+          "c": "amber"
+        },
+        {
+          "t": "High decode 90 tok/s",
+          "c": "green"
+        }
+      ],
+      "recipes": {
+        "vllm": {
+          "kind": "vllm-tp2",
+          "model_path": "/models/Qwen3.8-27B-FP8",
+          "search_name": "Qwen3.8-27B-FP8",
+          "gpus": [
+            0,
+            1
+          ],
+          "tp": 2,
+          "dtype": "bfloat16",
+          "kv": "fp8",
+          "spec_tokens": 8,
+          "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+          "ctx": 98304,
+          "ctx_max": 98304,
+          "ctx_note": "98K dual-card sweep verified (57.3 tok/s at 98K, 88\u201390 tok/s decode peak)",
+          "power": 180,
+          "perf": "88.4\u201390.5 tok/s decode across dual B70 (vLLM TP2 230W/180W)",
+          "fixed_flags": [
+            "--language-model-only",
+            "--mamba-ssm-cache-dtype",
+            "float16"
+          ],
+          "download": {
+            "kind": "snapshot",
+            "repo": "Qwen/Qwen3.8-27B-FP8",
+            "search": "Qwen3.8-27B-FP8",
+            "match": "qwen3.8-27b",
+            "prefer": [
+              "fp8"
+            ],
+            "quant": "FP8 safetensors (29 GB)"
+          }
+        }
+      }
+    },
+    {
+      "id": "qwen36-27b-ar",
+      "name": "Qwen3.6-27B AutoRound INT4",
+      "arch": "Dense 27B",
+      "blurb": "AutoRound INT4 + fp8 KV. Held 256K context at ~140W in smoke runs.",
+      "tags": [
+        {
+          "t": "Smart",
+          "c": "violet"
+        },
+        {
+          "t": "180W dense sweet",
+          "c": "amber"
+        },
+        {
+          "t": "Huge context 256K",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "vllm": {
+          "kind": "vllm-autoround",
+          "model_path": "Intel/Qwen3.6-27B-int4-AutoRound",
+          "dtype": "float16",
+          "kv": "fp8",
+          "ctx": 262144,
+          "ctx_max": 262144,
+          "ctx_note": "starts at 256K (engine sweep 2026-07-05)",
+          "fixed_flags": [
+            "--enforce-eager"
+          ],
+          "image": "intel/llm-scaler-vllm",
+          "power": 180,
+          "perf": "128 tok / 11.1s non-stream (engine sweep 2026-07-05)",
+          "download": {
+            "kind": "snapshot",
+            "repo": "Intel/Qwen3.6-27B-int4-AutoRound",
+            "match": "qwen3.6-27b",
+            "prefer": [
+              "autoround"
+            ],
+            "quant": "INT4 AutoRound",
+            "verify": [
+              "config.json"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "nemotron-35",
+      "name": "Nemotron-3.5-Lightning",
+      "arch": "Dense 35B",
+      "blurb": "Ultra-low TTFT config for interactive use.",
+      "tags": [
+        {
+          "t": "Quick replies",
+          "c": "violet"
+        },
+        {
+          "t": "180W dense sweet",
+          "c": "amber"
+        },
+        {
+          "t": "Daily chat",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "vllm": {
+          "kind": "vllm",
+          "model_path": "/models/Nemotron-3.5-Lightning-GPTQ-Int4",
+          "search_name": "Nemotron-3.5-Lightning-GPTQ-Int4",
+          "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+          "ctx": 32768,
+          "ctx_note": "fallback; auto-read from config.json when detected",
+          "power": 180,
+          "perf": "Ultra-low TTFT (cookbook)",
+          "download": {
+            "kind": "snapshot",
+            "repo": "",
+            "search": "Nemotron-3.5-Lightning-GPTQ-Int4",
+            "match": "nemotron-3.5-lightning",
+            "prefer": [
+              "gptq"
+            ],
+            "quant": "GPTQ-INT4",
+            "verify": [
+              "config.json"
+            ]
+          }
+        },
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/Nemotron-3.5-Lightning-Q4_K_M.gguf",
+          "search_name": "Nemotron-3.5-Lightning-Q4_K_M.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 32768,
+          "ctx_note": "fallback value; GGUF headers do not expose a context field",
+          "power": 180,
+          "perf": "Q4_K_M benchmark lane (xmxlab benchmark tool)",
+          "download": {
+            "kind": "file",
+            "name": "Nemotron-3.5-Lightning-Q4_K_M.gguf",
+            "repo": "",
+            "search": "Nemotron-3.5-Lightning-Q4_K_M",
+            "match": "nemotron-3.5-lightning",
+            "quant": "Q4_K_M"
+          }
+        }
+      }
+    },
+    {
+      "id": "thinkingcap-27b",
+      "name": "Qwen3.6-27B ThinkingCap",
+      "arch": "Dense 27B \u00b7 Q4_K_M",
+      "blurb": "GGUF reasoning tune. Full VRAM offload.",
+      "tags": [
+        {
+          "t": "Smart reasoning",
+          "c": "violet"
+        },
+        {
+          "t": "180W dense sweet",
+          "c": "amber"
+        },
+        {
+          "t": "Deep thinking",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
+          "search_name": "ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 131072,
+          "ctx_note": "128K (dense 27B lane)",
+          "power": 180,
+          "perf": "Q4_K_M, -ngl 99 (xmxlab benchmark tool)",
+          "download": {
+            "kind": "file",
+            "name": "ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
+            "repo": "",
+            "search": "ThinkingCap-Qwen3.6-27B-Q4_K_M",
+            "match": "qwen3.6-27b",
+            "prefer": [
+              "thinkingcap"
+            ],
+            "quant": "Q4_K_M"
+          }
+        }
+      }
+    },
+    {
+      "id": "muse-glimmer",
+      "name": "Muse-Glimmer-30B",
+      "arch": "MoE 30B \u00b7 vision",
+      "blurb": "Vision + DFlash. Needs mmproj sidecar (auto-selected).",
+      "tags": [
+        {
+          "t": "Sees images",
+          "c": "violet"
+        },
+        {
+          "t": "150W MoE sweet",
+          "c": "green"
+        },
+        {
+          "t": "Vision + chat",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/Muse-Glimmer-30B-Q4_K_M.gguf",
+          "search_name": "Muse-Glimmer-30B-Q4_K_M.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 131072,
+          "ctx_note": "128K measured p512/g128 (cookbook)",
+          "fixed_flags": [
+            "--mmproj",
+            "/models/mmproj-model.gguf"
+          ],
+          "power": 150,
+          "perf": "26.8 engine tok/s at p512/g128 128K n=5 (cookbook)",
+          "download": {
+            "kind": "file",
+            "name": "Muse-Glimmer-30B-Q4_K_M.gguf",
+            "repo": "",
+            "search": "Muse-Glimmer-30B-Q4_K_M",
+            "match": "muse-glimmer-30b",
+            "quant": "Q4_K_M + mmproj-model.gguf",
+            "extra_files": [
+              "mmproj-model.gguf"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "ornith-35b-gguf",
+      "name": "Ornith-1.0-35B GGUF",
+      "arch": "MoE 35B \u00b7 Q4_K_M",
+      "blurb": "Uncensored AEON lineage. Lowercase filename is correct (HF quirk).",
+      "tags": [
+        {
+          "t": "No filter",
+          "c": "violet"
+        },
+        {
+          "t": "150W MoE sweet",
+          "c": "green"
+        },
+        {
+          "t": "Uncensored",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/ornith-1.0-35b-Q4_K_M.gguf",
+          "search_name": "ornith-1.0-35b-Q4_K_M.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+          "ctx": 32768,
+          "ctx_note": "fallback value; GGUF headers do not expose a context field",
+          "power": 150,
+          "perf": "Q4_K_M, -ngl 99 (verified HF filename)",
+          "download": {
+            "kind": "file",
+            "name": "ornith-1.0-35b-Q4_K_M.gguf",
+            "repo": "",
+            "search": "ornith-1.0-35b-Q4_K_M",
+            "match": "ornith-1.0-35b",
+            "quant": "Q4_K_M"
+          }
+        }
+      }
+    }
+  ]
+}

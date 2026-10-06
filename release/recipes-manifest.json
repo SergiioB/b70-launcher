@@ -1,0 +1,51 @@
+{
+ "catalog_ver": "2026-10-06",
+ "recipes": {
+  "muse-glimmer:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "nemotron-35:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "nemotron-35:vllm": {
+   "ver": "2026-10-05"
+  },
+  "ornith-35b-gguf:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "qwen36-27b-ar:vllm": {
+   "ver": "2026-10-05"
+  },
+  "qwen36-35b:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "qwen36-35b:openvino": {
+   "ver": "2026-10-05"
+  },
+  "qwen36-35b:vllm": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-27b-fp8-tp2:vllm": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-27b:exl3": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-27b:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-27b:openvino": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-27b:vllm": {
+   "ver": "2026-10-05"
+  },
+  "qwen38-flashnext:llamacpp": {
+   "ver": "2026-10-05"
+  },
+  "thinkingcap-27b:llamacpp": {
+   "ver": "2026-10-05"
+  }
+ },
+ "recipes_url": "https://xecores.com/downloads/recipes.json"
+}

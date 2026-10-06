@@ -1,0 +1,1496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B70 Launcher 0.4.3</title>
+<style>
+  :root {
+    --bg: #101010; --panel: #161616; --panel2: #1b1b1b; --line: #2a2a2a; --line2: #3a3a3a;
+    --fg: #d6d6d6; --dim: #9b9b9b; --faint: #8b8b8b;
+    --acc: #5CB3F2; --acc-deep: #0071C5; --ok: #7ee787; --warn: #ff7b72;
+    --violet: #c792ea; --amber: #e8c55a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 13px/1.45 "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex: none;
+    padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header img { display: block; width: 26px; height: 26px; }
+  header .t { color: var(--acc); font-weight: 700; letter-spacing: 1px; margin: 0; font-size: 13px; }
+  header .m { color: var(--dim); font-size: 11px; }
+  .hdrchip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--dim);
+    border: 1px solid var(--line); padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+  }
+  .hdrchip b { color: var(--fg); font-weight: 600; }
+  .hdrchip.ok { border-color: rgba(126,231,135,.4); }
+  .hdrchip.ok b { color: var(--ok); }
+  .scanpill { font-size: 10px; color: var(--dim); border: 1px dashed var(--line2); padding: 2px 8px; border-radius: 10px; }
+  .scanpill.busy { color: var(--acc); border-color: var(--acc); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+
+  /* preflight banner spans all columns; the three steps own row 2 */
+  .pfrow { grid-column: 1 / -1; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .pfrow .pfhead {
+    display: flex; align-items: center; gap: 10px; padding: 8px 16px; flex-wrap: wrap;
+  }
+  .pfrow .pftitle { font-size: 10px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; font-weight: 600; }
+  .pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line2); color: var(--dim); }
+  .pill.ok { color: var(--ok); border-color: rgba(126,231,135,.45); }
+  .pill.warn { color: var(--warn); border-color: rgba(255,123,114,.45); }
+  .pfrow .pfwhy { color: var(--acc); font-size: 11px; }
+  .pfrow details { padding: 0 16px 8px; }
+  .pfrow summary { cursor: pointer; color: var(--dim); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .pfrow .pfbody { color: var(--dim); font-size: 11px; margin-top: 6px; line-height: 1.6; }
+  .devline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0; }
+  .devdot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+  .devdot.na { background: var(--warn); }
+
+  .steps { display: grid; grid-template-columns: 340px 370px 1fr; min-height: 0; }
+  section { border-right: 1px solid var(--line); overflow-y: auto; padding: 0 16px 24px; min-height: 0; }
+  section:last-child { border-right: none; }
+  section .stephead {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+    padding: 12px 0 10px; margin-bottom: 10px; background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .stephead-btn {
+    display: flex; align-items: center; gap: 8px; flex: 1; background: none;
+    border: none; font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 0;
+  }
+  .sr-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: -1px; padding: 0; }
+  section .stephead .step-t {
+    margin: 0; font-size: 11px; letter-spacing: 2px; color: var(--dim);
+    text-transform: uppercase; font-weight: 600;
+  }
+  .steppill { font-size: 9px; padding: 2px 6px; border-radius: 8px; margin-inline-start: auto; }
+  section.dim .body { opacity: .55; }
+  section.dim .stephead .step-t { color: var(--faint); }
+  section.dim .steppill { background: rgba(139,139,139,.12); color: var(--faint); }
+  section:not(.dim) .steppill { background: rgba(92,179,242,.12); color: var(--acc); }
+
+  /* model list toolbar: search + on-disk filter */
+  .modelbar { display: flex; gap: 6px; margin: 0 0 10px; align-items: center; }
+  .modelbar input[type=text] { flex: 1; min-width: 0; padding: 5px 8px; font-size: 11px; }
+  .modelbar label {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px;
+    color: var(--dim); white-space: nowrap; cursor: pointer;
+  }
+  .modelbar label input[type=checkbox] { width: 12px; height: 12px; }
+
+  .model {
+    border: 1px solid var(--line); background: var(--panel); padding: 10px 11px;
+    margin-bottom: 8px; cursor: pointer; transition: border-color .12s ease-out;
+  }
+  .model:hover { border-color: var(--dim); }
+  .model.sel { border-color: var(--acc); background: rgba(92,179,242,.05); }
+  .model .n { color: var(--fg); font-weight: 700; }
+  .model .a { color: var(--acc); font-size: 11px; }
+  .model .b { color: var(--dim); font-size: 11px; margin-top: 3px; }
+  .model .e { margin-top: 6px; }
+  .badge {
+    display: inline-block; background: var(--acc-deep); color: #fff; font-size: 10px;
+    font-weight: 700; letter-spacing: 1px; padding: 2px 7px; margin: 0 0 4px;
+  }
+  .badge.tiered {
+    background: linear-gradient(135deg, #00c6ff 0%, #0072ff 50%, #9b51e0 100%);
+    box-shadow: 0 0 14px rgba(0, 198, 255, 0.45);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    letter-spacing: 1.2px;
+  }
+  .mem-topology {
+    margin: 10px 0; padding: 12px; background: #12151c;
+    border: 1px solid #1e293b; border-radius: 4px;
+  }
+  .mem-topology-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--acc);
+    text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .mem-topology-badge {
+    background: linear-gradient(135deg, #00c6ff, #9b51e0); color: #fff;
+    font-size: 9px; padding: 2px 6px; font-weight: 700; border-radius: 2px; letter-spacing: 1px;
+  }
+  .mem-tiers { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .mem-tier {
+    padding: 7px 10px; background: #181d26; border-left: 3px solid var(--acc); font-size: 11px;
+  }
+  .mem-tier.vram { border-left-color: #00e5ff; }
+  .mem-tier.ram { border-left-color: #7ee787; }
+  .mem-tier.nvme { border-left-color: #c792ea; }
+  .mem-tier-h { display: flex; justify-content: space-between; font-weight: 700; color: var(--fg); margin-bottom: 2px; }
+  .mem-tier-h span.cap { color: var(--acc); font-size: 10px; font-weight: 600; }
+  .mem-tier-desc { color: var(--dim); font-size: 10px; line-height: 1.35; }
+  .chip {
+    display: inline-block; border: 1px solid var(--line); color: var(--dim);
+    font-size: 10px; padding: 1px 7px; margin: 2px 4px 2px 0;
+  }
+  .chip.on { border-color: var(--acc); color: var(--acc); background: rgba(92,179,242,.10); }
+  .chip.ok { border-color: rgba(126,231,135,.55); color: var(--ok); }
+  .chip.na { opacity: .55; }
+  .tg { margin: 4px 0 2px; }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 1px 6px; margin: 2px 4px 0 0;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .tag.violet { color: var(--violet); border-color: rgba(199,146,234,.5); }
+  .tag.green { color: var(--ok); border-color: rgba(126,231,135,.5); }
+  .tag.amber { color: var(--amber); border-color: rgba(232,197,90,.5); }
+  .tag.red { color: var(--warn); border-color: rgba(255,123,114,.5); }
+  .tag.grey { color: var(--dim); }
+  .skeleton {
+    height: 92px; border: 1px solid var(--line); margin-bottom: 8px;
+    background: linear-gradient(90deg, #161616 25%, #1f1f1f 37%, #161616 63%);
+    background-size: 400px 100%; animation: shimmer 1.2s infinite linear;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+  .row { margin-bottom: 12px; }
+  label.l { display: block; color: var(--dim); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
+  input[type=text], input[type=number], textarea {
+    width: 100%; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    padding: 7px 9px; font: inherit; font-variant-numeric: tabular-nums;
+  }
+  input:hover, textarea:hover { border-color: var(--line2); }
+  input:focus-visible, textarea:focus-visible { border-color: var(--acc); outline: none; }
+  input[type=number]::-webkit-inner-spin-button { filter: invert(.7); }
+  textarea { resize: vertical; min-height: 44px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hint { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .warn { color: var(--warn); font-size: 11px; margin-top: 4px; white-space: pre-wrap; }
+  .gpus label { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; color: var(--fg); }
+  input[type=checkbox] { accent-color: var(--acc-deep); width: 14px; height: 14px; }
+
+  /* engine selector */
+  #engines { display: grid; gap: 6px; }
+  .engbtn {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px;
+    background: #141414; border: 1px solid var(--line); color: var(--fg); text-align: left;
+  }
+  .engbtn:hover { border-color: var(--line2); background: #181818; }
+  .engbtn.on { border-color: var(--acc); background: rgba(92,179,242,.07); box-shadow: inset 2px 0 0 var(--acc); }
+  .engbtn .lbl { flex: 1; min-width: 0; }
+  .engbtn .lbl b { display: block; font-size: 12px; font-weight: 700; }
+  .engbtn.on .lbl b { color: var(--acc); }
+  .engbtn .lbl small { display: block; color: var(--dim); font-size: 10px; margin-top: 1px; }
+  .engbtn .estate { font-size: 10px; white-space: nowrap; }
+  .engbtn .estate.ok { color: var(--ok); }
+  .engbtn .estate.na { color: var(--dim); }
+  .ebadge {
+    background: var(--acc-deep); color: #fff; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; padding: 2px 6px; white-space: nowrap;
+  }
+
+  /* custom dropdown */
+  .dd { position: relative; }
+  .dd-btn {
+    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; min-height: 32px; padding: 6px 28px 6px 10px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+  }
+  .dd-btn:hover { border-color: var(--line2); }
+  .dd-btn[aria-expanded="true"] { border-color: var(--acc); }
+  .dd-btn .chev { position: absolute; right: 10px; color: var(--dim); font-size: 9px; pointer-events: none; }
+  .dd-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+    margin: 0; padding: 4px 0; list-style: none;
+    background: var(--panel2); border: 1px solid var(--line2);
+    box-shadow: 0 8px 24px rgba(0,0,0,.6);
+    max-height: 240px; overflow-y: auto;
+  }
+  .dd-list li { padding: 6px 12px; font-size: 12px; color: var(--fg); cursor: pointer; }
+  .dd-list li:hover, .dd-list li.focused { background: #262626; }
+  .dd-list li[aria-selected="true"] { color: var(--acc); }
+  .dd-list li[aria-selected="true"]::after { content: "✓"; float: right; }
+
+  .artifact { border: 1px solid var(--line); background: var(--panel); padding: 10px; margin-bottom: 12px; }
+  .artifact .q { color: var(--acc); font-size: 11px; }
+  .artifact .fname { color: var(--ok); font-size: 12px; word-break: break-all; margin: 4px 0; }
+  .artifact .st { color: var(--dim); font-size: 11px; }
+  .artifact .st.ok { color: var(--ok); }
+  .artifact button { max-width: 100%; margin-top: 8px; }
+  .barwrap { display: none; margin-top: 8px; }
+  .bar { height: 16px; border: 1px solid var(--line); background: var(--bg); position: relative; }
+  .bar .fill { height: 100%; background: var(--acc-deep); width: 0; transition: width .3s; }
+  .bar .txt {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--fg); text-shadow: 0 0 3px #000;
+    font-variant-numeric: tabular-nums;
+  }
+
+  button {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    padding: 6px 12px; font: inherit; font-size: 11px; cursor: pointer;
+    transition: transform .1s ease-out, border-color .12s ease-out, color .12s ease-out;
+  }
+  button:hover { border-color: var(--acc); color: var(--acc); }
+  button:active { transform: scale(0.96); }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #333; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .cmdbox { position: relative; margin-bottom: 12px; }
+  .cmdbox pre {
+    margin: 0; background: var(--panel); border: 1px solid var(--line); padding: 26px 10px 10px;
+    white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--ok);
+    max-height: 210px; overflow-y: auto;
+  }
+  .cmdbox.p pre { color: var(--acc); }
+  .cmdbox .h {
+    position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center;
+    padding: 3px 8px; font-size: 10px; letter-spacing: 1px; color: var(--dim);
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .copied { color: var(--ok) !important; border-color: var(--ok) !important; }
+
+  .launchbar {
+    position: sticky; bottom: 0; z-index: 4; background: var(--bg);
+    padding: 10px 0 8px; margin-top: 12px; border-top: 1px solid var(--line);
+  }
+  .dry { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; margin-bottom: 8px; }
+  #confirmbar {
+    display: none; margin: 4px 0 8px; padding: 8px 10px; border: 1px solid rgba(255,123,114,.5);
+    background: rgba(255,123,114,.06); color: var(--fg); font-size: 11px; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #confirmbar.show { display: flex; }
+  #confirmbar .grow { flex: 1; }
+  #confirmbar button.danger { background: var(--acc-deep); color: #fff; border: none; font-weight: 700; }
+
+  details.adv-det, details.use-det { margin-bottom: 12px; }
+  details.adv-det summary, details.use-det summary {
+    cursor: pointer; color: var(--dim); font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+
+  h2.runhead { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin: 16px 0 8px; font-weight: 600; }
+  .gpuline { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .gpuline .stat { flex: 1; min-width: 150px; }
+  .meter { height: 4px; background: #222; margin-top: 4px; }
+  .meterfill { height: 100%; background: var(--acc); width: 0; transition: width .5s; }
+
+  .srv { border: 1px solid var(--line); padding: 10px 11px; margin-bottom: 10px; background: var(--panel); }
+  .srv .st { float: right; font-size: 11px; color: var(--ok); }
+  .srv .st.starting { color: var(--amber); }
+  .srv .st.dry-run { color: var(--acc); }
+  .srv .st.warnstate { color: var(--warn); }
+  .srv .id { font-weight: 700; }
+  .srv .meta { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 8px; }
+  .stat { background: #121212; padding: 8px 10px; min-width: 0; }
+  .stat .k { display: block; font-size: 9px; letter-spacing: 1px; color: var(--dim); text-transform: uppercase; }
+  .stat .v { display: block; margin-top: 2px; font-size: 14px; color: var(--fg); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat .v small { font-size: 10px; color: var(--dim); }
+  .logpre {
+    margin: 8px 0 0; background: var(--bg); border: 1px solid var(--line); padding: 6px 8px;
+    font-size: 11px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; color: var(--ok);
+  }
+  /* engine single-button toggle (collapsed state) */
+  #engineToggle {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+    background: #141414; border: 1px solid var(--line); color: var(--fg); text-align: left;
+  }
+  #engineToggle:hover { border-color: var(--line2); }
+  #engineToggle[aria-expanded="true"] { border-color: var(--acc); }
+  #engineToggle .et-label { flex: 1; min-width: 0; }
+  #engineToggle .et-label b { display: block; font-size: 12px; font-weight: 700; color: var(--acc); }
+  #engineToggle .et-label small { display: block; color: var(--dim); font-size: 10px; margin-top: 1px; }
+  #engineToggle .chev { color: var(--dim); font-size: 10px; }
+
+  /* big branded launch button */
+  .launch-summary { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 8px; }
+  .lc-chip {
+    font-size: 10px; padding: 3px 9px; border: 1px solid var(--line2); border-radius: 10px;
+    color: var(--fg); background: var(--panel); font-variant-numeric: tabular-nums;
+  }
+  .lc-chip.runtime { color: var(--acc); border-color: rgba(92,179,242,.45); font-weight: 700; }
+  #launch {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%;
+    padding: 15px 10px 13px; margin: 4px 0 12px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, #0071C5 0%, #2f93e0 60%, #5CB3F2 100%);
+    color: #fff; border-radius: 6px; box-shadow: 0 4px 18px rgba(0,113,197,.35);
+  }
+  #launch:hover { filter: brightness(1.12); }
+  #launch:active { transform: scale(0.985); }
+  #launch .l-big { font-weight: 800; letter-spacing: 4px; font-size: 19px; }
+  #launch .l-sub { font-size: 10.5px; letter-spacing: 1px; opacity: .92; font-variant-numeric: tabular-nums; }
+  #launch:disabled { opacity: .55; cursor: wait; }
+
+  /* usage charts */
+  .chartwrap { border: 1px solid var(--line); background: #121212; margin-top: 8px; padding: 6px 6px 2px; }
+  .chartwrap canvas { width: 100%; height: 92px; display: block; }
+  .chart-cap { display: flex; justify-content: space-between; font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; padding: 0 4px 4px; }
+
+  .srvbtns { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .usetable { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+  .usetable th { text-align: left; color: var(--dim); font-weight: 600; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  .usetable td { padding: 5px 8px; border-bottom: 1px solid var(--line); color: var(--fg); font-variant-numeric: tabular-nums; }
+  .usetable td.dim { color: var(--dim); }
+  .usetotal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 10px 0; }
+  .usetotal .stat { background: #121212; padding: 8px 10px; }
+
+  #toasts { position: fixed; bottom: 14px; right: 14px; z-index: 60; display: flex; flex-direction: column; gap: 6px; }
+  .toast {
+    background: var(--panel2); border: 1px solid var(--line2); color: var(--fg);
+    padding: 8px 12px; font-size: 11px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    animation: slidein .18s ease-out;
+  }
+  .toast.ok { border-color: rgba(126,231,135,.5); }
+  @keyframes slidein { from { transform: translateY(6px); opacity: 0; } }
+
+  .customize {
+    width: 100%; margin-bottom: 12px; color: var(--dim); letter-spacing: 1px;
+    text-transform: uppercase; font-size: 10px;
+  }
+  .rootrow { display: flex; gap: 6px; margin-top: 6px; }
+  .rootrow input { flex: 1; }
+  .rootlist { display: flex; flex-direction: column; gap: 4px; }
+  .rootitem { display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 11px; }
+  .rootitem .rm { margin-left: auto; font-size: 10px; padding: 1px 7px; }
+  .harnessline { color: var(--ok); font-size: 12px; word-break: break-all; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+  @media (max-width: 1180px) {
+    body { overflow: auto; }
+    main { display: block; }
+    .steps { grid-template-columns: 1fr; }
+    section { border-right: none; border-bottom: 1px solid var(--line); overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <img src="assets/b70-launcher.svg" alt="" width="26" height="26">
+  <h1 class="t">B70-LAUNCHER</h1>
+  <span class="m" id="hdr-version"></span>
+  <span style="flex:1"></span>
+  <span id="hdr-chips"></span>
+  <span class="scanpill" id="scanpill">models: idle</span>
+</header>
+<main>
+  <div class="pfrow" id="preflight" role="status">
+    <div class="pfhead">
+      <span class="pftitle">preflight</span>
+      <span class="pill" id="pf-pill">checking…</span>
+      <span class="pfwhy" id="pf-why"></span>
+    </div>
+    <details>
+      <summary>hardware, blockers &amp; scan roots</summary>
+      <div class="pfbody" id="pf-body">Checking local GPU and prerequisites…</div>
+      <div class="pfbody">
+        <label class="l" style="margin-top:8px">model scan roots</label>
+        <div class="rootlist" id="rootlist"></div>
+        <div class="rootrow">
+          <input type="text" id="rootinput" placeholder="/mnt/models" spellcheck="false">
+          <button type="button" id="rootadd">Add root</button>
+        </div>
+      </div>
+    </details>
+  </div>
+  <div class="steps">
+    <section id="s1" class="active">
+      <div class="stephead" role="group"><h2 class="sr-h">1 · model</h2><button type="button" class="stephead-btn" onclick="focusStep(1)"><span class="step-t">1 · model</span></button><span class="steppill" id="pill1">active</span></div>
+      <div class="body">
+        <div class="modelbar">
+          <input type="text" id="modelsearch" placeholder="search models…" spellcheck="false">
+          <label title="Show only models whose artifact was detected on disk"><input type="checkbox" id="diskonly"> on disk</label>
+          <label title="Show all discovered models in local storage"><input type="checkbox" id="fullcatalog"> all on-disk (<span id="catcount">0</span>)</label>
+        </div>
+        <div id="models"></div>
+      </div>
+    </section>
+    <section id="s2" class="dim">
+      <div class="stephead" role="group"><h2 class="sr-h">2 · config</h2><button type="button" class="stephead-btn" onclick="focusStep(2)"><span class="step-t">2 · config</span></button><span class="steppill" id="pill2">open</span></div>
+      <div class="body">
+        <div class="row">
+          <label class="l" id="engines-label">engine</label>
+          <button type="button" id="engineToggle" aria-expanded="false" aria-controls="engines">
+            <span class="et-label"><b id="et-name">—</b><small id="et-tag"></small></span>
+            <span class="estate" id="et-state"></span>
+            <span class="chev">▾</span>
+          </button>
+          <div id="engines" role="radiogroup" aria-labelledby="engines-label" hidden></div>
+          <div class="hint" id="engine-note"></div>
+        </div>
+        <div class="artifact" id="artifact"></div>
+        <div id="mem-topology" class="mem-topology" hidden></div>
+        <div class="row">
+          <label class="l" title="How much text the model can hold at once. Auto-set from the model's config when detected.">context · auto</label>
+          <input type="number" id="ctx" value="32768" step="1024" min="512">
+          <div class="hint" id="ctx-note"></div>
+        </div>
+        <button type="button" id="customizeBtn" class="customize">Customize ⌄</button>
+        <div id="adv" hidden>
+        <div class="row two">
+          <div>
+            <label class="l" title="Memory for past tokens. q8_0 recommended; f16 wastes VRAM for no gain.">kv cache</label>
+            <div id="kv-dd"></div>
+          </div>
+          <div>
+            <label class="l" title="The board power target the recipe assumes. The launcher never applies power limits itself.">power target · not applied</label>
+            <div id="power-dd"></div>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label class="l">port</label>
+            <input type="number" id="port" value="8000">
+          </div>
+          <div>
+            <label class="l" title="How many requests can run at once. 1 is fine for personal use.">parallel slots</label>
+            <input type="number" id="slots" value="1" min="1" max="64">
+          </div>
+        </div>
+        <div class="row two">
+          <div class="gpus">
+            <label class="l">devices</label>
+            <label><input type="checkbox" id="gpu0" checked> GPU 0</label>
+            <label id="gpu1-wrap"><input type="checkbox" id="gpu1"> <span id="gpu1-lbl">GPU 1 (B70 · 32GB)</span></label>
+          </div>
+          <div id="mtprow" class="gpus">
+            <label class="l">speculative draft</label>
+            <label><input type="checkbox" id="mtp" checked> MTP (faster decode)</label>
+          </div>
+        </div>
+        <div class="row">
+          <label class="l" title="Raw engine flags appended exactly as typed.">extra flags</label>
+          <textarea id="extra"></textarea>
+        </div>
+        <div class="row">
+          <label class="l" title="Extra environment variables, one KEY=VALUE per line. Passed as -e to the container (or native env).">env vars · KEY=VAL per line</label>
+          <textarea id="extra_env" style="min-height:32px"></textarea>
+        </div>
+        </div>
+        <div class="warn" id="warnings"></div>
+      </div>
+    </section>
+    <section id="s3">
+      <div class="stephead" role="group"><h2 class="sr-h">3 · launch</h2><button type="button" class="stephead-btn" onclick="focusStep(3)"><span class="step-t">3 · launch</span></button><span class="steppill" id="pill3">live</span></div>
+      <div class="body">
+        <details class="adv-det">
+          <summary>command &amp; chat options</summary>
+          <div class="cmdbox">
+            <div class="h"><span>ENGINE COMMAND</span><button onclick="copyText('cmd', this)">Copy</button></div>
+            <pre id="cmd">…</pre>
+          </div>
+          <div class="cmdbox p">
+            <div class="h"><span>POWER CAP · not changed by launcher</span></div>
+            <pre id="pcmd">…</pre>
+          </div>
+          <div class="row">
+            <label class="l" title="Optional. Opens your CLI chat tool pointed at the running model.">then chat in</label>
+            <div id="harness-dd"></div>
+            <div class="harnessline" id="harness_line" style="margin-top:6px"></div>
+            <div class="srvbtns"><button id="oph">Open chat terminal</button></div>
+            <div class="hint">optional · opens your chat tool pointed at the model</div>
+          </div>
+        </details>
+        <div class="launchbar">
+          <div id="confirmbar" role="alertdialog"></div>
+          <div class="launch-summary" id="launch-summary">
+            <span class="lc-chip runtime" id="lc-runtime">—</span>
+            <span class="lc-chip" id="lc-ctx">— ctx</span>
+            <span class="lc-chip" id="lc-extra"></span>
+          </div>
+          <div class="dry"><label><input type="checkbox" id="dryrun"> Dry run — print the command instead of starting anything</label></div>
+          <button id="launch"><span class="l-big">LAUNCH</span><span class="l-sub" id="launch-sub">—</span></button>
+          <div class="hint">Starts a local engine only after preflight and confirmation. Power caps are never applied automatically.</div>
+        </div>
+        <h2 class="runhead">running</h2>
+        <div class="gpuline" id="gpuline"></div>
+        <div id="servers" role="status"><div class="hint">Nothing running yet — launch a model to see it here.</div></div>
+        <h2 class="runhead">token usage · stored on this machine</h2>
+        <div class="usetotal" id="usetotal"></div>
+        <div class="chartwrap"><canvas id="usechart"></canvas></div>
+        <details class="use-det">
+          <summary>session history</summary>
+          <div id="usage"><div class="hint">No sessions recorded yet.</div></div>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+<div id="toasts"></div>
+<script>
+const API_TOKEN = "__API_TOKEN__";
+let S = null, SEL = null, ENGINE = "openvino", SC = {}, DLS = {}, SRV = [], CTX_TOUCHED = false;
+let DEFAULT_PICK = null;
+const OPEN_STATE = new Map();
+const DDS = {}; // custom dropdown instances keyed by id
+
+const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[c]);
+const fmtTok = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US"));
+
+function toast(msg, cls) {
+  const t = document.createElement("div");
+  t.className = "toast " + (cls || "");
+  t.textContent = msg;
+  $("toasts").append(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+function focusStep(n) {
+  // visual focus only — every section stays clickable from anywhere
+  [1, 2, 3].forEach((i) => {
+    const on = i === n || i === 3;  // the launch column is always live
+    $(`s${i}`).classList.toggle("dim", !on);
+    $("pill" + i).textContent = i === 3 ? "live" : (on ? "active" : "open");
+  });
+}
+
+function confirmStrip(text, yesLabel, onYes) {
+  const bar = $("confirmbar");
+  bar.replaceChildren();
+  const span = document.createElement("span");
+  span.innerHTML = text;
+  const grow = document.createElement("span"); grow.className = "grow";
+  const yes = document.createElement("button"); yes.type = "button"; yes.className = "danger"; yes.textContent = yesLabel;
+  const no = document.createElement("button"); no.type = "button"; no.textContent = "Cancel";
+  yes.onclick = () => { bar.classList.remove("show"); onYes(); };
+  no.onclick = () => bar.classList.remove("show");
+  bar.append(span, grow, yes, no);
+  bar.classList.add("show");
+}
+
+/* ---------------- custom dropdown (keyboard accessible listbox) ---------------- */
+function makeDropdown(hostId, id, options, value, onChange) {
+  const host = $(hostId);
+  host.replaceChildren();
+  const wrap = document.createElement("div"); wrap.className = "dd";
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "dd-btn";
+  btn.setAttribute("aria-haspopup", "listbox"); btn.setAttribute("aria-expanded", "false");
+  const label = document.createElement("span");
+  const chev = document.createElement("span"); chev.className = "chev"; chev.textContent = "▼";
+  btn.append(label, chev);
+  const list = document.createElement("ul"); list.className = "dd-list"; list.hidden = true;
+  list.setAttribute("role", "listbox"); list.id = id + "-list";
+  btn.setAttribute("aria-owns", list.id);
+  wrap.append(btn, list);
+  host.append(wrap);
+  let cur = value, focused = -1;
+  const render = () => {
+    label.textContent = cur;
+    [...list.children].forEach((li, i) => {
+      li.setAttribute("aria-selected", String(options[i] === cur));
+      li.classList.toggle("focused", i === focused);
+    });
+  };
+  const opts = options.map((o) => {
+    const li = document.createElement("li");
+    li.textContent = o; li.setAttribute("role", "option");
+    li.onclick = () => { pick(o); };
+    list.append(li);
+    return li;
+  });
+  const close = () => { list.hidden = true; btn.setAttribute("aria-expanded", "false"); focused = -1; render(); };
+  const open = () => {
+    list.hidden = false; btn.setAttribute("aria-expanded", "true");
+    const r = wrap.getBoundingClientRect();
+    if (r.bottom + 260 > window.innerHeight) { list.style.top = "auto"; list.style.bottom = "calc(100% + 4px)"; }
+    else list.style.bottom = "auto";
+    focused = Math.max(0, options.indexOf(cur));
+    render(); if (opts[focused]) opts[focused].scrollIntoView({ block: "nearest" });
+  };
+  const pick = (o) => { cur = o; close(); render(); if (onChange) onChange(o); };
+  btn.onclick = () => (list.hidden ? open() : close());
+  btn.onkeydown = (ev) => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(ev.key) && list.hidden) {
+      ev.preventDefault(); open(); return;
+    }
+    if (list.hidden) return;
+    if (ev.key === "ArrowDown") { ev.preventDefault(); focused = Math.min(focused + 1, opts.length - 1); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); focused = Math.max(focused - 1, 0); }
+    else if (ev.key === "Home") { ev.preventDefault(); focused = 0; }
+    else if (ev.key === "End") { ev.preventDefault(); focused = opts.length - 1; }
+    else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); if (focused >= 0) pick(options[focused]); return; }
+    else if (ev.key === "Escape") { close(); return; }
+    else if (ev.key === "Tab") { close(); return; }
+    else return;
+    opts.forEach((li, i) => li.classList.toggle("focused", i === focused));
+    if (opts[focused]) opts[focused].scrollIntoView({ block: "nearest" });
+  };
+  document.addEventListener("click", (ev) => { if (!wrap.contains(ev.target)) close(); });
+  render();
+  DDS[id] = { get: () => cur, set: (v) => { if (options.includes(v)) { cur = v; render(); } } };
+  return DDS[id];
+}
+
+function cfg() {
+  if (!SEL) return null;  // first /api/state still in flight
+  return {
+    model_id: SEL.id,
+    custom_path: SEL.custom_path || "",
+    engine: ENGINE,
+    ctx: CTX_TOUCHED ? +$("ctx").value : 0,
+    kv: DDS.kv ? DDS.kv.get() : "",
+    slots: +$("slots").value,
+    mtp: $("mtp").checked,
+    power: DDS.power ? +DDS.power.get().split(" ")[0] : 150,
+    port: +$("port").value,
+    gpus: [0, 1].filter((i) => $(`gpu${i}`).checked),
+    extra: $("extra").value,
+    extra_env: $("extra_env").value,
+    harness: DDS.harness ? DDS.harness.get() : "omp",
+    dry_run: $("dryrun").checked,
+  };
+}
+
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Launcher-Token": API_TOKEN }, body: JSON.stringify(body) });
+  return r.json();
+}
+
+/* ---------------- preflight / header ---------------- */
+function renderHeader(pf) {
+  const cards = (pf.profile && pf.profile.cards) || [];
+  const b70 = cards.filter((c) => c.b70 && c.accessible);
+  const vram = b70.reduce((a, c) => a + (c.vram_total_mib || 0), 0);
+  $("hdr-chips").replaceChildren();
+  const mk = (html, cls) => {
+    const s = document.createElement("span"); s.className = "hdrchip " + (cls || ""); s.innerHTML = html;
+    $("hdr-chips").append(s);
+  };
+  mk(S.is_win ? "windows" : "linux");
+  if (b70.length) mk(`<b>${b70.length}× B70</b>${vram ? ` · ${(vram / 1024).toFixed(0)} GB` : ""}`, "ok");
+  else if (cards.length) mk(`<b>${cards.length} GPU</b> (not B70)`);
+  else mk("no GPU", "warn");
+  $("hdr-version").textContent = "v" + (S.version || "?");
+}
+
+function renderPreflight(pf) {
+  const pill = $("pf-pill");
+  const blockers = pf.blockers || [];
+  const okCards = (pf.devices || []).filter((d) => d.b70 && d.accessible).length;
+  if (okCards) { pill.textContent = `${okCards}× Arc Pro B70 ready`; pill.className = "pill ok"; }
+  else if (blockers.length) { pill.textContent = `${blockers.length} blocker${blockers.length > 1 ? "s" : ""}`; pill.className = "pill warn"; }
+  else { pill.textContent = "no validated GPU"; pill.className = "pill"; }
+  $("pf-why").textContent = pf.default ? "★ " + pf.default.reason : "";
+  const body = $("pf-body");
+  body.replaceChildren();
+  (pf.devices || []).forEach((d) => {
+    const line = document.createElement("div"); line.className = "devline";
+    const dot = document.createElement("span"); dot.className = "devdot" + (d.accessible && d.b70 ? "" : " na");
+    const txt = document.createElement("span");
+    const vram = d.vram_total_mib ? ` · ${Math.round(d.vram_total_mib / 1024)} GB` : "";
+    const cap = d.power_cap_w ? ` · ${d.power_cap_w}W cap` : "";
+    txt.textContent = `${d.render} ${d.label || d.device} · ${d.b70 ? "Arc Pro B70" : "other Intel GPU"}${vram}${cap} · ${d.accessible ? "accessible" : "not accessible"}`;
+    line.append(dot, txt); body.append(line);
+  });
+  if (blockers.length) {
+    const w = document.createElement("div");
+    w.style.color = "var(--warn)";
+    w.textContent = blockers.join(" · ");
+    body.append(w);
+  }
+  const n = document.createElement("div"); n.style.marginTop = "6px";
+  n.textContent = (pf.notes || []).join(" ");
+  body.append(n);
+  renderRoots();
+}
+
+function renderRoots() {
+  const box = $("rootlist");
+  box.replaceChildren();
+  const roots = (S && S.scan && S.scan.roots) || (S ? S.settings.scan_dirs : []);
+  roots.forEach((r) => {
+    const item = document.createElement("div"); item.className = "rootitem";
+    const t = document.createElement("span"); t.textContent = "· " + r;
+    const rm = document.createElement("button"); rm.type = "button"; rm.className = "rm"; rm.textContent = "remove";
+    rm.onclick = () => setRoots(roots.filter((x) => x !== r));
+    item.append(t, rm); box.append(item);
+  });
+  if (!roots.length) box.innerHTML = '<span class="hint">no scan roots — add the folder that holds your models</span>';
+}
+
+async function setRoots(dirs) {
+  const r = await post("/api/settings", { scan_dirs: dirs });
+  if (r.error) { toast(r.error, ""); return; }
+  // update the cached state the root list renders from, then repaint it
+  if (S) {
+    S.settings.scan_dirs = r.scan_dirs || dirs;
+    if (S.scan) S.scan.roots = r.scan_dirs || dirs;
+  }
+  renderRoots();
+  toast("scan roots updated", "ok");
+  const sc = await fetch("/api/scan").then((x) => x.json());
+  SC = sc.matches || {};
+  SC_CATALOG = sc.catalog || [];
+  if ($("catcount")) $("catcount").textContent = String(SC_CATALOG.length);
+  renderModels(); renderEngines();
+}
+
+/* ---------------- models ---------------- */
+let SC_CATALOG = [];
+function modelOnDisk(m) {
+  if (m.id === "__custom__") return true;
+  return Object.values(SC[m.id] || {}).some((d) => d && d.detected);
+}
+
+function renderModels() {
+  const box = $("models");
+  box.replaceChildren();
+  if (!S) return;
+  const q = ($("modelsearch").value || "").trim().toLowerCase();
+  const diskOnly = $("diskonly").checked;
+  const showFullCatalog = $("fullcatalog") && $("fullcatalog").checked;
+
+  let modelList = S.recipes.models.map((m, i) => ({ m, i, isCustom: false }));
+
+  if (showFullCatalog && SC_CATALOG.length) {
+    const knownPaths = new Set();
+    Object.values(SC).forEach((engMap) => {
+      Object.values(engMap || {}).forEach((d) => { if (d && d.path) knownPaths.add(d.path); });
+    });
+    SC_CATALOG.forEach((item, idx) => {
+      if (knownPaths.has(item.path)) return;
+      const eng = item.kind === "openvino" ? "openvino" : (item.kind === "gguf" ? "llamacpp" : "vllm");
+      const sizeStr = item.size_mib ? (item.size_mib > 1024 ? (item.size_mib / 1024).toFixed(1) + " GB" : item.size_mib + " MB") : "";
+      const customModel = {
+        id: "__custom__",
+        custom_path: item.path,
+        name: item.name,
+        arch: `${item.kind.toUpperCase()}${sizeStr ? " · " + sizeStr : ""} · Discovered`,
+        blurb: item.path,
+        badge: "ON-DISK DISCOVERED",
+        tags: [{ t: item.kind, c: "grey" }, { t: "Generic Template", c: "amber" }],
+        recipes: {
+          [eng]: {
+            kind: item.kind === "gguf" ? "gguf" : (item.kind === "openvino" ? "ovms" : "vllm"),
+            ctx: item.ctx || (item.kind === "openvino" ? 20480 : 32768),
+            download: { kind: item.kind === "gguf" ? "file" : "snapshot", name: item.name, quant: "Discovered local artifact" }
+          }
+        }
+      };
+      modelList.push({ m: customModel, i: 1000 + idx, isCustom: true });
+    });
+  }
+
+  let models = modelList.filter(({ m }) => {
+    if (diskOnly && !modelOnDisk(m)) return false;
+    if (q) {
+      const hay = (m.name + " " + m.arch + " " + m.blurb + " "
+        + (m.tags || []).map((t) => t.t).join(" ")).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // detected-on-disk first, hardware default next, then the recipe order
+  models.sort((a, b) =>
+    (modelOnDisk(b.m) - modelOnDisk(a.m))
+    || ((DEFAULT_PICK && DEFAULT_PICK.model_id === b.m.id) - (DEFAULT_PICK && DEFAULT_PICK.model_id === a.m.id))
+    || (a.i - b.i));
+  if (!models.length) {
+    const h = document.createElement("div");
+    h.className = "hint";
+    h.textContent = diskOnly ? "No recipes match your filter — untick “on disk” or add the folder that holds the model under a scan root."
+      : "No model matches that search.";
+    box.append(h);
+    return;
+  }
+  models.forEach(({ m }) => {
+    const d = document.createElement("div");
+    d.className = "model" + ((m.id === SEL.id && (!m.custom_path || m.custom_path === SEL.custom_path)) ? " sel" : "");
+    const chips = Object.keys(m.recipes).map((e) => {
+      const meta = S.recipes.engines.find((x) => x.id === e) || { tag: e };
+      const det = (SC[m.id] || {})[e];
+      const sel = e === ENGINE && m.id === SEL.id;
+      const cls = sel ? " on" : (m.id === "__custom__" || (det && det.detected)) ? " ok" : " na";
+      const mark = (m.id === "__custom__" || (det && det.detected)) ? "✓ " : "";
+      return `<span class="chip${cls}">${mark}${esc(meta.tag)}</span>`;
+    }).join("");
+    const TAGTIP = {violet: "how smart it is", green: "MoE models run best at 150W", amber: "dense models run best at 180W", red: "high power draw", grey: "best for"};
+    const tags = (m.tags || []).map((t) => `<span class="tag ${esc(t.c)}" title="${esc(TAGTIP[t.c] || "")}">${esc(t.t)}</span>`).join("");
+    const isDefault = DEFAULT_PICK && DEFAULT_PICK.model_id === m.id
+      && S.preflight && S.preflight.profile && S.preflight.profile.b70_count > 0;
+    const badgeHtml = m.badge
+      ? `<div class="badge ${m.badge.includes('TIERED') ? 'tiered' : ''}">${esc(m.badge)}</div>`
+      : (isDefault ? `<div class="badge">RECOMMENDED FOR YOUR GPU</div>` : "");
+    d.innerHTML = `${badgeHtml}<div class="n">${esc(m.name)}</div><div class="a">${esc(m.arch)}</div>
+      <div class="tg">${tags}</div>
+      <div class="b">${esc(m.blurb)}</div><div class="e">${chips}</div>`;
+    d.onclick = () => {
+      SEL = m;
+      ENGINE = Object.keys(m.recipes).includes(ENGINE) ? ENGINE : Object.keys(m.recipes)[0];
+      CTX_TOUCHED = false;
+      renderModels(); renderEngines(); refresh(); focusStep(2); savePrefs();
+    };
+    d.setAttribute("role", "button");
+    d.tabIndex = 0;
+    d.onkeydown = (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); d.click(); }
+    };
+    box.append(d);
+  });
+}
+
+function renderEngines() {
+  const box = $("engines");
+  box.replaceChildren();
+  const engines = Object.keys(SEL.recipes);
+  engines.forEach((e) => {
+    const meta = S.recipes.engines.find((x) => x.id === e) || { label: e, note: "", tagline: "" };
+    const det = (SC[SEL.id] || {})[e];
+    const isDefault = DEFAULT_PICK && DEFAULT_PICK.model_id === SEL.id && DEFAULT_PICK.engine === e
+      && S.preflight && S.preflight.profile && S.preflight.profile.b70_count > 0;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "engbtn" + (e === ENGINE ? " on" : "");
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(e === ENGINE));
+    const lbl = document.createElement("span"); lbl.className = "lbl";
+    lbl.innerHTML = `<b>${esc(meta.label)}</b><small>${esc(meta.tagline || "")}</small>`;
+    b.append(lbl);
+    if (isDefault) {
+      const bd = document.createElement("span"); bd.className = "ebadge"; bd.textContent = "DEFAULT";
+      b.append(bd);
+    }
+    const st = document.createElement("span");
+    st.className = "estate " + (det && det.detected ? "ok" : "na");
+    st.textContent = det && det.detected ? "✓ on disk" : "not on disk";
+    b.append(st);
+    b.onclick = () => { ENGINE = e; CTX_TOUCHED = false; renderEngines(); renderModels(); refresh(); savePrefs(); collapseEngines(); };
+    box.append(b);
+  });
+  box.onkeydown = (ev) => {
+    if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+    ev.preventDefault();
+    const idx = engines.indexOf(ENGINE);
+    const next = engines[(idx + (ev.key === "ArrowDown" ? 1 : engines.length - 1)) % engines.length];
+    ENGINE = next; CTX_TOUCHED = false;
+    renderEngines(); renderModels(); refresh(); savePrefs();
+    [...box.children][engines.indexOf(next)].focus();
+  };
+  const meta = S.recipes.engines.find((x) => x.id === ENGINE) || {};
+  const r = SEL.recipes[ENGINE];
+  $("engine-note").textContent = (meta.note || "") + " · " + (r.perf || "");
+  // collapsed single-button: show the chosen engine; click expands the list
+  const det0 = (SC[SEL.id] || {})[ENGINE];
+  $("et-name").textContent = meta.label || ENGINE;
+  $("et-tag").textContent = meta.tagline || "";
+  const st0 = $("et-state");
+  st0.className = "estate " + (det0 && det0.detected ? "ok" : "na");
+  st0.textContent = det0 && det0.detected ? "✓ on disk" : "not on disk";
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem("b70prefs")); } catch {}
+  const opts = ENGINE === "llamacpp" ? S.settings.llamacpp_kv_options
+    : ENGINE === "vllm" ? S.settings.vllm_kv_options : ["auto (OVMS-managed)"];
+  const kv0 = (stored && stored.kv && opts.includes(stored.kv)) ? stored.kv : (opts.includes(r.kv) ? r.kv : opts[0]);
+  makeDropdown("kv-dd", "kv", opts, kv0, () => { refresh(); savePrefs(); });
+  const pmeta = (w) => {
+    const p = S.settings.power_modes.find((x) => x.watts === w) || { label: "" };
+    return `${w} W — ${p.label.split(" - ")[1] || p.label}`;
+  };
+  const pw0 = (stored && stored.power) || r.power || 150;
+  makeDropdown("power-dd", "power", S.settings.power_modes.map((p) => pmeta(p.watts)), pmeta(pw0), () => { refresh(); savePrefs(); });
+  $("mtprow").style.display = r.speculative ? "" : "none";
+  if (r.speculative) $("mtp").checked = true;
+  renderArtifact();
+  updateLaunchSummary();
+}
+
+function collapseEngines() {
+  const box = $("engines");
+  box.hidden = true;
+  $("engineToggle").setAttribute("aria-expanded", "false");
+}
+
+function engineMeta() {
+  return (S && S.recipes.engines.find((x) => x.id === ENGINE)) || { label: ENGINE, tagline: "" };
+}
+
+function ctxLabel(ctx) {
+  return ctx >= 1024 ? (Math.round(ctx / 1024) + "K") : String(ctx);
+}
+
+function updateLaunchSummary() {
+  if (!SEL || !S) return;
+  const meta = engineMeta();
+  const ctx = CTX_TOUCHED ? Math.max(512, +$("ctx").value || 0) : (SEL.recipes[ENGINE].ctx || 32768);
+  $("lc-runtime").textContent = meta.label || ENGINE;
+  $("lc-ctx").textContent = ctxLabel(ctx) + " ctx";
+  const bits = [];
+  const kv = DDS.kv ? DDS.kv.get() : "";
+  if (/fp8/i.test(kv) || (SEL.recipes[ENGINE].kv || "") === "fp8") bits.push("fp8 KV");
+  if (SEL.recipes[ENGINE].spec_tokens && $("mtp").checked) bits.push("MTP" + SEL.recipes[ENGINE].spec_tokens);
+  const gpus = [0, 1].filter((i) => $(`gpu${i}`).checked);
+  bits.push(gpus.length + "× B70");
+  $("lc-extra").textContent = bits.join(" · ");
+  $("launch-sub").textContent = `with ${meta.label || ENGINE} · ${ctxLabel(ctx)} context`;
+}
+
+function renderArtifact() {
+  const r = SEL.recipes[ENGINE];
+  const dl = r.download || {};
+  const det = (SC[SEL.id] || {})[ENGINE] || {};
+  const fname = dl.kind === "file" ? dl.name : (dl.repo || dl.search || r.model_path || "");
+  const box = $("artifact");
+  const d = DLS[`${SEL.id}-${ENGINE}`];
+  let st = "";
+  if (det.detected) {
+    st = `<div class="st ok">✓ detected — ${esc(det.path)}${det.ctx_native ? " · native ctx " + esc(det.ctx_native) : ""}</div>`;
+  } else {
+    st = `<div class="st">not on disk yet</div>`;
+  }
+  let bar = "";
+  if (d && ["queued", "resolving", "downloading"].includes(d.state)) {
+    const pct = d.pct || 0;
+    const mb = (n) => Math.round(n / 1048576);
+    const txt = `${pct}% · ${mb(d.done)} MB / ${d.total ? mb(d.total) + " MB" : "?"} · ${mb(d.speed || 0)} MB/s · ETA ${d.eta != null ? Math.round(d.eta) + "s" : "--"}`;
+    bar = `<div class="barwrap" style="display:block"><div class="bar"><div class="fill" style="width:${pct}%"></div><div class="txt">${txt}</div></div></div>`;
+  } else if (d && d.state === "done") {
+    st = `<div class="st ok">✓ downloaded to ${esc(d.dest)} — now auto-detected</div>`;
+  } else if (d && d.state === "error") {
+    st = `<div class="st" style="color:var(--warn)">${esc(d.error)}</div>`;
+  }
+  box.innerHTML = `
+    <div class="q">model file · ${esc(dl.quant || "recipe default")}</div>
+    <div class="fname">${esc(fname)}${d && d.repo ? "  @ " + esc(d.repo) : ""}</div>
+    ${st}${bar}
+    ${det.detected ? "" : /^(OpenVINO|Intel)\/[A-Za-z0-9_.-]+$/.test(dl.repo || "") ? `<button onclick="startDl()">Download model</button><div class="hint">from pinned official repo ${esc(dl.repo)}</div>` : `<div class="hint">Automatic download unavailable: repository not approved in this recipe. Inspect and place the model under a scan root.</div>`}
+  `;
+}
+
+async function startDl() {
+  const repo = SEL.recipes[ENGINE].download.repo;
+  confirmStrip(`Download from https://huggingface.co/${esc(repo)}? Inspect model terms and disk space first.`, "Download", async () => {
+    const response = await post("/api/download", { model_id: SEL.id, engine: ENGINE });
+    if (response.error) toast("download failed: " + response.error, "");
+    else { toast("download started", "ok"); pollDl(); }
+  });
+}
+
+let dlTimer = null;
+function pollDl() {
+  if (dlTimer) return;
+  dlTimer = setInterval(async () => {
+    const r = await fetch("/api/downloads");
+    DLS = await r.json();
+    renderArtifact();
+    const active = Object.values(DLS).some((d) => ["queued", "resolving", "downloading"].includes(d.state));
+    if (!active) {
+      clearInterval(dlTimer); dlTimer = null;
+      const sc = await fetch("/api/scan").then((x) => x.json());
+      SC = sc.matches || {};
+      renderModels(); renderArtifact(); refresh();
+    }
+  }, 700);
+}
+
+/* ---------------- servers & metrics ---------------- */
+function renderServers(items) {
+  const box = $("servers");
+  // signature over stable fields only: live token counters churn every metrics
+  // poll and must not rebuild the cards (they would kill open logs and focus)
+  const sig = JSON.stringify(items.map((s) => [s.id, s.status, s.model, s.engine, s.endpoint, s.started]));
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  SRV = items;
+  box.replaceChildren();
+  if (!items.length) { const h = document.createElement("div"); h.className = "hint"; h.textContent = "Nothing running yet — launch a model to see it here."; box.append(h); return; }
+  items.forEach((s) => {
+    const card = document.createElement("div");
+    card.className = "srv";
+    const status = document.createElement("span");
+    status.className = "st " + (s.status.startsWith("exited") || s.status === "stopped" ? "warnstate" : s.status === "starting" ? "starting" : s.status);
+    status.textContent = s.status;
+    card.append(status);
+    const head = document.createElement("div"); head.className = "id";
+    head.textContent = s.model + " · " + s.engine;
+    card.append(head);
+    const meta = document.createElement("div"); meta.className = "meta";
+    meta.textContent = s.endpoint + " · started " + s.started;
+    card.append(meta);
+    const grid = document.createElement("div"); grid.className = "statgrid"; grid.id = `m-${s.id}`;
+    card.append(grid);
+    const chartwrap = document.createElement("div"); chartwrap.className = "chartwrap";
+    const cv = document.createElement("canvas"); cv.id = `chart-${s.id}`; cv.height = 92;
+    const cap = document.createElement("div"); cap.className = "chart-cap";
+    const capL = document.createElement("span"); capL.id = `chartcap-${s.id}`; capL.textContent = "output tok/s";
+    const capR = document.createElement("span"); capR.textContent = "last 12 min";
+    cap.append(capL, capR);
+    chartwrap.append(cv, cap);
+    card.append(chartwrap);
+    const open = OPEN_STATE.get(s.id) || {};
+    const actions = document.createElement("div"); actions.className = "srvbtns";
+    for (const [label, fn] of [["Chat", () => chatSrv(s.id)], ["Details", () => { open.details = !open.details; OPEN_STATE.set(s.id, open); renderServersForce(); }]]) {
+      const button = document.createElement("button"); button.textContent = label; button.onclick = fn; actions.append(button);
+    }
+    card.append(actions);
+    const details = document.createElement("div"); details.hidden = !open.details;
+    const dbtns = document.createElement("div"); dbtns.className = "srvbtns";
+    for (const [label, fn] of [["Logs", () => showLogs(s.id)], ["Restart", () => restartSrv(s.id)], ["Stop", () => stopSrv(s.id)]]) {
+      const button = document.createElement("button"); button.textContent = label; button.onclick = fn; dbtns.append(button);
+    }
+    details.append(dbtns);
+    const logs = document.createElement("pre"); logs.className = "logpre"; logs.id = `log-${s.id}`; logs.style.display = open.logs ? "block" : "none"; details.append(logs);
+    card.append(details); box.append(card);
+  });
+  // canvases were recreated: repaint any series we already hold
+  items.forEach((s) => { const series = CHARTS.get(s.id); if (series) drawServerChart(s.id, series.pts); });
+}
+
+function renderServersForce() {
+  $("servers").dataset.sig = "";
+  renderServers(SRV);
+}
+
+function srvCfg(id) {
+  const s = SRV.find((x) => x.id === id);
+  return s && s.cfg ? s.cfg : null;
+}
+
+async function showLogs(id) {
+  const r = await fetch(`/api/logs?id=${encodeURIComponent(id)}`);
+  const j = await r.json();
+  const pre = $(`log-${id}`);
+  const open = OPEN_STATE.get(id) || {};
+  open.logs = pre.style.display === "none";
+  OPEN_STATE.set(id, open);
+  pre.style.display = open.logs ? "block" : "none";
+  pre.textContent = (j.lines || []).join("\n") || "(empty log)";
+}
+
+async function restartSrv(id) {
+  const c = srvCfg(id);
+  if (!c) return;
+  confirmStrip(`Restart ${esc(c.model_id)}? The running server is stopped first, then started again with the same settings.`, "Restart", async () => {
+    await post("/api/stop", { id });
+    const response = await post("/api/launch", c);
+    if (response.error) toast("restart failed: " + response.error, "");
+    else toast("server restarted", "ok");
+    state(); fetchUsage();
+  });
+}
+
+async function chatSrv(id) {
+  const c = srvCfg(id);
+  if (!c) return;
+  await post("/api/harness", c);
+}
+
+async function stopSrv(id) {
+  await post("/api/stop", { id });
+  toast("server stopped — usage stored", "ok");
+  state();
+  fetchUsage();
+}
+
+function statCell(k, v) {
+  const d = document.createElement("div"); d.className = "stat";
+  const kk = document.createElement("span"); kk.className = "k"; kk.textContent = k;
+  const vv = document.createElement("span"); vv.className = "v"; vv.innerHTML = v;
+  d.append(kk, vv);
+  return d;
+}
+
+async function pollMetrics() {
+  try {
+    const M = await (await fetch("/api/metrics")).json();
+    const gl = $("gpuline");
+    if (gl && S) {
+      const pfm = (S.preflight && S.preflight.devices) || [];
+      const watts = {};
+      (M.power || []).forEach((p) => { watts[p.pci] = p; });
+      gl.replaceChildren();
+      pfm.forEach((d, i) => {
+        const w = watts[d.pci] || {};
+        const v = `${w.watts != null ? w.watts + " W" : "—"}${w.cap_w ? ' <small>/ ' + w.cap_w + ' W cap</small>' : ''}`;
+        gl.append(statCell(`GPU ${i} · ${d.b70 ? "B70" : "intel"}`, v));
+      });
+      if (M.vram) {
+        const pct = M.vram.total_mib ? Math.min(100, 100 * M.vram.used_mib / M.vram.total_mib) : 0;
+        const cell = statCell("VRAM", `${Math.round(M.vram.used_mib)}${M.vram.total_mib ? " / " + Math.round(M.vram.total_mib) + " MiB" : ""} <small>${esc(M.vram.source)}</small>`);
+        const meter = document.createElement("div"); meter.className = "meter";
+        meter.innerHTML = `<div class="meterfill" style="width:${pct}%"></div>`;
+        cell.append(meter);
+        gl.append(cell);
+      }
+    }
+    Object.entries(M).forEach(([id, m]) => {
+      if (id === "vram" || id === "power" || !m || typeof m !== "object") return;
+      const el = $(`m-${id}`);
+      if (!el) return;
+      el.replaceChildren();
+      const src = m.metrics_source === "engine /metrics" ? "" : ' <small>(log)</small>';
+      el.append(statCell("output tok/s", m.tok_s != null ? String(m.tok_s) : (m.toks ? esc(m.toks) + src : "—")));
+      el.append(statCell("prompt tok", fmtTok(m.tokens_in)));
+      el.append(statCell("completion tok", fmtTok(m.tokens_out)));
+      const mem = m.stats ? `cpu ${esc(m.stats.cpu)} · ${esc(m.stats.mem)}` : (m.engine_mem || "—");
+      el.append(statCell("engine", mem));
+      // usage evolution: one point per poll, 12-minute window
+      const series = CHARTS.get(id) || { pts: [] };
+      series.pts.push({ t: Date.now(), tokS: m.tok_s || 0, out: m.tokens_out || 0 });
+      if (series.pts.length > 288) series.pts.shift();
+      CHARTS.set(id, series);
+      drawServerChart(id, series.pts);
+    });
+  } catch {}
+}
+
+/* ---------------- usage charts ---------------- */
+const CHARTS = new Map();  // server id -> { pts: [{t, tokS, out}] }
+
+function drawServerChart(id, pts) {
+  const cv = $(`chart-${id}`);
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || cv.parentElement.clientWidth || 400;
+  const H = 92;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d");
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, W, H);
+  const padB = 14, padT = 6, padX = 2;
+  const iw = W - padX * 2, ih = H - padB - padT;
+  if (pts.length < 2) {
+    g.fillStyle = "#9b9b9b"; g.font = "10px monospace";
+    g.fillText("collecting metrics…", 6, H / 2);
+    return;
+  }
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t || (t0 + 1);
+  const x = (t) => padX + ((t - t0) / Math.max(t1 - t0, 1)) * iw;
+  const peak = Math.max(...pts.map((p) => p.tokS), 1);
+  const outMax = Math.max(...pts.map((p) => p.out), 1);
+  // tok/s area
+  g.beginPath();
+  g.moveTo(x(pts[0].t), padT + ih);
+  pts.forEach((p) => g.lineTo(x(p.t), padT + ih - (p.tokS / peak) * ih));
+  g.lineTo(x(pts[pts.length - 1].t), padT + ih);
+  g.closePath();
+  g.fillStyle = "rgba(92,179,242,.18)";
+  g.fill();
+  g.beginPath();
+  pts.forEach((p, i) => { const px = x(p.t), py = padT + ih - (p.tokS / peak) * ih; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+  g.strokeStyle = "#5CB3F2"; g.lineWidth = 1.6; g.stroke();
+  // cumulative completion tokens (scaled separately, dim green)
+  g.beginPath();
+  pts.forEach((p, i) => { const px = x(p.t), py = padT + ih - (p.out / outMax) * ih; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+  g.strokeStyle = "rgba(126,231,135,.75)"; g.lineWidth = 1.2; g.stroke();
+  // baseline + labels
+  g.strokeStyle = "#2a2a2a"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(padX, padT + ih + 0.5); g.lineTo(W - padX, padT + ih + 0.5); g.stroke();
+  g.fillStyle = "#9b9b9b"; g.font = "9px monospace";
+  const cur = pts[pts.length - 1].tokS;
+  g.fillText(`peak ${peak.toFixed(1)}`, 4, padT + 9);
+  g.fillText(`${cur.toFixed(1)} tok/s`, 4, H - 3);
+  const total = pts[pts.length - 1].out;
+  const label = `Σ ${fmtTok(total)} tok`;
+  g.fillText(label, W - g.measureText(label).width - 4, padT + 9);
+  const cap = $(`chartcap-${id}`);
+  if (cap) cap.textContent = `output tok/s · Σ completion ${fmtTok(total)}`;
+}
+
+function drawSessionsChart(sessions) {
+  const cv = $("usechart");
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 400, H = 92;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d");
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, W, H);
+  const shown = sessions.slice(-14);
+  if (!shown.length) {
+    g.fillStyle = "#9b9b9b"; g.font = "10px monospace";
+    g.fillText("no sessions recorded yet", 6, H / 2);
+    return;
+  }
+  const padB = 14, padT = 6, gap = 6;
+  const bw = Math.max(6, (W - gap * (shown.length + 1)) / shown.length);
+  const maxTok = Math.max(...shown.map((s) => (s.tokens_in || 0) + (s.tokens_out || 0)), 1);
+  shown.forEach((s, i) => {
+    const x = gap + i * (bw + gap);
+    const hin = ((s.tokens_in || 0) / maxTok) * (H - padB - padT);
+    const hout = ((s.tokens_out || 0) / maxTok) * (H - padB - padT);
+    g.fillStyle = "rgba(92,179,242,.55)";
+    g.fillRect(x, H - padB - hin, bw, hin);
+    g.fillStyle = "rgba(126,231,135,.8)";
+    g.fillRect(x, H - padB - hin - hout, bw, hout);
+  });
+  g.strokeStyle = "#2a2a2a";
+  g.beginPath(); g.moveTo(0, H - padB + 0.5); g.lineTo(W, H - padB + 0.5); g.stroke();
+  g.fillStyle = "#9b9b9b"; g.font = "9px monospace";
+  g.fillText("■ prompt", 4, H - 3);
+  g.fillText("■ completion", 58, H - 3);
+  g.fillText("last " + shown.length + " sessions", W - g.measureText("last " + shown.length + " sessions").width - 4, H - 3);
+}
+
+/* ---------------- usage history ---------------- */
+async function fetchUsage() {
+  try {
+    const U = await (await fetch("/api/usage")).json();
+    const tot = U.totals || {};
+    const box = $("usetotal");
+    box.replaceChildren();
+    box.append(statCell("sessions stored", String(tot.sessions || 0)));
+    box.append(statCell("prompt tokens", fmtTok(tot.tokens_in || 0)));
+    box.append(statCell("completion tokens", fmtTok(tot.tokens_out || 0)));
+    const hist = $("usage");
+    hist.replaceChildren();
+    const sessions = U.sessions || [];
+    drawSessionsChart(sessions);
+    if (!sessions.length) { hist.innerHTML = '<div class="hint">No sessions recorded yet.</div>'; return; }
+    const t = document.createElement("table"); t.className = "usetable";
+    t.innerHTML = `<thead><tr><th>model</th><th>engine</th><th>started</th><th>prompt tok</th><th>compl tok</th><th>req</th><th>peak tok/s</th><th>ended</th></tr></thead><tbody></tbody>`;
+    const tb = t.querySelector("tbody");
+    sessions.slice().reverse().forEach((s) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${esc(s.model || "")}</td><td class="dim">${esc(s.engine || "")}</td>
+        <td class="dim">${esc(s.started || "")}</td><td>${fmtTok(s.tokens_in)}</td><td>${fmtTok(s.tokens_out)}</td>
+        <td>${fmtTok(s.requests)}</td><td>${s.peak_tok_s != null ? s.peak_tok_s : "—"}</td>
+        <td class="dim">${esc((s.status || "") + (s.ended ? " " + s.ended : ""))}</td>`;
+      tb.append(tr);
+    });
+    hist.append(t);
+  } catch {}
+}
+
+/* ---------------- build / prefs ---------------- */
+function savePrefs() {
+  try {
+    localStorage.setItem("b70prefs", JSON.stringify(
+      { model: SEL.id, engine: ENGINE, kv: DDS.kv ? DDS.kv.get() : null,
+        power: DDS.power ? +DDS.power.get().split(" ")[0] : null,
+        harness: DDS.harness ? DDS.harness.get() : null }));
+  } catch {}
+}
+
+let refreshTimer = null, refreshSeq = 0;
+function refresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(doRefresh, 250);
+}
+
+async function doRefresh() {
+  if (!SEL) return;
+  const seq = ++refreshSeq;
+  const c = cfg();
+  const b = await post("/api/build", c);
+  if (seq !== refreshSeq) return;  // a newer build superseded this one
+  if (b.error) { $("cmd").textContent = b.error; return; }
+  $("cmd").textContent = b.cmd;
+  $("pcmd").textContent = b.power_cmd;
+  $("harness_line").textContent = b.harness_line;
+  $("warnings").textContent = (b.warnings || []).join("\n");
+  if (!CTX_TOUCHED) {
+    $("ctx").value = b.ctx;
+  }
+  $("ctx-note").textContent = `resolved: ${b.ctx} <- ${b.ctx_source}` + (b.detected ? " · detected on disk" : "");
+  renderArtifact();
+  const r = (SEL.recipes && SEL.recipes[ENGINE]) || {};
+  renderTopology(r);
+  const isMultiGpu = (r.gpus && r.gpus.length > 1) || r.tp === 2 || r.tensor_split;
+  if (isMultiGpu) {
+    $("gpu0").checked = true;
+    $("gpu1").checked = true;
+    $("gpu1").disabled = false;
+    const l1 = $("gpu1-lbl"); if (l1) l1.textContent = "GPU 1 (B70 · 32GB)";
+  } else {
+    const has2Gpus = S && S.preflight && S.preflight.profile && S.preflight.profile.b70_count >= 2;
+    $("gpu1").disabled = !has2Gpus;
+    const l1 = $("gpu1-lbl"); if (l1) l1.textContent = has2Gpus ? "GPU 1 (B70 · 32GB)" : "GPU 1 (unvalidated topology)";
+  }
+  updateLaunchSummary();
+  savePrefs();
+}
+
+function renderTopology(r) {
+  const box = $("mem-topology");
+  if (!box) return;
+  const topo = r && r.topology;
+  if (!topo) {
+    box.hidden = true;
+    box.replaceChildren();
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="mem-topology-title">
+      <span>Tiered Memory Topology</span>
+      <span class="mem-topology-badge">3-Tier Hierarchy</span>
+    </div>
+    <div class="mem-tiers">
+      <div class="mem-tier vram">
+        <div class="mem-tier-h"><span>Tier 1 · Dual B70 VRAM</span><span class="cap">64 GB Total</span></div>
+        <div class="mem-tier-desc">${esc(topo.vram || "Active compute & attention layers")}</div>
+      </div>
+      <div class="mem-tier ram">
+        <div class="mem-tier-h"><span>Tier 2 · Host System RAM</span><span class="cap">~30+ GB CPU</span></div>
+        <div class="mem-tier-desc">${esc(topo.ram || "N-gram table & boundary MoE offload (-ot)")}</div>
+      </div>
+      <div class="mem-tier nvme">
+        <div class="mem-tier-h"><span>Tier 3 · PCIe Gen4 NVMe</span><span class="cap">Zero-Copy mmap</span></div>
+        <div class="mem-tier-desc">${esc(topo.nvme || "Direct OS page-cache memory mapping")}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function state() {
+  const stateP = fetch("/api/state").then((r) => r.json());
+  const scanP = fetch("/api/scan").then((r) => r.json()).catch(() => ({ matches: {}, state: "idle", catalog: [] }));
+  S = await stateP;
+  const initialScan = await scanP;
+  SC = initialScan.matches || {};
+  SC_CATALOG = initialScan.catalog || [];
+  if ($("catcount")) $("catcount").textContent = String(SC_CATALOG.length);
+  renderHeader(S.preflight);
+  renderPreflight(S.preflight);
+  DEFAULT_PICK = (S.preflight && S.preflight.default) || null;
+  if (!SEL) {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem("b70prefs")); } catch {}
+    const def = DEFAULT_PICK || {};
+    SEL = (p && S.recipes.models.find((m) => m.id === p.model))
+      || S.recipes.models.find((m) => m.id === def.model_id)
+      || S.recipes.models[0];
+    ENGINE = (p && Object.keys(SEL.recipes).includes(p.engine)) ? p.engine
+      : Object.keys(SEL.recipes).includes(def.engine) ? def.engine
+      : Object.keys(SEL.recipes)[0];
+  }
+  renderModels(); renderEngines();  // paint immediately; detection chips may be empty yet
+  restorePrefs();
+  makeDropdown("harness-dd", "harness", S.settings.harnesses.map((h) => h.id),
+               (SEL && srvCfgStored()) || "omp", () => refresh());
+  renderServers(S.running);
+  doRefresh();
+  pollMetrics();
+  fetchUsage();
+  const sc = await scanP;
+  SC = sc.matches || {};
+  updateScanPill(sc);
+  renderModels(); renderEngines(); doRefresh();
+}
+
+function srvCfgStored() {
+  try {
+    const p = JSON.parse(localStorage.getItem("b70prefs"));
+    return p && p.harness;
+  } catch { return null; }
+}
+
+function restorePrefs() {
+  // kv/power dropdowns are rebuilt per engine; re-apply the stored choice
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem("b70prefs")); } catch {}
+  if (!p) return;
+  if (p.kv && DDS.kv) DDS.kv.set(p.kv);
+  if (p.power && DDS.power) {
+    const pm = S.settings.power_modes.find((x) => x.watts === p.power);
+    if (pm) DDS.power.set(`${pm.watts} W — ${pm.label.split(" - ")[1] || pm.label}`);
+  }
+}
+
+function updateScanPill(sc) {
+  const pill = $("scanpill");
+  const roots = (sc.roots || []).length || (S && S.scan ? S.scan.roots.length : 0);
+  if (sc.state === "scanning") {
+    pill.textContent = `scanning ${roots} root${roots === 1 ? "" : "s"}…`;
+    pill.className = "scanpill busy";
+    setTimeout(async () => {
+      try {
+        const j = await (await fetch("/api/scan")).json();
+        const next = JSON.stringify(j.matches || {});
+        if (next !== JSON.stringify(SC)) {
+          SC = j.matches || {};
+          renderModels(); renderEngines();  // rebuild dropdowns only on real changes
+        }
+        updateScanPill(j);
+      } catch {}
+    }, 1500);
+  } else {
+    const hits = Object.values(SC).reduce((a, m) => a + Object.values(m).filter((d) => d.detected).length, 0);
+    pill.textContent = `${hits} artifact${hits === 1 ? "" : "s"} on disk`;
+    pill.className = "scanpill";
+  }
+}
+
+function copyText(id, btn) {
+  navigator.clipboard.writeText($(id).textContent).then(() => {
+    if (btn) {
+      const old = btn.textContent;
+      btn.textContent = "Copied ✓"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = old; btn.classList.remove("copied"); }, 1500);
+    }
+  });
+}
+
+["ctx", "port", "gpu0", "slots", "mtp", "extra", "extra_env"].forEach((id) => {
+  $(id).oninput = () => { if (id === "ctx") CTX_TOUCHED = true; refresh(); };
+});
+$("modelsearch").oninput = () => renderModels();
+$("diskonly").onchange = () => renderModels();
+$("fullcatalog").onchange = () => renderModels();
+$("engineToggle").onclick = () => {
+  const box = $("engines");
+  const show = box.hidden;
+  box.hidden = !show;
+  $("engineToggle").setAttribute("aria-expanded", String(show));
+  if (show) { const cur = [...box.children][Object.keys(SEL.recipes).indexOf(ENGINE)]; cur && cur.focus(); }
+};
+$("ctx").addEventListener("input", updateLaunchSummary);
+$("mtp").addEventListener("change", updateLaunchSummary);
+
+$("customizeBtn").onclick = () => {
+  const adv = $("adv");
+  adv.hidden = !adv.hidden;
+  $("customizeBtn").textContent = adv.hidden ? "Customize ⌄" : "Customize ⌃";
+};
+
+$("launch").onclick = () => {
+  const c = cfg();
+  if (!c) return;
+  if (c.dry_run) {
+    post("/api/launch", c).then((r) => { if (r.error) toast(r.error, ""); else state(); });
+    return;
+  }
+  confirmStrip(`Start ${esc(SEL.name)} with ${esc(ENGINE)}? This may pull a container image and use local GPU resources. Power caps are NOT applied.`, "Start engine", async () => {
+    const r = await post("/api/launch", c);
+    if (r.error) { toast("launch failed: " + r.error, ""); return; }
+    toast("engine launching — metrics appear when it is ready", "ok");
+    state(); fetchUsage();
+  });
+};
+
+$("oph").onclick = () => { const c = cfg(); if (c) post("/api/harness", c); };
+$("rootadd").onclick = async () => {
+  const val = $("rootinput").value.trim();
+  if (!val) return;
+  const roots = ((S && S.scan && S.scan.roots) || []).slice();
+  roots.push(val);
+  $("rootinput").value = "";
+  await setRoots(roots);
+};
+$("rootinput").onkeydown = (ev) => { if (ev.key === "Enter") $("rootadd").click(); };
+
+setInterval(async () => {
+  try {
+    const r = await fetch("/api/state").then((x) => x.json());
+    renderServers(r.running);
+  } catch {}
+}, 4000);
+setInterval(pollMetrics, 2500);
+setInterval(fetchUsage, 10000);
+window.addEventListener("resize", () => {
+  CHARTS.forEach((series, id) => drawServerChart(id, series.pts));
+  fetchUsage();
+});
+focusStep(1);
+state();
+pollDl();  // a reload during an active download must resume its progress bar
+</script>
+</body>
+</html>

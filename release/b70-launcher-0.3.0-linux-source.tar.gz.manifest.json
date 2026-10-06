@@ -1,0 +1,14 @@
+{
+  "files": {
+    "README.md": "b477a7db5dd4e1d544a07d85bdb9980a74c4c6dc4315f6f7f325a0dfcf8729b6",
+    "launcher.py": "6a8a9a381540c1018a09a3fba90c377905c5a7229bb747db24a22a32d7fed286",
+    "packaging/b70-launcher.desktop": "00ccb041b951e0fe073915c3f9b7131b2c30b57b8fc0f81b019a2a7bdb648eaf",
+    "packaging/install.sh": "ce1676794e6e8c171211cfa0dbac748bd2a442f0bbf634a0d77d55f227c55666",
+    "recipes.json": "22cb4a7db86db29f04900d4b246f2aa2f7ca0d8f46332ea51e35d9bbb1c3cc60",
+    "settings.json": "2604b30b5f66a6d7dbdbc6028cfebbf8967f1a539d21576d2ce276b1f4e72e22",
+    "web/assets/b70-launcher.svg": "d4b768000ef7216a1b2cbaca11661a733f310ddcdb25b75506b3e318da7868b5",
+    "web/index.html": "489b0dae35a73930bad357e3a9a429c45a2a655486a8a3aa8592c6dbd32c2022"
+  },
+  "platform": "Linux source (Python 3.9+)",
+  "version": "0.3.0"
+}
