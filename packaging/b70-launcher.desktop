@@ -1,8 +1,15 @@
 [Desktop Entry]
 Type=Application
+Version=1.0
 Name=B70 Launcher
-Comment=Inspect local hardware and launch selected B70 inference recipes
+GenericName=Local LLM launcher
+Comment=Inspect Intel Arc GPU hardware and launch local LLM inference recipes
 Exec=b70-launcher
+TryExec=b70-launcher
 Icon=b70-launcher
+Terminal=false
 Categories=Utility;
+Keywords=LLM;inference;Intel;Arc;B70;local;AI;GGUF;
+StartupNotify=true
+# webwindow.py calls GLib.set_prgname/Gdk.set_program_class("b70-launcher").
 StartupWMClass=b70-launcher

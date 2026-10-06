@@ -1,0 +1,31 @@
+{
+  "files": {
+    "README.md": "e2d5ff44dffb5ee40a1c0af66f50eeeadaab0299ab89828456b95b37db57de7f",
+    "appwindow.py": "0e40dbed01c37a249d967b4accd5ac6ffa21f3d1aff547dd9081f775e759a6bb",
+    "docs/api.md": "1a952f49a9cdd9c1177f6729c482b17390bef1bedb1ff1c924ddd15ee5257f42",
+    "docs/recipe-format.md": "ff78e5d1ed8f20920299264d0674c5839546c503abc3d48d2393e3dfca52a93d",
+    "launcher.py": "f1de7b1ca7cde06123fcd738efd3ea7529f4cf03faa6f150d979c38b6e35d3ec",
+    "packaging/b70-launcher.desktop": "b2e96baceb4eb8407a67878b342731e294d982b9fe01c78ef6d881527706a5bc",
+    "packaging/install.sh": "2b7bd120c645005deba5723e8c4e402d0fbeb8e8df15147c63c2fae5c88ef038",
+    "packaging/uninstall.sh": "84307cad9d20df968b0dd7066ca63e55645c3a19f734a88ed9dd5d149a8bbea8",
+    "patches/patch_champion_stack_overlay.py": "4764fef9d69a8d9668d8691cfd230ba8f327f020854a40c037f3cbce129a8306",
+    "patches/patch_mtp_boundary.py": "41d2f74e5fef1f074b76b5a90dd1016de437228431802cfb1fa7bd7ce4cc9b50",
+    "patches/patch_mtp_nightly.py": "070c59980a435a4c5360fbd46437f38749e356c90818605cec655f9760eed604",
+    "patches/patch_vllm_worker_affinity.py": "37597260d92dc9fd15d7f546cc51645416baf600053ba219040b9b4016898727",
+    "patches/patch_xpu_grouped_topk_native_v2.py": "ea65513442e08fc427394693210fb3e2ad6c938e168a5f85b8bca3185bcad990",
+    "recipes.json": "2318360021bf6acdb8148ee763f2f0c0a7fbce2450824ac7ed265d77e91863c6",
+    "settings.json": "0db86b775382f13cf5da42f74a16133381ebf7d3c3a1fa58dde1fc1242440091",
+    "ui.png": "a5c65ecc34a147d70d21fb6c52ae82661831805122bd49c6486b9a366ff15a75",
+    "web/assets/b70-launcher-128.png": "4e17cafdc831847302ef7f374486923d4fca24c2925759199e40bf7a38486b66",
+    "web/assets/b70-launcher-16.png": "bd6858bdea6036d4002cdaa190e6fcc95b9f01e9a5f0b026f3fdce0fe1743500",
+    "web/assets/b70-launcher-256.png": "ddfde8c904fe9e202620e77e67308367959c65b2c1340766bfb4eb6f0d153ede",
+    "web/assets/b70-launcher-32.png": "a332dc4efc6d5bbe0eeee83e56a041dcfbf7dc72a873eafef99ef1c40cf38c19",
+    "web/assets/b70-launcher-48.png": "1893e4a43aa0e5ff77424a8a951240f00b1df6822d8f969ccbc17841c46d6e53",
+    "web/assets/b70-launcher-512.png": "5cde533d0b342f6a6b46269380f297cd858b7aa4eeddda5a7738daf788ad3540",
+    "web/assets/b70-launcher.svg": "8c17bbe1ae2fc1f71462e84fe967eacd8da840d91908b791ddcd15aabca70275",
+    "web/index.html": "9ba5ec264be4a836090fc9d2a79aa2d128b8c760ccb369d85f723592a84c8448",
+    "webwindow.py": "5b67f8f728c692d77935d893db4883552f6d152b7078ff57c23d587ffb5393bf"
+  },
+  "platform": "Linux source (Python 3.9+)",
+  "version": "0.4.8"
+}
