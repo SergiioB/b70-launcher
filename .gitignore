@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 release/*.tar.gz
 release/*.sha256
+build/
+dist/
+home/
+verify_*.png

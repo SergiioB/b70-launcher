@@ -55,7 +55,7 @@ from pathlib import Path
 
 import appwindow
 
-VERSION = "0.4.7"
+VERSION = "0.4.8"
 
 UPDATE_URL = os.environ.get("B70_UPDATE_URL", "https://xecores.com/downloads/version.json")
 UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"}
@@ -64,14 +64,20 @@ UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "mes
 RECIPE_REMOTE = {"checked": False, "catalog_ver": "", "recipes_url": "", "entries": {}}
 
 
+def _url_ok(url):
+    """Remote fetches stay on https; plain http only for localhost test rigs."""
+    return url.startswith("https://") or url.startswith("http://127.0.0.1") \
+        or url.startswith("http://localhost")
+
+
 def check_for_updates():
     global UPDATE_INFO
     try:
         req = urllib.request.Request(UPDATE_URL, headers=UA)
         with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
+            data = json.loads(resp.read(1 << 20).decode())
             latest = data.get("version", "")
-            if latest and latest != VERSION:
+            if latest and _ver_key(latest) > _ver_key(VERSION):
                 UPDATE_INFO = {
                     "checked": True,
                     "has_update": True,
@@ -96,10 +102,13 @@ def check_recipe_manifest(version_doc):
     manifest_url = version_doc.get("recipes_manifest_url")
     if not manifest_url:
         manifest_url = UPDATE_URL.rsplit("/", 1)[0] + "/recipes-manifest.json"
+    if not _url_ok(str(manifest_url)):
+        RECIPE_REMOTE["checked"] = True
+        return
     try:
-        req = urllib.request.Request(manifest_url, headers=UA)
+        req = urllib.request.Request(str(manifest_url), headers=UA)
         with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
+            data = json.loads(resp.read(4 << 20).decode())
         entries = data.get("recipes")
         if isinstance(entries, dict):
             RECIPE_REMOTE.update({
@@ -121,12 +130,23 @@ RECIPES = json.loads((HERE / "recipes.json").read_text())
 SETTINGS = json.loads((HERE / "settings.json").read_text())
 DATA = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "b70-launcher"
 DATA.mkdir(parents=True, exist_ok=True)
+try:
+    os.chmod(DATA, 0o700)  # state (paths, cmdlines, usage) shouldn't be world-readable
+except OSError:
+    pass
 LOGDIR = DATA / "logs"
 LOGDIR.mkdir(exist_ok=True)
 OVERRIDE_PATH = DATA / "settings-override.json"
 USAGE_PATH = DATA / "usage-history.json"
 STATE_PATH = DATA / "servers-state.json"
 API_TOKEN = secrets.token_urlsafe(32)
+# same-box processes can read the token file (0600) to call the API, e.g.
+# scripts or `curl -H "X-Launcher-Token: $(cat ~/.local/state/b70-launcher/token)"`
+try:
+    (DATA / "token").write_text(API_TOKEN)
+    os.chmod(DATA / "token", 0o600)
+except OSError:
+    pass
 
 IS_WIN = os.name == "nt"
 RUNNING = {}   # id -> server entry
@@ -141,17 +161,20 @@ WIN_CHILD = None  # native window child process, set by main()
 SERVER = None     # ThreadingHTTPServer, set by main(); used by graceful_shutdown
 STOP_EVT = threading.Event()
 POWER_PREV = {}   # pci -> (ts, energy1_input uJ) for live watt estimation
+TRANSIENT_PROCS = []  # fire-and-forget Popens (terminals, browsers) reaped on state polls
+VRAM_CACHE = {}  # pci -> (ts, used_gb, total_gb); _vram_mm sudo-forks per GPU
+
+# env var names a user-supplied extra_env must not set — they can redirect code
+# loading or process startup inside the launched engine/container
+_BLOCKED_ENV = re.compile(
+    r"(?:LD_.*|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|GLOBIGNORE|PROMPT_COMMAND|"
+    r"PYTHON.*|PERL5.*|RUBYLIB|NODE_OPTIONS|IFS|PATH|HOME|USER|SHELL|TERM)$")
 
 HF = "https://huggingface.co"
 UA = {"User-Agent": f"b70-launcher/{VERSION}"}
 
 # Start background update check (after UA exists — it runs immediately)
 threading.Thread(target=check_for_updates, daemon=True).start()
-# same require-version order as webwindow.py — importing Gtk without it can
-# load Gtk4 first and fail the whole probe (verified on GNOME 50 systems)
-GI_PROBE = ("import gi; gi.require_version('Gtk','3.0'); "
-            "gi.require_version('WebKit2','4.1'); "
-            "from gi.repository import Gtk, WebKit2")
 WINDOW_TITLE = "B70 Launcher " + VERSION
 
 
@@ -205,6 +228,30 @@ REMOTE_RECIPES_PATH = DATA / "recipes-remote.json"
 REMOTE_MODEL_FIELDS = ("recommended_engine", "recommendation", "badge", "blurb",
                        "subtitle", "tags", "chips", "brand")
 
+# recipe fields a published update may tune. Exec-shaping keys (image,
+# docker_sock, llama_bin, fixed_flags, serve_config, kind) and host-path keys
+# (model_path, gguf, source_model) never come from the wire: they would let a
+# catalog swap the binary/image, pick the docker socket, append container argv
+# or remount host paths. Everything else merges over the local recipe.
+REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtype",
+                        "kv", "download", "spec_tokens", "spec_p_min", "speculative",
+                        "draft_device", "tensor_split", "split_mode",
+                        "offload_tensors", "tool_parser", "reasoning_parser",
+                        "cim_long_ctx", "search_name", "inner_port", "tp",
+                        "perf", "topology", "recipe_ver")
+_MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
+_DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
+
+
+def _sanitize_remote_recipe(r):
+    """Strip a published recipe to fields allowed over the wire."""
+    out = {k: r[k] for k in REMOTE_RECIPE_FIELDS if k in r}
+    dm = r.get("draft_model")  # bare artifact names only — resolved via scan
+    if dm is not None and _DRAFT_RE.fullmatch(str(dm)):
+        out["draft_model"] = str(dm)
+    return out
+
 
 def _stamp_ver(recipe, fallback):
     if isinstance(recipe, dict) and not recipe.get("recipe_ver") and fallback:
@@ -214,34 +261,45 @@ def _stamp_ver(recipe, fallback):
 def apply_recipe_doc(doc, catalog_ver=""):
     """Overlay one published recipes document onto the live RECIPES dict.
 
-    Only id-matched models/engines are merged wholesale; new models are added
-    whole. Returns (applied_count, error)."""
+    Remote recipes are sanitized to REMOTE_RECIPE_FIELDS and merged over the
+    local recipe, so the update channel cannot replace exec-shaping fields.
+    Unknown models are added sanitized. Returns (applied_count, error)."""
     models = doc.get("models") if isinstance(doc, dict) else None
     if not isinstance(models, list):
         return 0, "remote document has no models list"
     applied = 0
-    by_id = {m.get("id"): m for m in RECIPES.get("models", [])}
-    for rm in models:
-        if not isinstance(rm, dict) or not rm.get("id"):
-            continue
-        local = by_id.get(rm["id"])
-        rrecipes = rm.get("recipes") or {}
-        if local is None:
+    with LOCK:
+        by_id = {m.get("id"): m for m in RECIPES.get("models", [])}
+        for rm in models:
+            if not isinstance(rm, dict) or not _MODEL_ID_RE.fullmatch(str(rm.get("id") or "")):
+                continue
+            local = by_id.get(rm["id"])
+            rrecipes = rm.get("recipes") or {}
+            if local is None:
+                nm = {"id": rm["id"], "name": str(rm.get("name") or rm["id"]),
+                      "recipes": {}}
+                for f in REMOTE_MODEL_FIELDS:
+                    if f in rm:
+                        nm[f] = rm[f]
+                for eng, r in rrecipes.items():
+                    if isinstance(r, dict) and _ENGINE_RE.fullmatch(str(eng)):
+                        rr = _sanitize_remote_recipe(r)
+                        _stamp_ver(rr, catalog_ver)
+                        nm["recipes"][eng] = rr
+                        applied += 1
+                RECIPES["models"].append(nm)
+                by_id[nm["id"]] = nm
+                continue
+            for f in REMOTE_MODEL_FIELDS:
+                if f in rm:
+                    local[f] = rm[f]
             for eng, r in rrecipes.items():
-                _stamp_ver(r, catalog_ver)
-            RECIPES["models"].append(rm)
-            by_id[rm["id"]] = rm
-            applied += 1
-            continue
-        for f in REMOTE_MODEL_FIELDS:
-            if f in rm:
-                local[f] = rm[f]
-        for eng, r in rrecipes.items():
-            if isinstance(r, dict):
-                _stamp_ver(r, catalog_ver)
-                local.setdefault("recipes", {})[eng] = r
-                applied += 1
-    _apply_recipe_overrides(USER_RECIPE_OVERRIDES)
+                if isinstance(r, dict) and _ENGINE_RE.fullmatch(str(eng)):
+                    rr = _sanitize_remote_recipe(r)
+                    _stamp_ver(rr, catalog_ver)
+                    local.setdefault("recipes", {}).setdefault(eng, {}).update(rr)
+                    applied += 1
+        _apply_recipe_overrides(USER_RECIPE_OVERRIDES)
     return applied, None
 
 
@@ -305,8 +363,7 @@ def fetch_remote_recipes():
     url = RECIPE_REMOTE.get("recipes_url")
     if not url:
         return None, "no remote recipes_url in the update manifest"
-    if not (url.startswith("https://") or url.startswith("http://127.0.0.1")
-            or url.startswith("http://localhost")):
+    if not _url_ok(url):
         return None, "remote recipes_url must be https"
     try:
         req = urllib.request.Request(url, headers=UA)
@@ -430,27 +487,31 @@ def _walk_root(root, items, deadline):
             return False
         if depth > 8:
             continue  # skip only this subtree; siblings still get scanned
-        try:
-            entries = list(os.scandir(dirpath))
-        except (PermissionError, OSError):
-            continue
         names = set()
         subdirs = []
-        for e in entries:
-            try:
-                if e.is_symlink():
-                    continue
-                if e.is_dir(follow_symlinks=False):
-                    if e.name in SKIP_DIRS or e.name.startswith("."):
+        try:
+            with os.scandir(dirpath) as it:  # stream entries — a huge dir must not spike memory
+                for e in it:
+                    try:
+                        if e.is_symlink():
+                            continue
+                        if e.is_dir(follow_symlinks=False):
+                            if e.name in SKIP_DIRS or e.name.startswith("."):
+                                continue
+                            subdirs.append(e.path)
+                        elif e.is_file(follow_symlinks=False):
+                            n = e.name.lower()
+                            names.add(n)
+                            if n.endswith(".gguf"):
+                                # on a basename collision prefer the shallower
+                                # path — deterministic regardless of readdir order
+                                prev = items["gguf"].get(n)
+                                if prev is None or e.path.count(os.sep) < prev.count(os.sep):
+                                    items["gguf"][n] = e.path
+                    except OSError:
                         continue
-                    subdirs.append(e.path)
-                elif e.is_file(follow_symlinks=False):
-                    n = e.name.lower()
-                    names.add(n)
-                    if n.endswith(".gguf"):
-                        items["gguf"].setdefault(n, e.path)
-            except OSError:
-                continue
+        except (PermissionError, OSError):
+            continue
         has_ov = any(n.startswith("openvino_language_model.") for n in names) or \
                  (any(n.endswith(".xml") for n in names) and any(n.endswith(".bin") for n in names))
         has_vllm = "config.json" in names or any(n.endswith(".safetensors") for n in names)
@@ -666,7 +727,7 @@ def resolve_ctx(model, engine, det):
 def _http_json(url):
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+        return json.loads(resp.read(24 << 20))
 
 
 def hf_files(repo, revision=None):
@@ -838,24 +899,32 @@ def hardware_preflight():
 
 
 def _vram_mm(pci):
-    """Real VRAM usage from xe debugfs (same source as the desktop dashboard)."""
+    """Real VRAM usage from xe debugfs (same source as the desktop dashboard).
+
+    Each call sudo-forks `cat`, so results are cached briefly — the telemetry
+    poller hits this per GPU every couple of seconds."""
+    hit = VRAM_CACHE.get(pci)
+    now = time.time()
+    if hit and now - hit[0] < 10:
+        return hit[1], hit[2]
+    used_gb = total_gb = None
     try:
         res = subprocess.run(["sudo", "-n", "cat",
                               f"/sys/kernel/debug/dri/{pci}/tile0/vram_mm"],
                              capture_output=True, text=True, timeout=3)
-        if res.returncode != 0:
-            return None, None
-        avail = total = 0
-        for line in res.stdout.splitlines():
-            if line.startswith("visible_avail:"):
-                avail = int(line.split()[1].replace("MiB", ""))
-            elif line.startswith("visible_size:"):
-                total = int(line.split()[1].replace("MiB", ""))
-        if total:
-            return round((total - avail) / 1024, 2), round(total / 1024, 1)
+        if res.returncode == 0:
+            avail = total = 0
+            for line in res.stdout.splitlines():
+                if line.startswith("visible_avail:"):
+                    avail = int(line.split()[1].replace("MiB", ""))
+                elif line.startswith("visible_size:"):
+                    total = int(line.split()[1].replace("MiB", ""))
+            if total:
+                used_gb, total_gb = round((total - avail) / 1024, 2), round(total / 1024, 1)
     except (OSError, subprocess.TimeoutExpired, ValueError):
         pass
-    return None, None
+    VRAM_CACHE[pci] = (now, used_gb, total_gb)
+    return used_gb, total_gb
 
 
 def _act_freq(pci):
@@ -945,16 +1014,17 @@ def _download_file(url, dest, entry):
             with urllib.request.urlopen(req, timeout=60) as resp:
                 if existing and getattr(resp, "status", 200) != 206:
                     existing = 0  # server ignored Range -> restart this file
-                if counted > existing:
-                    entry["done"] = entry.get("done", 0) - counted
-                    counted = 0
-                if existing and not counted:
-                    entry["done"] = entry.get("done", 0) + existing
-                    counted = existing
-                total = resp.headers.get("Content-Length")
-                if total and not entry.get("total"):
-                    entry["total"] = entry.get("done", 0) + int(total) + (
-                        existing if counted != existing else 0)
+                with LOCK:
+                    if counted > existing:
+                        entry["done"] = entry.get("done", 0) - counted
+                        counted = 0
+                    if existing and not counted:
+                        entry["done"] = entry.get("done", 0) + existing
+                        counted = existing
+                    total = resp.headers.get("Content-Length")
+                    if total and not entry.get("total"):
+                        entry["total"] = entry.get("done", 0) + int(total) + (
+                            existing if counted != existing else 0)
                 last = time.time()
                 speed = 0.0
                 with open(tmp, "ab" if existing else "wb") as f:
@@ -969,14 +1039,15 @@ def _download_file(url, dest, entry):
                         inst = len(chunk) / max(now - last, 1e-6)
                         speed = inst if speed == 0 else 0.8 * speed + 0.2 * inst
                         last = now
-                        entry["done"] = entry.get("done", 0) + len(chunk)
+                        with LOCK:
+                            entry["done"] = entry.get("done", 0) + len(chunk)
+                            entry["speed"] = speed
+                            total_all = entry.get("total")
+                            if total_all:
+                                left = max(total_all - entry["done"], 0)
+                                entry["eta"] = left / speed if speed > 0 else None
+                                entry["pct"] = round(100 * entry["done"] / total_all, 1)
                         counted += len(chunk)
-                        entry["speed"] = speed
-                        total_all = entry.get("total")
-                        if total_all:
-                            left = max(total_all - entry["done"], 0)
-                            entry["eta"] = left / speed if speed > 0 else None
-                            entry["pct"] = round(100 * entry["done"] / total_all, 1)
             if dest.exists():
                 raise FileExistsError(f"Refusing to overwrite existing artifact: {dest}")
             tmp.rename(dest)
@@ -996,17 +1067,21 @@ def _download_file(url, dest, entry):
 def download_worker(did, model, engine):
     entry = DOWNLOADS[did]
     try:
-        entry["state"] = "resolving"
+        with LOCK:
+            entry["state"] = "resolving"
         dl = model["recipes"][engine]["download"]
         repo, err = resolve_repo(dl)
         if err:
-            entry["state"] = "error"
-            entry["error"] = err
+            with LOCK:
+                entry["state"] = "error"
+                entry["error"] = err
             return
-        entry["repo"] = repo
+        with LOCK:
+            entry["repo"] = repo
         rev = dl.get("revision")
         if rev:
-            entry["repo"] = f"{repo}@{rev}"
+            with LOCK:
+                entry["repo"] = f"{repo}@{rev}"
         files = hf_files(repo, rev)
         if dl.get("kind") == "file":
             wanted = [dl["name"]] + list(dl.get("extra_files", []))
@@ -1023,29 +1098,37 @@ def download_worker(did, model, engine):
             raise ValueError("Pinned repository does not contain the exact recipe filename")
         dest_dir.mkdir(parents=True, exist_ok=True)
         total_known = sum((files.get(w) or 0) for w in wanted if w in files)
-        entry.update({"state": "downloading", "files": wanted, "done": 0,
-                      "total": total_known or None, "dest": str(dest_dir)})
+        with LOCK:
+            entry.update({"state": "downloading", "files": wanted, "done": 0,
+                          "total": total_known or None, "dest": str(dest_dir)})
         for w in wanted:
             dest = dest_dir / w
             if dest.is_symlink() or not dest.parent.resolve().is_relative_to(dest_dir.resolve()):
                 raise ValueError("Refusing download through symlink or outside destination")
             if dest.exists():
                 if files.get(w) and dest.stat().st_size == files[w]:
-                    entry["done"] += files[w]
+                    with LOCK:
+                        entry["done"] += files[w]
                     continue
                 raise FileExistsError(f"Existing artifact has unknown or mismatched size; move it aside manually: {dest}")
             dest.parent.mkdir(parents=True, exist_ok=True)
             url = f"{HF}/{repo}/resolve/{urllib.parse.quote(rev or 'main', safe='')}/{urllib.parse.quote(w)}"
             _download_file(url, dest, entry)
-        entry["state"] = "done"
-        entry["pct"] = 100
-        entry["eta"] = 0
+            if files.get(w) and dest.stat().st_size != files[w]:
+                raise ValueError(f"size mismatch after download ({w}): got "
+                                 f"{dest.stat().st_size}, expected {files[w]}")
+        with LOCK:
+            entry["state"] = "done"
+            entry["pct"] = 100
+            entry["eta"] = 0
         start_scan_async(force=True)
     except InterruptedError:
-        entry["state"] = "cancelled"
+        with LOCK:
+            entry["state"] = "cancelled"
     except Exception as e:
-        entry["state"] = "error"
-        entry["error"] = str(e)
+        with LOCK:
+            entry["state"] = "error"
+            entry["error"] = str(e)
 
 
 def start_download(model, engine):
@@ -1144,7 +1227,7 @@ def container_path(det, fallback):
 
 
 CUSTOM_TEMPLATES = {
-    "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-sycl",
+    "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
                  "ctx": 32768, "power": 150, "download": {"kind": "file", "quant": "GGUF (custom)"}},
     "openvino": {"kind": "ovms", "image": "openvino/model_server:2026.2.1-gpu",
                  "ctx": 20480, "power": 150, "download": {"kind": "snapshot", "quant": "OpenVINO IR (custom)"}},
@@ -1227,28 +1310,31 @@ def ensure_exl3_stack(dsock):
         pass
     # clean stale state from a killed daemon
     ctr_root, docker_root = _exl3_roots()
-    subprocess.run(["sudo", "-n", "rm", "-f", dsock], capture_output=True)
-    subprocess.run(["sudo", "-n", "rm", "-rf", "/run/b70-exl3-containerd"], capture_output=True)
-    subprocess.run(["sudo", "-n", "ip", "link", "add", EXL3_BRIDGE, "type", "bridge"], capture_output=True)
-    subprocess.run(["sudo", "-n", "ip", "addr", "add", "172.31.77.1/24", "dev", EXL3_BRIDGE], capture_output=True)
-    subprocess.run(["sudo", "-n", "ip", "link", "set", EXL3_BRIDGE, "up"], capture_output=True)
-    subprocess.run(["sudo", "-n", "iptables", "-t", "nat", "-C", "POSTROUTING",
-                    "-s", "172.31.77.0/24", "!", "-o", EXL3_BRIDGE, "-j", "MASQUERADE"], capture_output=True)         or subprocess.run(["sudo", "-n", "iptables", "-t", "nat", "-A", "POSTROUTING",
-                           "-s", "172.31.77.0/24", "!", "-o", EXL3_BRIDGE, "-j", "MASQUERADE"], capture_output=True)
+    subprocess.run(["sudo", "-n", "rm", "-f", dsock], capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-n", "rm", "-rf", "/run/b70-exl3-containerd"], capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-n", "ip", "link", "add", EXL3_BRIDGE, "type", "bridge"], capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-n", "ip", "addr", "add", "172.31.77.1/24", "dev", EXL3_BRIDGE], capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-n", "ip", "link", "set", EXL3_BRIDGE, "up"], capture_output=True, timeout=10)
+    if subprocess.run(["sudo", "-n", "iptables", "-t", "nat", "-C", "POSTROUTING",
+                       "-s", "172.31.77.0/24", "!", "-o", EXL3_BRIDGE, "-j", "MASQUERADE"],
+                      capture_output=True, timeout=10).returncode != 0:
+        subprocess.run(["sudo", "-n", "iptables", "-t", "nat", "-A", "POSTROUTING",
+                        "-s", "172.31.77.0/24", "!", "-o", EXL3_BRIDGE, "-j", "MASQUERADE"], capture_output=True, timeout=10)
     subprocess.run(["sudo", "-n", "bash", "-c",
-                    f"setsid nohup containerd --root={ctr_root} --state=/run/b70-exl3-containerd "
+                    "setsid nohup containerd --root=" + shlex.quote(ctr_root) +
+                    " --state=/run/b70-exl3-containerd "
                     "--address=/run/b70-exl3-containerd/containerd.sock "
                     "</dev/null >/var/log/exl3-containerd.log 2>&1 &"],
-                   capture_output=True)
+                   capture_output=True, timeout=10)
     time.sleep(4)
     subprocess.run(["sudo", "-n", "bash", "-c",
-                    f"setsid nohup dockerd --data-root={docker_root} "
-                    f"--exec-root=/run/b70-exl3-docker --host=unix://{dsock} "
+                    "setsid nohup dockerd --data-root=" + shlex.quote(docker_root) +
+                    " --exec-root=/run/b70-exl3-docker --host=unix://" + shlex.quote(dsock) + " "
                     "--pidfile=/run/b70-exl3-docker.pid --bridge=" + EXL3_BRIDGE + " "
                     "--ip-forward=false --ip-masq=false "
                     "--containerd=/run/b70-exl3-containerd/containerd.sock "
                     "</dev/null >/var/log/exl3-dockerd.log 2>&1 &"],
-                   capture_output=True)
+                   capture_output=True, timeout=10)
     for _ in range(20):
         if Path(dsock).exists():
             try:
@@ -1259,7 +1345,8 @@ def ensure_exl3_stack(dsock):
             except Exception:
                 pass
         time.sleep(2)
-    subprocess.run(["sudo", "-n", "chmod", "666", dsock], capture_output=True)
+    subprocess.run(["sudo", "-n", "chown", "root:docker", dsock], capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-n", "chmod", "660", dsock], capture_output=True, timeout=10)
 
 
 
@@ -1306,9 +1393,12 @@ def build(cfg):
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", k.strip()):
+            k = k.strip()
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", k):
                 return {"error": "Invalid environment variable name", "warnings": warns}
-            extra_env[k.strip()] = v.strip()
+            if _BLOCKED_ENV.match(k):
+                return {"error": f"Environment variable {k} is not allowed (it can redirect code loading or process startup)", "warnings": warns}
+            extra_env[k] = v.strip()
     envargs = [x for k, v in extra_env.items() for x in ("-e", f"{k}={v}")]
     gpus = cfg.get("gpus", [0])
     kv = cfg.get("kv") or "recipe default"
@@ -1422,9 +1512,9 @@ def build(cfg):
                      "--language-model-only"]
             if use_mtp:
                 serve += ["--speculative-config",
-                          "'" + json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 8)}) + "'"]
+                          json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 8)})]
             serve += recipe.get("fixed_flags", []) + extra
-            script = "set -e; python /patch_affinity.py; exec " + " ".join(serve)
+            script = "set -e; python /patch_affinity.py; exec " + " ".join(shlex.quote(a) for a in serve)
             tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
             warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL threshold pins active; prefix caching enabled.")
         elif kind == "vllm-arext" and not IS_WIN:
@@ -1462,9 +1552,9 @@ def build(cfg):
                      "--host", "0.0.0.0", "--port", "8000"]
             if cfg.get("mtp", True):
                 serve += ["--speculative-config",
-                          "'" + json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 4)}) + "'"]
+                          json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 4)})]
             serve += recipe.get("fixed_flags", []) + extra
-            script = "set -e; python /patch_mtp.py; python /patch_boundary.py; python /patch_gdn_fuse.py; exec " + " ".join(serve)
+            script = "set -e; python /patch_mtp.py; python /patch_boundary.py; python /patch_gdn_fuse.py; exec " + " ".join(shlex.quote(a) for a in serve)
             tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
             warns.append("AutoRound W4A16: MTP4 + fp8 KV + patched GDN fuse; prefix caching intentionally OFF "
                          "(cache ON corrupts long generations on this stack — campaign finding).")
@@ -1498,9 +1588,9 @@ def build(cfg):
                      "--language-model-only"]
             if use_mtp:
                 serve += ["--speculative-config",
-                          "'" + json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 4)}) + "'"]
+                          json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 4)})]
             serve += extra
-            script = "set -e; python /patch_mtp.py; python /patch_boundary.py; exec " + " ".join(serve)
+            script = "set -e; python /patch_mtp.py; python /patch_boundary.py; exec " + " ".join(shlex.quote(a) for a in serve)
             tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
             warns.append("cookbook MTP path: BF16 draft + FP8 KV + patched GDN boundary; prefix caching enabled.")
         else:
@@ -1548,22 +1638,24 @@ def build(cfg):
         dsock = recipe.get("docker_sock", "")
         docker_cmd = ["docker"] + (["-H", f"unix://{dsock}"] if dsock else [])
         if dsock:
-            try:
-                probe = subprocess.run(docker_cmd + ["info"], capture_output=True, timeout=8)
-            except (OSError, subprocess.TimeoutExpired):
-                probe = None
-            if (probe is None or probe.returncode != 0) and not cfg.get("dry_run"):
-                ensure_exl3_stack(dsock)
+            if cfg.get("dry_run"):
+                # preview must not touch dockerd — especially not a sudo-spawned one
+                warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
+            else:
                 try:
                     probe = subprocess.run(docker_cmd + ["info"], capture_output=True, timeout=8)
                 except (OSError, subprocess.TimeoutExpired):
                     probe = None
-            elif probe is None or probe.returncode != 0:
-                warns.append("isolated exl3 dockerd is not running — it auto-starts on launch")
-            if (probe is None or probe.returncode != 0) and not cfg.get("dry_run"):
-                return {"error": f"isolated exl3 dockerd unreachable at {dsock} even after auto-start "
-                                 "(auto-start needs passwordless sudo; logs at /var/log/exl3-*.log).",
-                        "warnings": warns}
+                if probe is None or probe.returncode != 0:
+                    ensure_exl3_stack(dsock)
+                    try:
+                        probe = subprocess.run(docker_cmd + ["info"], capture_output=True, timeout=8)
+                    except (OSError, subprocess.TimeoutExpired):
+                        probe = None
+                if probe is None or probe.returncode != 0:
+                    return {"error": f"isolated exl3 dockerd unreachable at {dsock} even after auto-start "
+                                     "(auto-start needs passwordless sudo; logs at /var/log/exl3-*.log).",
+                            "warnings": warns}
         inner_port = int(recipe.get("inner_port", 8100))
         gmu = "0.94" if ctx >= 131072 else "0.90"
         cname = f"b70-{model['id']}-exl3"
@@ -1716,9 +1808,14 @@ def _usage_load():
 
 def _usage_save(data):
     data["sessions"] = data["sessions"][-500:]
-    tmp = USAGE_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1))
-    tmp.rename(USAGE_PATH)
+    _atomic_write(USAGE_PATH, json.dumps(data, indent=1))
+
+
+def _atomic_write(path, text):
+    """tmp+rename: a crash mid-write must never leave a truncated file."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    tmp.rename(path)
 
 
 def record_usage(entry, status):
@@ -1841,14 +1938,14 @@ def _classify_tokens(counters):
     return tin, tout, reqs
 
 
-def _engine_prometheus(entry):
+def _engine_prometheus(entry, timeout=3):
     """Scrape the engine's own /metrics endpoint (same port as the API)."""
     port = entry.get("port")
     if not port:
         return None
     try:
         req = urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers=UA)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             if getattr(resp, "status", 200) != 200:
                 return None
             return _parse_prom(resp.read(1 << 22).decode("utf-8", "replace"))
@@ -1873,49 +1970,31 @@ def vram_probe():
     return None
 
 
-def metrics_snapshot():
-    """Per-server token counters (engine /metrics + logs) + container cpu/mem + power."""
-    stats = {}
-    if RUNNING and shutil.which("docker") and not (os.environ.get("DOCKER_HOST") or os.environ.get("DOCKER_CONTEXT")):
-        try:
-            r = subprocess.run(
-                ["docker", "stats", "--no-stream",
-                 "--format", "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}"],
-                capture_output=True, text=True, timeout=8)
-            for line in r.stdout.splitlines():
-                parts = line.split("|")
-                if len(parts) == 3:
-                    stats[parts[0]] = {"cpu": parts[1], "mem": parts[2]}
-        except Exception:
-            pass
-    with LOCK:
-        items = list(RUNNING.items())
-    now = time.time()
-    out = {"power": power_probe() if not IS_WIN else []}
-    for rid, e in items:
-        if e.get("status") in ("stopped", "dry-run"):
-            continue
-        toks = mem = None
-        try:
-            with open(e["log"], "rb") as lf:
-                lf.seek(0, 2)
-                size = lf.tell()
-                lf.seek(max(0, size - 8000))
-                tail = lf.read().decode("utf-8", "replace")
-            ms = TOKS_RE.findall(tail)
-            if ms:
-                toks = ms[-1][0] or ms[-1][1]
-            for rx, label in MEM_RES:
-                mm = rx.findall(tail)
-                if mm:
-                    mem = f"{label}: {mm[-1][0]} {mm[-1][1] if len(mm[-1]) > 1 else ''}".strip()
-                    break
-            llama_runs = LLAMA_RUN_RE.findall(tail)
-        except Exception:
-            llama_runs = []
+def _account_engine(rid, e, now):
+    """Token accounting for one live entry: engine /metrics scrape (source of
+    truth) + log-tail fallback; mutates e under LOCK. Network I/O happens
+    outside the lock. Returns the per-rid counters dict (or None on skip)."""
+    toks = mem = None
+    try:
+        with open(e["log"], "rb") as lf:
+            lf.seek(0, 2)
+            size = lf.tell()
+            lf.seek(max(0, size - 8000))
+            tail = lf.read().decode("utf-8", "replace")
+        ms = TOKS_RE.findall(tail)
+        if ms:
+            toks = ms[-1][0] or ms[-1][1]
+        for rx, label in MEM_RES:
+            mm = rx.findall(tail)
+            if mm:
+                mem = f"{label}: {mm[-1][0]} {mm[-1][1] if len(mm[-1]) > 1 else ''}".strip()
+                break
+        llama_runs = LLAMA_RUN_RE.findall(tail)
+    except Exception:
+        llama_runs = []
 
-        # engine /metrics is the source of truth; log parsing fills the gaps
-        prom = _engine_prometheus(e)
+    prom = _engine_prometheus(e, timeout=1.5)
+    with LOCK:
         if prom:
             tin, tout, reqs = _classify_tokens(prom)
             if tin or tout or reqs:
@@ -1953,11 +2032,43 @@ def metrics_snapshot():
             elif e.get("tok_s"):
                 e["tok_s"] = 0.0  # idle: show zero instead of a stale rate
         e["_prev"] = (now, e.get("tokens_out") or 0)
-        out[rid] = {"toks": toks, "engine_mem": mem,
-                    "tokens_in": e.get("tokens_in"), "tokens_out": e.get("tokens_out"),
-                    "requests": e.get("requests"), "tok_s": e.get("tok_s"),
-                    "metrics_source": e.get("metrics_source"),
-                    "stats": stats.get(e.get("cname", ""))}
+        e["_metrics_ts"] = now
+        return {"toks": toks, "engine_mem": mem,
+                "tokens_in": e.get("tokens_in"), "tokens_out": e.get("tokens_out"),
+                "requests": e.get("requests"), "tok_s": e.get("tok_s"),
+                "metrics_source": e.get("metrics_source")}
+
+
+def metrics_snapshot():
+    """Full debug view: per-server counters + container cpu/mem + power + vram.
+    The UI polls /api/power and /api/servers instead — this endpoint is for
+    explicit callers, so docker stats only runs while a live server exists."""
+    with LOCK:
+        items = list(RUNNING.items())
+    stats = {}
+    if (shutil.which("docker")
+            and not (os.environ.get("DOCKER_HOST") or os.environ.get("DOCKER_CONTEXT"))
+            and any(e.get("status") not in ("stopped", "dry-run", "stopping") for _, e in items)):
+        try:
+            r = subprocess.run(
+                ["docker", "stats", "--no-stream",
+                 "--format", "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}"],
+                capture_output=True, text=True, timeout=8)
+            for line in r.stdout.splitlines():
+                parts = line.split("|")
+                if len(parts) == 3:
+                    stats[parts[0]] = {"cpu": parts[1], "mem": parts[2]}
+        except Exception:
+            pass
+    now = time.time()
+    out = {"power": power_probe() if not IS_WIN else []}
+    for rid, e in items:
+        if e.get("status") in ("stopped", "dry-run"):
+            continue
+        acct = _account_engine(rid, e, now)
+        if acct:
+            acct["stats"] = stats.get(e.get("cname", ""))
+            out[rid] = acct
     vram = vram_probe()
     if not vram:
         ests = [e.get("artifact_mib") for _, e in items if e.get("artifact_mib")]
@@ -2008,7 +2119,7 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
                             })
                             existing_ids.add(mid)
 
-                pi_cfg.write_text(json.dumps(data, indent=1) + "\n")
+                _atomic_write(pi_cfg, json.dumps(data, indent=1) + "\n")
     except Exception as exc:
         print(f"Warning: failed updating ~/.pi/agent/models.json: {exc}")
 
@@ -2024,7 +2135,12 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
             )
             for rm in RECIPES.get("models", []):
                 for mid in (rm.get("name"), rm.get("id")):
-                    if mid and mid not in text and "b70-vllm:" in text:
+                    # regex-inserted into YAML — refuse anything that could
+                    # break the document (newlines, colons, quotes)
+                    safe = mid and rm.get("name") and all(
+                        re.fullmatch(r"[A-Za-z0-9_.,:+() -]+", str(x))
+                        for x in (mid, rm["name"]))
+                    if safe and mid not in text and "b70-vllm:" in text:
                         pattern = r'(b70-vllm:\s*\n(?:\s+.*\n)*?\s+models:\s*\n)'
                         m_entry = (
                             f"    - id: {mid}\n"
@@ -2038,7 +2154,7 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
                             f"      maxTokens: 16384\n"
                         )
                         text = re.sub(pattern, rf'\g<1>{m_entry}', text, count=1)
-            omp_cfg.write_text(text)
+            _atomic_write(omp_cfg, text)
     except Exception as exc:
         print(f"Warning: failed updating ~/.omp/agent/models.yml: {exc}")
 
@@ -2078,7 +2194,7 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
             if cid in favs:
                 favs.remove(cid)
             favs.insert(0, cid)
-            droid_cfg.write_text(json.dumps(data, indent=2) + "\n")
+            _atomic_write(droid_cfg, json.dumps(data, indent=2) + "\n")
     except Exception as exc:
         print(f"Warning: failed updating ~/.factory/settings.json: {exc}")
 
@@ -2107,7 +2223,7 @@ def harness_line(cfg, built, write_sync=True):
     try:
         req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models", headers={"Authorization": "Bearer local"})
         with urllib.request.urlopen(req, timeout=0.6) as resp:
-            m_data = json.loads(resp.read().decode())
+            m_data = json.loads(resp.read(1 << 20).decode())
             if m_data.get("data") and len(m_data["data"]) > 0:
                 live_id = m_data["data"][0].get("id")
                 if live_id:
@@ -2144,10 +2260,10 @@ def harness_line(cfg, built, write_sync=True):
 
     if h_id == "pi":
         tools_flag = " --no-tools" if engine != "openvino" else ""
-        return f"{prefix}pi --model b70-vllm/{model_name}{tools_flag}"
+        return f"{prefix}pi --model {shlex.quote('b70-vllm/' + str(model_name))}{tools_flag}"
     elif h_id == "omp":
         tools_flag = " --no-tools" if engine != "openvino" else ""
-        return f"{prefix}omp --model b70-vllm/{model_name}{tools_flag}"
+        return f"{prefix}omp --model {shlex.quote('b70-vllm/' + str(model_name))}{tools_flag}"
     elif h_id == "droid":
         return f"{prefix}droid --model custom:Desktop-B70-Loaded-Model-0"
     else:
@@ -2158,39 +2274,15 @@ def harness_line(cfg, built, write_sync=True):
 
 # ---------------------------------------------------------------- run / stop
 
-def launch(cfg, built):
+def _rid(cfg):
+    """Tracked-server key; sanitized — it is also used in log filenames."""
     rid = f"{cfg.get('model_id') or cfg.get('model')}-{cfg.get('engine')}-{cfg.get('port') or 8000}"
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", rid)
+
+
+def launch(cfg, built):
+    rid = _rid(cfg)
     port = int(cfg.get("port") or 8000)
-    with LOCK:
-        previous = RUNNING.get(rid)
-        if previous and previous.get("status") in ("running", "starting", "running (adopted)", "stopping"):
-            raise ValueError("A server with this model, engine, and port is already tracked. Stop it before launching again.")
-    if not cfg.get("dry_run"):
-        # the OS is authoritative: try the real bind first
-        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            probe.bind(("127.0.0.1", port))
-            probe.close()
-            free = True
-        except OSError:
-            probe.close()
-            free = False
-        if not free:
-            owner = None
-            for other, oe in RUNNING.items():
-                if other != rid and oe.get("port") == port and oe.get("status") in ("running", "starting", "running (adopted)"):
-                    owner = other
-                    break
-            if owner:
-                raise ValueError(f"Port {port} is held by a running server ({owner}). Stop it first.")
-            raise ValueError(f"Port {port} is already in use on this machine (something is bound to it). Pick another port.")
-        # port is free — clear any stale tracked entries squatting on it
-        with LOCK:
-            for other, oe in RUNNING.items():
-                if oe.get("port") == port and oe.get("status") not in ("stopped", "dry-run"):
-                    oe["status"] = "stopped"
-                    oe["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
     log = LOGDIR / f"{rid}-{int(time.time())}.log"
     model_id_val = cfg.get("model_id") or cfg.get("model") or built.get("model_id")
     entry = {"id": rid, "model": built["model_name"], "model_id": model_id_val,
@@ -2202,22 +2294,77 @@ def launch(cfg, built):
              "status": "starting", "proc": None,
              "tokens_in": 0, "tokens_out": 0, "requests": 0,
              "sess_in": 0, "sess_out": 0, "sess_reqs": 0}
-    if cfg.get("dry_run"):
-        entry["status"] = "dry-run"
-        with open(log, "ab") as lf:
-            lf.write(("[dry-run] " + built["cmd"] + "\n").encode())
-    else:
-        env = dict(os.environ)
-        env.update(built.get("env") or {})
-        with open(log, "ab") as lf:
-            lf.write((built["cmd"] + "\n").encode())
-            lf.flush()
-            entry["proc"] = subprocess.Popen(built["tokens"], env=env, stdout=lf,
-                                             stderr=subprocess.STDOUT, cwd=str(HERE))
-            entry["pid"] = entry["proc"].pid
-        entry["status"] = "running"
+    # reserve the rid inside the lock: two concurrent launches of the same
+    # model+engine+port must not both spawn an engine and orphan the loser
     with LOCK:
+        previous = RUNNING.get(rid)
+        if previous and previous.get("status") in ("running", "starting", "running (adopted)", "stopping"):
+            raise ValueError("A server with this model, engine, and port is already tracked. Stop it before launching again.")
         RUNNING[rid] = entry
+    try:
+        if cfg.get("dry_run"):
+            entry["status"] = "dry-run"
+            with open(log, "ab") as lf:
+                lf.write(("[dry-run] " + built["cmd"] + "\n").encode())
+        else:
+            # the OS is authoritative: try the real bind first
+            free = False
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    probe.bind(("127.0.0.1", port))
+                    free = True
+                except OSError:
+                    pass
+            if not free:
+                owner = None
+                with LOCK:
+                    for other, oe in RUNNING.items():
+                        if other != rid and oe.get("port") == port and oe.get("status") in ("running", "starting", "running (adopted)"):
+                            owner = other
+                            break
+                if owner:
+                    raise ValueError(f"Port {port} is held by a running server ({owner}). Stop it first.")
+                raise ValueError(f"Port {port} is already in use on this machine (something is bound to it). Pick another port.")
+            # port is free — clear any stale tracked entries squatting on it
+            with LOCK:
+                for other, oe in RUNNING.items():
+                    if other != rid and oe.get("port") == port and oe.get("status") not in ("stopped", "dry-run"):
+                        oe["status"] = "stopped"
+                        oe["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            env = dict(os.environ)
+            env.update(built.get("env") or {})
+            with open(log, "ab") as lf:
+                lf.write((built["cmd"] + "\n").encode())
+                lf.flush()
+                entry["proc"] = subprocess.Popen(built["tokens"], env=env, stdout=lf,
+                                                 stderr=subprocess.STDOUT, cwd=str(HERE))
+                entry["pid"] = entry["proc"].pid
+            with LOCK:
+                if entry["status"] != "starting":
+                    # a stop request landed while the engine was spawning
+                    raise ValueError("stopped during launch")
+                entry["status"] = "running"
+    except Exception:
+        proc = entry.get("proc")
+        try:
+            if proc is not None:
+                if proc.poll() is None:
+                    proc.terminate()
+                try:
+                    proc.wait(timeout=15)  # let docker run -d register the container
+                except Exception:
+                    pass
+            cname = entry.get("cname")
+            if cname and not entry.get("native") and not cfg.get("dry_run"):
+                subprocess.run(["docker", "rm", "-f", cname],
+                               capture_output=True, timeout=15)
+        except Exception:
+            pass
+        with LOCK:
+            entry["status"] = "stopped"
+            entry["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        raise
     if not cfg.get("dry_run"):
         sync_harness_configs(port, built["model_name"], model_id_val, built.get("engine"))
     persist_state()
@@ -2235,6 +2382,8 @@ def adopt_containers():
         snap = {}
     if isinstance(snap, dict) and shutil.which("docker"):
         for rid, e in snap.items():
+            if not isinstance(e, dict):
+                continue  # corrupt state file: never let adoption crash startup
             cname = e.get("cname")
             if not cname or e.get("native"):
                 continue  # native engines die with the launcher; only containers re-adopt
@@ -2282,6 +2431,7 @@ def adopt_containers():
                         if ":8000->" in line or "->8000" in line:
                             port = 8000
                         rid = f"{m_id}-{eng}-{port}"
+                        added = False
                         with LOCK:
                             if rid not in RUNNING:
                                 RUNNING[rid] = {
@@ -2301,8 +2451,10 @@ def adopt_containers():
                                     "tokens_in": 0, "tokens_out": 0, "requests": 0,
                                     "sess_in": 0, "sess_out": 0, "sess_reqs": 0
                                 }
-                                adopted.append(f"{model_name}:{eng}")
-                                sync_harness_configs(port, model_name, m_id, eng)
+                                added = True
+                        if added:
+                            adopted.append(f"{model_name}:{eng}")
+                            sync_harness_configs(port, model_name, m_id, eng)
         except Exception:
             pass
 
@@ -2311,6 +2463,8 @@ def adopt_containers():
     # and whose owning pid can be found, so it stays visible/stoppable.
     if isinstance(snap, dict):
         for rid, e in snap.items():
+            if not isinstance(e, dict):
+                continue
             if not e.get("native") or e.get("status") in ("stopped", "dry-run"):
                 continue
             port = int(e.get("port") or 0)
@@ -2363,7 +2517,7 @@ def _pid_for_native(port, model_hint=""):
     hint = model_hint.encode() if model_hint else b""
     for p in glob.glob("/proc/[0-9]*/cmdline"):
         try:
-            raw = open(p, "rb").read()
+            raw = Path(p).read_bytes()
         except OSError:
             continue
         if not raw or b"--port" not in raw:
@@ -2410,6 +2564,9 @@ def docker_containers_status(cnames):
 def servers_snapshot():
     with LOCK:
         tracked = [(rid, e) for rid, e in RUNNING.items()]
+        for p in TRANSIENT_PROCS[:]:  # reap closed terminals/browsers (no zombies)
+            if p.poll() is not None:
+                TRANSIENT_PROCS.remove(p)
     docker_names = {e.get("cname") for _, e in tracked
                     if e.get("cname") and not e.get("native")}
     dstat = None
@@ -2420,6 +2577,7 @@ def servers_snapshot():
         dstat = CONTAINER_CACHE["data"]
     items = []
     exited_now = []
+    probed = []   # (rid, port, items index) — entries that look alive, pending endpoint check
     with LOCK:
         for rid, e in tracked:
             proc = e.get("proc")
@@ -2445,28 +2603,46 @@ def servers_snapshot():
                     status = "exited (removed)"
                 elif status == "starting" and proc is not None:
                     status = "starting"
-            if status == "running":
-                # container up ≠ serving: if the OpenAI endpoint doesn't answer yet,
-                # the engine is still loading weights / compiling kernels
-                try:
-                    req = urllib.request.Request(f"http://127.0.0.1:{e.get('port')}/v1/models")
-                    with urllib.request.urlopen(req, timeout=0.5) as resp:
-                        if resp.status != 200:
-                            status = "starting"
-                except Exception as exc:
-                    status = "starting"
-                    # log the first readiness failure per server so a wedged
-                    # engine isn't silently stuck on "starting" forever
-                    if not e.get("_health_logged"):
-                        e["_health_logged"] = True
-                        print(f"{rid}: waiting for engine endpoint — {exc}")
             if status == "stopped":
                 continue
+            if status == "running":
+                # endpoint probe runs AFTER the lock below — a stalled engine
+                # must not serialize /api/state, /api/stop, or the log viewer
+                probed.append((rid, e.get("port"), len(items)))
             if status.startswith("exited") and not e.get("_report_once"):
                 e["_report_once"] = True
                 exited_now.append((e, status))
             items.append({k: v for k, v in e.items()
-                          if k not in INTERNAL_KEYS and not k.startswith("sess_")} | {"status": status})
+                          if k not in INTERNAL_KEYS and not k.startswith(("sess_", "_"))}
+                         | {"status": status})
+    # pass 2 — outside the lock: container up ≠ serving; if the OpenAI endpoint
+    # doesn't answer yet, the engine is still loading weights / compiling
+    # kernels. Ready engines get their token accounting scraped here too (this
+    # poll is the only metrics driver — /api/metrics is a debug endpoint).
+    now = time.time()
+    for rid, port, idx in probed:
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models")
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                ready = resp.status == 200
+            exc = None if ready else f"HTTP {resp.status}"
+        except Exception as ex:
+            ready, exc = False, ex
+        if not ready:
+            items[idx]["status"] = "starting"
+            with LOCK:
+                e = RUNNING.get(rid)
+                # log the first readiness failure per server so a wedged
+                # engine isn't silently stuck on "starting" forever
+                if e is not None and not e.get("_health_logged"):
+                    e["_health_logged"] = True
+                    print(f"{rid}: waiting for engine endpoint — {exc}")
+        else:
+            with LOCK:
+                e = RUNNING.get(rid)
+                due = e is not None and now - (e.get("_metrics_ts") or 0) >= 3
+            if due:
+                _account_engine(rid, e, now)
     for e, status in exited_now:  # file IO and state writes stay outside the lock
         record_usage(e, status)
     if exited_now:
@@ -2500,13 +2676,11 @@ def stop_server(rid):
         if port:
             for _ in range(30):
                 try:
-                    s_ = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s_.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    s_.bind(("127.0.0.1", port))
-                    s_.close()
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_:
+                        s_.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        s_.bind(("127.0.0.1", port))
                     break
                 except OSError:
-                    s_.close()
                     time.sleep(0.5)
     if proc is not None and proc.poll() is None:
         try:
@@ -2537,39 +2711,41 @@ def stop_server(rid):
 def open_harness(cfg, built):
     line = harness_line(cfg, built)
     if IS_WIN:
-        subprocess.Popen(SETTINGS["terminal_windows"] + [line])
+        TRANSIENT_PROCS.append(subprocess.Popen(SETTINGS["terminal_windows"] + [line]))
     else:
         h_id = cfg.get("harness", "")
         if h_id == "webui" or line.startswith("xdg-open"):
             target_url = "http://localhost:3000"
             for p in (3000, 8080):
                 try:
-                    s = socket.socket()
-                    s.settimeout(0.2)
-                    if s.connect_ex(("127.0.0.1", p)) == 0:
+                    with socket.socket() as s:
+                        s.settimeout(0.2)
+                        if s.connect_ex(("127.0.0.1", p)) != 0:
+                            continue
                         target_url = f"http://localhost:{p}"
-                        s.close()
                         break
-                    s.close()
                 except Exception:
                     pass
-            subprocess.Popen(["xdg-open", target_url])
+            TRANSIENT_PROCS.append(subprocess.Popen(["xdg-open", target_url]))
             return f"xdg-open {target_url}"
 
+        inner = line + "; exec sh"
         for cand in ("kitty", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator", "xterm"):
             resolved = shutil.which(cand)
             if not resolved:
                 continue
             real_name = Path(resolved).resolve().name
             if "kitty" in real_name or cand == "kitty":
-                term = [resolved, "sh", "-c", line + "; exec sh"]
+                term = [resolved, "sh", "-c", inner]
             elif "gnome-terminal" in real_name or cand == "gnome-terminal":
-                term = [resolved, "--", "sh", "-c", line + "; exec sh"]
+                term = [resolved, "--", "sh", "-c", inner]
             elif "xfce4-terminal" in real_name or cand == "xfce4-terminal":
-                term = [resolved, "-e", f"sh -c '{line}; exec sh'"]
+                # -e takes one command string; quote the payload, don't nest '
+                term = [resolved, "-e", f"sh -c {shlex.quote(inner)}"]
             else:
-                term = [resolved, "-e", f"sh -c '{line}; exec sh'"]
-            subprocess.Popen(term)
+                # xterm -e consumes the rest of argv as program + args
+                term = [resolved, "-e", "sh", "-c", inner]
+            TRANSIENT_PROCS.append(subprocess.Popen(term))
             return line
     return line
 
@@ -2577,9 +2753,10 @@ def open_harness(cfg, built):
 # ---------------------------------------------------------------- shutdown
 
 def graceful_shutdown(stop_engines=False):
-    if SHUTDOWN["started"]:
-        return
-    SHUTDOWN["started"] = True
+    with LOCK:
+        if SHUTDOWN["started"]:
+            return
+        SHUTDOWN["started"] = True
     print("shutting down — storing usage…")
     with LOCK:
         entries = list(RUNNING.items())
@@ -2613,17 +2790,24 @@ def _sig_handler(signum, frame):
 # ---------------------------------------------------------------- http
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"  # keep-alive: the UI polls on a timer
+
     def log_message(self, format, *args):
         pass
 
-    def _json(self, obj, code=200):
-        body = json.dumps(obj).encode()
+    def _send(self, body, code=200, ctype="application/json"):
         self.send_response(code)
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            pass  # client vanished mid-write; nothing useful left to do
+
+    def _json(self, obj, code=200):
+        self._send(json.dumps(obj).encode(), code)
 
     def _read(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -2638,11 +2822,41 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("Host", "")
         return host in ("127.0.0.1", f"127.0.0.1:{self.server.server_port}")
 
+    def _auth(self):
+        """GET auth: X-Launcher-Token header, session cookie, or the one-time
+        ?token= bootstrap the window/browser is opened with. Loopback is shared
+        by every local process, so the token is never served without auth."""
+        tok = self.headers.get("X-Launcher-Token")
+        if tok and hmac.compare_digest(tok, API_TOKEN):
+            return "header"
+        m = re.search(r"(?:^|;\s*)b70_token=([^;]+)", self.headers.get("Cookie", ""))
+        if m and hmac.compare_digest(m.group(1), API_TOKEN):
+            return "cookie"
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        tok = (q.get("token") or [""])[0]
+        if tok and hmac.compare_digest(tok, API_TOKEN):
+            return "bootstrap"
+        return None
+
     def do_GET(self):
         if not self._host_ok():
             self._json({"error": "invalid Host"}, 403)
             return
+        auth = self._auth()
+        if not auth:
+            self._json({"error": "unauthorized — open the UI via b70-launcher"}, 403)
+            return
         parsed_path = urllib.parse.urlparse(self.path).path
+        if auth == "bootstrap":
+            # one-time hand-off: stash the token in a session cookie, then strip
+            # it from the URL so it never lands in history or Referer headers
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.send_header("Set-Cookie",
+                             f"b70_token={API_TOKEN}; Path=/; SameSite=Strict; HttpOnly")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if parsed_path in ("/", "/index.html"):
             body = (HERE / "web" / "index.html").read_bytes().replace(b"__API_TOKEN__", API_TOKEN.encode())
             self.send_response(200)
@@ -2656,28 +2870,33 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif parsed_path == "/api/state":
-            self._json({"recipes": RECIPES, "settings": SETTINGS,
-                        "running": servers_snapshot(), "is_win": IS_WIN,
-                        "version": VERSION, "update": UPDATE_INFO,
-                        "recipe_notices": recipe_notices(),
-                        "recipes_remote": {"catalog_ver": RECIPE_REMOTE.get("catalog_ver"),
-                                           "checked": RECIPE_REMOTE.get("checked")},
-                        "preflight": hardware_preflight(),
-                        "scan": {"roots": SCAN.get("roots", []),
-                                 "state": SCAN.get("state"), "ts": SCAN.get("ts")}})
+            running = servers_snapshot()     # slow probes stay outside the lock
+            preflight = hardware_preflight()
+            with LOCK:  # serialize under the lock: recipe overlays mutate RECIPES
+                body = json.dumps({"recipes": RECIPES, "settings": SETTINGS,
+                                   "running": running, "is_win": IS_WIN,
+                                   "version": VERSION, "update": UPDATE_INFO,
+                                   "recipe_notices": recipe_notices(),
+                                   "recipes_remote": {"catalog_ver": RECIPE_REMOTE.get("catalog_ver"),
+                                                      "checked": RECIPE_REMOTE.get("checked")},
+                                   "preflight": preflight,
+                                   "scan": {"roots": SCAN.get("roots", []),
+                                            "state": SCAN.get("state"), "ts": SCAN.get("ts")}})
+            self._send(body.encode())
         elif parsed_path == "/api/scan":
             sc = scan_blocking()
-            out = {}
-            for m in RECIPES["models"]:
-                out[m["id"]] = {}
-                for eng in m["recipes"]:
-                    det = detect(m, eng)
-                    out[m["id"]][eng] = {
-                        "detected": bool(det),
-                        "path": (det or {}).get("path"),
-                        "ctx_native": (det or {}).get("ctx"),
-                        "size_mib": (det or {}).get("size_mib"),
-                    }
+            with LOCK:  # detect() reads SCAN+RECIPES; overlays may mutate either
+                out = {}
+                for m in RECIPES["models"]:
+                    out[m["id"]] = {}
+                    for eng in m["recipes"]:
+                        det = detect(m, eng)
+                        out[m["id"]][eng] = {
+                            "detected": bool(det),
+                            "path": (det or {}).get("path"),
+                            "ctx_native": (det or {}).get("ctx"),
+                            "size_mib": (det or {}).get("size_mib"),
+                        }
             free_gb = None
             try:
                 # probe the filesystem the download target actually lives on
@@ -2692,6 +2911,15 @@ class Handler(BaseHTTPRequestHandler):
                         "catalog": sc.get("catalog", []),
                         "free_gb": free_gb,
                         "matches": out})
+        elif parsed_path == "/api/power":
+            # light poll path for the telemetry pill — no docker stats, no
+            # engine scrapes; vram_mm is cached inside power_probe
+            self._json({"power": power_probe() if not IS_WIN else []})
+        elif parsed_path == "/api/servers":
+            # light poll path for server state + scan-completion signal
+            with LOCK:
+                scan = {"state": SCAN.get("state"), "ts": SCAN.get("ts")}
+            self._json({"running": servers_snapshot(), "scan": scan})
         elif parsed_path == "/api/metrics":
             self._json(metrics_snapshot())
         elif parsed_path == "/api/usage":
@@ -2713,7 +2941,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 lines = []
             self._json({"id": e["id"], "lines": lines})
-        elif self.path == "/api/downloads":
+        elif parsed_path == "/api/downloads":
             with LOCK:
                 self._json({did: {k: v for k, v in e.items() if k != "cancel"}
                             for did, e in DOWNLOADS.items()})
@@ -2744,7 +2972,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             cfg = self._read()
-        except (ValueError, json.JSONDecodeError):
+        except Exception:  # bad Content-Length, oversized, malformed JSON
             self._json({"error": "invalid JSON body"}, 400)
             return
         try:
@@ -2753,7 +2981,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": f"launcher error: {exc}"}, 500)
 
     def _route_post(self, cfg):
-        if self.path == "/api/build":
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/api/build":
             built = build(cfg)
             if "error" not in built:
                 # preview only: build the command line without syncing harness configs
@@ -2766,8 +2995,8 @@ class Handler(BaseHTTPRequestHandler):
                 if notice:
                     built["recipe_notice"] = notice
             self._json(built)
-        elif self.path == "/api/launch":
-            rid0 = f"{cfg.get('model_id') or cfg.get('model')}-{cfg.get('engine')}-{cfg.get('port') or 8000}"
+        elif path == "/api/launch":
+            rid0 = _rid(cfg)
             with LOCK:
                 prev = RUNNING.get(rid0)
             if prev and prev.get("status") in ("running", "starting", "running (adopted)") and not cfg.get("dry_run"):
@@ -2804,16 +3033,16 @@ class Handler(BaseHTTPRequestHandler):
             if notice:
                 out["recipe_notice"] = notice
             self._json(out)
-        elif self.path == "/api/download":
+        elif path == "/api/download":
             m = find_model(cfg.get("model_id", ""))
             if not m or cfg.get("engine") not in m["recipes"]:
                 self._json({"error": "no such model+engine"}, 400)
                 return
             did, err = start_download(m, cfg["engine"])
             self._json({"id": did, "error": err})
-        elif self.path == "/api/stop":
+        elif path == "/api/stop":
             self._json({"ok": stop_server(cfg.get("id", ""))})
-        elif self.path == "/api/test_prompt":
+        elif path == "/api/test_prompt":
             prompt = cfg.get("prompt", "Why is dual Intel Arc Pro B70 effective for local MoE inference?")
             try:
                 port = int(cfg.get("port", 8000))
@@ -2827,7 +3056,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 m_req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models")
                 with urllib.request.urlopen(m_req, timeout=2.0) as m_resp:
-                    m_data = json.loads(m_resp.read().decode())
+                    m_data = json.loads(m_resp.read(1 << 20).decode())
                     if m_data.get("data") and len(m_data["data"]) > 0:
                         active_model = m_data["data"][0]["id"]
             except Exception:
@@ -2849,7 +3078,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             try:
                 with urllib.request.urlopen(req, timeout=120.0) as resp:
-                    data = json.loads(resp.read().decode())
+                    data = json.loads(resp.read(8 << 20).decode())
                     dt = round(time.time() - t0, 2)
                     reply = ""
                     tokens = 0
@@ -2881,7 +3110,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": False,
                     "error": f"Request failed: {e}"
                 })
-        elif self.path == "/api/harness":
+        elif path == "/api/harness":
             port = cfg.get("port", 8000)
             built = {"endpoint": f"http://127.0.0.1:{port}/v1"}
             try:
@@ -2892,10 +3121,10 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             line = open_harness(cfg, built)
             self._json({"line": line})
-        elif self.path == "/api/recipes/update":
+        elif path == "/api/recipes/update":
             res = apply_recipe_update(cfg.get("model_id"), cfg.get("engine"))
             self._json(res, 200 if res.get("ok") else 400)
-        elif self.path == "/api/settings":
+        elif path == "/api/settings":
             roots = cfg.get("scan_dirs")
             if not isinstance(roots, list) or len(roots) > 8:
                 self._json({"error": "scan_dirs must be a list of at most 8 directories"}, 400)
@@ -2918,7 +3147,7 @@ class Handler(BaseHTTPRequestHandler):
             save_override(("scan_dirs",))
             start_scan_async(force=True)
             self._json({"ok": True, "scan_dirs": SETTINGS["scan_dirs"]})
-        elif self.path == "/api/shutdown":
+        elif path == "/api/shutdown":
             stop_engines = bool(cfg.get("stop_engines"))
             self._json({"ok": True})
             threading.Thread(target=graceful_shutdown, args=(stop_engines,), daemon=True).start()
@@ -2929,15 +3158,19 @@ class Handler(BaseHTTPRequestHandler):
 # ---------------------------------------------------------------- window
 
 def _open_browser(url):
-    for browser in ("chromium", "chromium-browser", "google-chrome", "microsoft-edge"):
-        if shutil.which(browser):
-            args = [browser, f"--app={url}", "--window-size=1440,900"]
-            if os.environ.get("WAYLAND_DISPLAY"):
-                args.append("--ozone-platform=wayland")  # native on GNOME Wayland; "auto" rejected by some builds
-                args.append("--disable-features=Vulkan")  # snap Chromium: Vulkan incompatible with wayland ozone
-            subprocess.Popen(args)
-            return
-    webbrowser.open(url)
+    try:
+        for browser in ("chromium", "chromium-browser", "google-chrome", "microsoft-edge"):
+            if shutil.which(browser):
+                args = [browser, f"--app={url}", "--window-size=1440,900"]
+                if os.environ.get("WAYLAND_DISPLAY"):
+                    args.append("--ozone-platform=wayland")  # native on GNOME Wayland; "auto" rejected by some builds
+                    args.append("--disable-features=Vulkan")  # snap Chromium: Vulkan incompatible with wayland ozone
+                TRANSIENT_PROCS.append(subprocess.Popen(args))
+                return
+        webbrowser.open(url)
+    except OSError as exc:
+        # no usable browser — keep the server up and say where the UI lives
+        print(f"could not open a browser ({exc}) — the UI is at {url}")
 
 
 def open_window(url, port):
@@ -2947,7 +3180,8 @@ def open_window(url, port):
     if IS_WIN:
         for browser in ("msedge", "chrome"):
             try:
-                subprocess.Popen(["cmd", "/c", "start", "", browser, f"--app={url}"])
+                TRANSIENT_PROCS.append(
+                    subprocess.Popen(["cmd", "/c", "start", "", browser, f"--app={url}"]))
                 return None
             except OSError:
                 continue
@@ -3001,16 +3235,21 @@ def main():
         except Exception as retry_exc:
             raise SystemExit(f"Cannot bind {url}: {retry_exc}. Close the existing instance or choose another port.") from retry_exc
     SERVER = srv
-    adopt_containers()
+    # adoption does docker inspect + engine probes; keep it off the startup path
+    # so the window/API come up fast even with a stale state file or dead dockerd
+    threading.Thread(target=adopt_containers, daemon=True).start()
     start_scan_async(force=not SCAN.get("ts"))
     print(f"b70-launcher {VERSION} on {url}  (models: {len(RECIPES['models'])})")
     signal.signal(signal.SIGINT, _sig_handler)
     signal.signal(signal.SIGTERM, _sig_handler)
     if not args.no_open:
+        # one-time token bootstrap — the server swaps it for a session cookie
+        # and redirects to /, so the token never sits in browser history
+        open_url = f"{url}/?token={API_TOKEN}"
         if args.browser:
-            _open_browser(url)
+            _open_browser(open_url)
         else:
-            WIN_CHILD = open_window(url, args.port)
+            WIN_CHILD = open_window(open_url, args.port)
             if WIN_CHILD is None:
                 print("app window unavailable; opened the browser instead")
     if WIN_CHILD is not None:
