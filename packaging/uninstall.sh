@@ -3,7 +3,7 @@
 #
 # Removes only the files the installer placed under the current user's home:
 #   ${XDG_DATA_HOME:-~/.local/share}/b70-launcher
-#   ~/.local/bin/b70-launcher
+#   ~/.local/bin/b70-launcher and ~/.local/bin/b70
 #   ${XDG_DATA_HOME:-~/.local/share}/applications/b70-launcher.desktop
 #   ${XDG_DATA_HOME:-~/.local/share}/icons/hicolor/*/apps/b70-launcher.*
 #
@@ -26,6 +26,7 @@ data_home=${XDG_DATA_HOME:-$HOME/.local/share}
 state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/b70-launcher
 app=$data_home/b70-launcher
 wrapper=$HOME/.local/bin/b70-launcher
+cli_wrapper=$HOME/.local/bin/b70
 desktop_file=$data_home/applications/b70-launcher.desktop
 
 purge=false
@@ -56,6 +57,15 @@ if [ -f "$wrapper" ]; then
         rm -f -- "$wrapper" && note "$wrapper"
     else
         warn "kept $wrapper - it does not look like the generated B70 Launcher wrapper; inspect it before deleting."
+    fi
+fi
+
+# CLI wrapper: same marker check.
+if [ -f "$cli_wrapper" ]; then
+    if grep -q 'B70 Launcher wrapper' "$cli_wrapper" 2>/dev/null; then
+        rm -f -- "$cli_wrapper" && note "$cli_wrapper"
+    else
+        warn "kept $cli_wrapper - it does not look like the generated B70 Launcher wrapper; inspect it before deleting."
     fi
 fi
 

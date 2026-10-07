@@ -28,14 +28,14 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-VERSION = "0.4.8"
+VERSION = "0.5.0"
 ROOT = Path(__file__).resolve().parent.parent
 NAME = f"b70-launcher-{VERSION}-linux-source"
 
 # Files shipped in the source bundle, sorted for deterministic tar order.
 FILES = sorted(
-    "launcher.py webwindow.py appwindow.py recipes.json settings.json README.md LICENSE "
-    "ui.png docs/api.md docs/recipe-format.md "
+    "launcher.py cli.py webwindow.py appwindow.py recipes.json settings.json README.md LICENSE "
+    "ui.png docs/api.md docs/recipe-format.md docs/cli.md "
     "packaging/install.sh packaging/uninstall.sh packaging/b70-launcher.desktop "
     "patches/patch_champion_stack_overlay.py patches/patch_mtp_boundary.py "
     "patches/patch_mtp_nightly.py patches/patch_vllm_worker_affinity.py "

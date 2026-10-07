@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.4.8 (Linux source)
+# B70 Launcher 0.5.0 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -32,6 +32,13 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 </table>
 
 **How it works:** pick a model → pick an engine recipe (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command (dry-run preview) → launch. Running servers survive restarts and are re-adopted; recipe updates arrive over the release channel and apply as state overlays — your install is never rewritten.
+
+## What is new in 0.5.0
+
+- **Headless CLI (`b70`).** Every recipe the windowed app can launch now also launches from `b70`, a stdlib-only companion command installed beside `b70-launcher` (`~/.local/bin/b70`). It drives the same localhost daemon — identical recipe builders, identical safety rails — so headless hosts and SSH sessions get the full catalog without a display or WebKitGTK. `b70 list`/`show`/`scan`/`doctor` cover discovery and preflight; `b70 launch` waits on the same `/v1/models` readiness probe the UI uses and prints the endpoint, export line, and follow-up commands; `status`/`monitor`/`logs -f`/`test`/`env`/`stop`/`open`/`download`/`serve`/`down` cover the rest of the lifecycle. Global flags (`--json`, `--api`, `--token`, `--no-color`, `-q`, `--no-autostart`) work before or after the subcommand; exit codes are `0`/`1`/`2`/`3`/`130`. Full reference: [`docs/cli.md`](docs/cli.md).
+- **Dual-GPU recipes from the CLI.** `--gpus 0,1` (or `both`) flows through to tensor-parallel and dual-device recipes; recipes that declare `gpus`/`tp` get both cards by default instead of a phantom single-device tensor split.
+- **Piped-safe output.** `b70 monitor` prints one snapshot when stdout is not a TTY (`-f` keeps streaming), followed logs flush per line, and `b70 ... | head` exits cleanly instead of stalling.
+- **Clean shutdown polling.** `b70 down` treats a daemon closing its socket mid-shutdown as "gone" instead of dumping a traceback.
 
 ## What is new in 0.4.8
 
@@ -77,6 +84,21 @@ B70 Launcher is open source under the [MIT License](LICENSE); the repository liv
 
 Unfinished steps stay dimmed and cannot take focus. On wide screens, completed columns remain visible; on smaller screens, they collapse into editable headings. **Preview Command (Dry Run)** — under the ▼ split button — prints the exact command, environment, and warnings without starting an engine. Recipe notes for the selected engine render below the context controls; configured scan roots are not shown in the UI (see `settings-override.json` below).
 
+## Headless CLI (`b70`)
+
+Every recipe the windowed app can launch also launches from `b70`, a stdlib-only CLI installed beside it (`~/.local/bin/b70`). It drives the same localhost daemon — no display, no WebKit, fully scriptable on headless hosts and over SSH:
+
+```sh
+b70 list                          # models × engines, detected artifacts
+b70 launch qwen36-35b -e vllm     # launch + wait for the endpoint (or --dry-run / --no-wait)
+b70 launch ./model.gguf           # any artifact under a scan root
+b70 status · b70 monitor          # GPUs, engines, tok/s
+b70 test · b70 logs -f · b70 stop # prompt, tail, teardown
+b70 open                          # UI URL (+ SSH tunnel hint when headless)
+```
+
+`--json` on every command, fuzzy model/server selectors, an interactive picker on a TTY (`b70 launch` bare), daemon auto-start, clean exit codes, and flag-for-flag coverage of the recipe API (`--ctx --port --slots --kv --gpus --power --mtp --native --docker --extra -E`). Full reference: [`docs/cli.md`](docs/cli.md).
+
 ## What is new in 0.4.0
 
 - **Native app window.** The UI opens in a standalone WebKitGTK window (`webwindow.py`, spawned with the system `python3`) instead of a Chromium tab. Closing the window quits the app cleanly: downloads are cancelled and per-session token usage is stored. `--browser` and `--no-open` keep the old behavior; without `python3-gi` the launcher falls back to a browser app window automatically.
@@ -96,9 +118,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.4.8-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.4.8-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.4.8-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.5.0-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.5.0-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.5.0-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. Container images may be pulled when launching; review recipes and image provenance first. Some recipe images use mutable tags.
 
@@ -115,7 +137,7 @@ The installer does not overwrite system files but does replace an existing user-
 
 The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). POST requests require a per-process `X-Launcher-Token` injected into the served page plus Host/Origin checks; GETs are read-only but tokenless. Do not expose the port through a proxy, do not browse via a `localhost` Host name (the check is literal `127.0.0.1`), and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them.
 
-CLI flags: `--port`, `--no-open`, `--browser` (also `B70_LAUNCHER_WINDOW=browser`), `--kill`/`--force` to free the UI port (also attempted automatically when the bind fails). `B70_UPDATE_URL` overrides the update-check URL for testing — point it at a local `version.json` to exercise the release and recipe-update channel end to end. Endpoint and recipe references for contributors live in `docs/api.md` and `docs/recipe-format.md`.
+Launcher flags: `--port`, `--no-open`, `--browser` (also `B70_LAUNCHER_WINDOW=browser`), `--kill`/`--force` to free the UI port (also attempted automatically when the bind fails). For scripted and headless operation prefer the `b70` CLI (`docs/cli.md`), which wraps this API including `serve`/`down` lifecycle. `B70_UPDATE_URL` overrides the update-check URL for testing — point it at a local `version.json` to exercise the release and recipe-update channel end to end. Endpoint and recipe references for contributors live in `docs/api.md` and `docs/recipe-format.md`.
 
 ## Repackage from checked-out sources
 

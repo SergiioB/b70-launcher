@@ -47,7 +47,7 @@ Full launcher state; called by the UI on load and every ~3.5 s refresh.
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see /api/launch"],
   "is_win": false,
-  "version": "0.4.8",
+  "version": "0.5.0",
   "update":  {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "..."},
   "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
   "recipes_remote": {"catalog_ver": "YYYY-MM-DD", "checked": true},
