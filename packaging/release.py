@@ -40,10 +40,8 @@ FILES = sorted(
     "patches/patch_champion_stack_overlay.py patches/patch_mtp_boundary.py "
     "patches/patch_mtp_nightly.py patches/patch_vllm_worker_affinity.py "
     "patches/patch_xpu_grouped_topk_native_v2.py "
-    "web/index.html web/assets/b70-launcher.svg "
-    "web/assets/b70-launcher-512.png web/assets/b70-launcher-256.png "
-    "web/assets/b70-launcher-128.png web/assets/b70-launcher-48.png "
-    "web/assets/b70-launcher-32.png web/assets/b70-launcher-16.png".split()
+    "web/index.html ".split()
+    + [f"web/assets/{p.name}" for p in (ROOT / "web" / "assets").iterdir()]
 )
 
 HEX64 = re.compile(r"[0-9a-fA-F]{64}")

@@ -18,6 +18,21 @@ Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library
 curl -fsSL https://xecores.com/downloads/get.sh | sh
 ```
 
+## How it looks
+
+<table>
+  <tr>
+    <td><img src=".github/screenshots/first-run.png" alt="First run — model catalog, honest on-disk status"></td>
+    <td><img src=".github/screenshots/missing-model.png" alt="Missing artifact — compact download guidance"></td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/library.png" alt="Library — detected artifacts, recipe pick, launch summary"></td>
+    <td><img src=".github/screenshots/dry-run.png" alt="Dry-run command preview — nothing is hidden"></td>
+  </tr>
+</table>
+
+**How it works:** pick a model → pick an engine recipe (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command (dry-run preview) → launch. Running servers survive restarts and are re-adopted; recipe updates arrive over the release channel and apply as state overlays — your install is never rewritten.
+
 ## What is new in 0.4.8
 
 - **Security hardening.** The session token is no longer embedded in an unauthenticated `GET /` response: it ships in `~/.local/state/b70-launcher/token` (mode 0600), reaches the window once via a `?token=` URL that is immediately swapped for a session cookie, and every GET endpoint now requires it (POSTs still require the `X-Launcher-Token` header). Remote recipe updates can no longer overwrite executable fields (`image`, `llama_bin`, `docker_sock`, `fixed_flags`, paths): overlays are allow-listed to metadata/tuning fields, model IDs and engine names are validated, and manifest URLs are restricted to HTTPS or loopback. Harness commands and generated YAML now quote/validate model names, recipe-supplied environment variables cannot set `LD_*`, `PATH`, `HOME`, `PYTHON*` and similar startup hooks, and state files are written atomically with tighter permissions.

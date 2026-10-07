@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#00f0ff"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="11" fill="#141417" stroke="#ffffff" stroke-opacity="0.1"/>
+  <!-- stacked layers = model weights -->
+  <path d="M24 11 L37 18 L24 25 L11 18 Z" fill="url(#g)"/>
+  <path d="M13 23.5 L24 29.5 L35 23.5" fill="none" stroke="url(#g)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.75"/>
+  <path d="M13 29 L24 35 L35 29" fill="none" stroke="url(#g)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.4"/>
+</svg>

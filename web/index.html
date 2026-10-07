@@ -813,10 +813,11 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px 4px;
+    padding: 8px 4px 7px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 5px;
     text-align: center;
     cursor: pointer;
     transition: border-color 0.15s, background-color 0.15s, color 0.15s;
@@ -834,12 +835,11 @@
     box-shadow: 0 0 0 1px var(--accent);
   }
   .app-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
-    margin-bottom: 6px;
     flex-shrink: 0;
   }
   .app-icon img, .app-icon svg {
@@ -848,16 +848,13 @@
     object-fit: contain;
   }
   .app-name {
-    font-size: 11px;
-    font-weight: 700;
-    color: #fff;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--fg-dim);
     line-height: 1.2;
   }
-  .app-desc {
-    font-size: 9px;
-    color: var(--fg-faint);
-    margin-top: 2px;
-    line-height: 1.1;
+  .app-card.sel .app-name {
+    color: #fff;
   }
 
   /* Launch Split Button */
@@ -1443,6 +1440,32 @@
     flex-wrap: wrap;
     align-items: center;
   }
+  .getmodel-more {
+    margin-top: 6px;
+  }
+  .getmodel-more summary {
+    cursor: pointer;
+    color: var(--fg-faint);
+    font-size: 11px;
+    user-select: none;
+  }
+  .getmodel-more summary:hover {
+    color: var(--fg-dim);
+  }
+  .getmodel-note {
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: var(--fg-faint);
+  }
+  .recipe-notes-box .sys-rec-desc {
+    margin: 4px 0 8px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+  }
+  .recipe-notes-box .sys-rec-desc::before {
+    content: "💡 ";
+  }
   a.btn-browse {
     text-decoration: none;
     display: inline-flex;
@@ -1718,23 +1741,20 @@
       <div class="step-num" aria-hidden="true">1</div>
       <div class="step-txt">
         <span class="step-title">Model</span>
-        <span class="step-sub">Choose a model</span>
       </div>
     </button>
-    <div class="step-arrow" aria-hidden="true">&gt;</div>
+    <div class="step-arrow" aria-hidden="true">›</div>
     <button type="button" class="step-node" id="step-node-2" onclick="focusStep(2)" aria-label="Step 2, configuration: set engine and parameters">
       <div class="step-num" aria-hidden="true">2</div>
       <div class="step-txt">
         <span class="step-title">Configuration</span>
-        <span class="step-sub">Set engine &amp; parameters</span>
       </div>
     </button>
-    <div class="step-arrow" aria-hidden="true">&gt;</div>
+    <div class="step-arrow" aria-hidden="true">›</div>
     <button type="button" class="step-node" id="step-node-3" onclick="focusStep(3)" aria-label="Step 3, launch: start and open in your favorite app">
       <div class="step-num" aria-hidden="true">3</div>
       <div class="step-txt">
         <span class="step-title">Launch</span>
-        <span class="step-sub">Start and open in your favorite app</span>
       </div>
     </button>
   </div>
@@ -1812,7 +1832,6 @@
           <button class="ctx-preset-chip" id="ctx-safe-btn" onclick="setCtxSafe()">Safe</button>
           <button class="ctx-preset-chip" id="ctx-max-btn" onclick="setCtxMax()">Max</button>
         </div>
-        <div class="ctx-subtext" style="margin-top: -6px;">How much text the model remembers at once — bigger uses more VRAM.</div>
 
         <button class="adv-toggle-btn" id="adv-toggle" onclick="toggleAdv()" aria-expanded="false" aria-controls="adv-box">
           <span>⚙ Advanced settings</span>
@@ -1848,20 +1867,13 @@
         <div class="recipe-notes-box">
           <div class="recipe-notes-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            Recipe notes
+            Recipe info
+          </div>
+          <div class="sys-rec-desc" id="sys-rec-desc">
+            Pick a model to see the recommended setup for your GPU.
           </div>
           <div id="recipe-notes-body">
             Pick a model and engine to see its validated recipe notes.
-          </div>
-        </div>
-
-        <div class="sys-rec-box">
-          <div class="sys-rec-icon" aria-hidden="true">💡</div>
-          <div>
-            <div class="sys-rec-title">System recommendation</div>
-            <div class="sys-rec-desc" id="sys-rec-desc">
-              Pick a model to see the recommended setup for your GPU.
-            </div>
           </div>
         </div>
       </div>
@@ -1913,25 +1925,21 @@
           <button class="btn-browse" style="padding: 4px 10px; font-size: 11px; margin-left: auto;" id="btn-open-harness" onclick="openSelectedHarness()">Open in Pi ↗</button>
         </div>
         <div class="app-grid" role="group" aria-label="Client app to open after launch">
-          <button type="button" class="app-card sel" id="app-pi" onclick="onAppCardClick('pi')" ondblclick="openHarnessNow('pi')" title="Select Pi — activate again to open it" aria-pressed="true">
-            <div class="app-icon" aria-hidden="true"><img src="/assets/pi.svg" alt="" /></div>
+          <button type="button" class="app-card sel" id="app-pi" onclick="onAppCardClick('pi')" ondblclick="openHarnessNow('pi')" title="Pi — local AI chat. Activate again to open it" aria-pressed="true">
+            <div class="app-icon" aria-hidden="true"><img src="/assets/pi.svg" alt="" onerror="this.onerror=null;this.src='/assets/eng-generic.svg'"/></div>
             <div class="app-name">Pi</div>
-            <div class="app-desc">Local AI chat</div>
           </button>
-          <button type="button" class="app-card" id="app-droid" onclick="onAppCardClick('droid')" ondblclick="openHarnessNow('droid')" title="Select Factory Droid — activate again to open it" aria-pressed="false">
-            <div class="app-icon" aria-hidden="true"><img src="/assets/factory-droid.svg" alt="" /></div>
-            <div class="app-name">Factory Droid</div>
-            <div class="app-desc">Model workflow</div>
+          <button type="button" class="app-card" id="app-droid" onclick="onAppCardClick('droid')" ondblclick="openHarnessNow('droid')" title="Factory Droid — model workflow. Activate again to open it" aria-pressed="false">
+            <div class="app-icon" aria-hidden="true"><img src="/assets/factory-droid.svg" alt="" onerror="this.onerror=null;this.src='/assets/eng-generic.svg'"/></div>
+            <div class="app-name">Droid</div>
           </button>
-          <button type="button" class="app-card" id="app-omp" onclick="onAppCardClick('omp')" ondblclick="openHarnessNow('omp')" title="Select OMP — activate again to open it" aria-pressed="false">
-            <div class="app-icon" aria-hidden="true"><img src="/assets/omp.svg" alt="" /></div>
+          <button type="button" class="app-card" id="app-omp" onclick="onAppCardClick('omp')" ondblclick="openHarnessNow('omp')" title="OMP — open model platform. Activate again to open it" aria-pressed="false">
+            <div class="app-icon" aria-hidden="true"><img src="/assets/omp.svg" alt="" onerror="this.onerror=null;this.src='/assets/eng-generic.svg'"/></div>
             <div class="app-name">OMP</div>
-            <div class="app-desc">Open model platform</div>
           </button>
-          <button type="button" class="app-card" id="app-webui" onclick="onAppCardClick('webui')" ondblclick="openHarnessNow('webui')" title="Select Open Web UI — activate again to open it" aria-pressed="false">
-            <div class="app-icon" aria-hidden="true"><img src="/assets/openwebui.svg" alt="" /></div>
-            <div class="app-name">Open Web UI</div>
-            <div class="app-desc">In browser</div>
+          <button type="button" class="app-card" id="app-webui" onclick="onAppCardClick('webui')" ondblclick="openHarnessNow('webui')" title="Open Web UI — in browser. Activate again to open it" aria-pressed="false">
+            <div class="app-icon" aria-hidden="true"><img src="/assets/openwebui.svg" alt="" onerror="this.onerror=null;this.src='/assets/eng-generic.svg'"/></div>
+            <div class="app-name">Web UI</div>
           </button>
         </div>
 
@@ -2411,7 +2419,7 @@ function getBrandLogo(brand, modelId) {
   if (brand === "meta" || brand === "llama" || modelId.includes("llama")) return "/assets/llama.svg";
   if (brand === "mistral" || modelId.includes("mistral")) return "/assets/mistral.svg";
   if (brand === "intel" || modelId.includes("intel")) return "/assets/intel.svg";
-  return "/assets/b70-launcher.svg";
+  return "/assets/model-generic.svg";
 }
 
 function isDetected(modelId, eng) {
@@ -2489,7 +2497,7 @@ function renderModels() {
 
     const isRec = m.badge || m.id.startsWith("qwen36") || m.id === "qwen38-flashnext";
     const brandSvg = getBrandLogo(m.brand, m.id);
-    const chips = m.chips || ["LLM", "Instruct"];
+    const chips = (m.chips || []).filter((c) => !["LLM", "Instruct", "High performance", "Fast"].includes(c));
     const recEng = recommendedEngine(m);
     let diskBadge = "";
     if (detected) {
@@ -2510,7 +2518,7 @@ function renderModels() {
       </div>
       <div class="model-card-body">
         <div class="model-brand-icon" aria-hidden="true">
-          <img src="${brandSvg}" alt="" />
+          <img src="${brandSvg}" alt="" onerror="this.onerror=null;this.src='/assets/model-generic.svg'" />
         </div>
         <div class="model-card-info">
           <div class="model-card-name">${esc(m.name)}</div>
@@ -2601,7 +2609,7 @@ function renderEngines() {
 
     card.innerHTML = `
       <div class="engine-icon" aria-hidden="true">
-        <img src="${eng.icon}" alt="" />
+        <img src="${eng.icon}" alt="" onerror="this.onerror=null;this.src='/assets/eng-generic.svg'" />
       </div>
       <div class="engine-info">
         <div class="engine-name">${esc(eng.name)}</div>
@@ -2772,31 +2780,28 @@ function renderGetModel(detInfo) {
   const searchQ = dl.hf_search || dl.search || "";
 
   let html = `<div class="getmodel-title">↓ Get this model</div>`;
-  html += `<div><strong>${esc(want)}</strong>${esc(quantTxt)}${sz ? " — " + esc(sz) : ""} is needed to run ${esc(SEL.name)} on ${esc(engLabel)}.</div>`;
+  html += `<div><strong>${esc(want)}</strong>${esc(quantTxt)}${sz ? " · " + esc(sz) : ""} — needed for ${esc(engLabel)}.</div>`;
 
   if (repo) {
     const cmds = buildDownloadCmds(dl);
-    html += `<div style="margin-top:6px;">The <strong>↓ Download</strong> button above fetches it into <code>${esc(dest)}</code> automatically. Or run this in a terminal:</div>`;
     if (cmds) {
-      html += `<div class="getmodel-cmd"><code id="gm-cmd">${esc(cmds)}</code><button class="conn-copy-btn" title="Copy command to clipboard" aria-label="Copy command to clipboard" onclick="copyTextEl('gm-cmd')">⧉</button></div>`;
+      html += `<details class="getmodel-more"><summary>Manual download (terminal)</summary>` +
+        `<div class="getmodel-cmd"><code id="gm-cmd">${esc(cmds)}</code><button class="conn-copy-btn" title="Copy command to clipboard" aria-label="Copy command to clipboard" onclick="copyTextEl('gm-cmd')">⧉</button></div>` +
+        `<div class="getmodel-note">Lands in <code>${esc(dest)}</code> — picked up automatically; Browse… if it does not show.</div></details>`;
     }
-    html += `<div style="margin-top:6px;">Files under <code>${esc(dest)}</code> (or any scanned folder) are picked up automatically — use Browse… afterwards if it does not show up.</div>`;
   } else if (searchQ) {
     const url = "https://huggingface.co/models?search=" + encodeURIComponent(searchQ);
-    html += `<div style="margin-top:6px;">No approved auto-download for this recipe — grab it manually:</div>`;
     html += `<div class="getmodel-actions">` +
-      `<a class="btn-browse" href="${esc(url)}" target="_blank" rel="noopener">Get it manually — search Hugging Face ↗</a>` +
+      `<a class="btn-browse" href="${esc(url)}" target="_blank" rel="noopener">Search Hugging Face ↗</a>` +
+      `<button class="btn-browse" onclick="rescanNow()">↻ Rescan</button>` +
       `</div>`;
-    html += `<div style="margin-top:6px;">Look for <strong>${esc(dl.name || searchQ)}</strong>${esc(quantTxt)}, place it under <code>${esc(dest)}</code>, then rescan:</div>`;
-    html += `<div class="getmodel-actions"><button class="btn-browse" onclick="rescanNow()">↻ Rescan disk</button></div>`;
+    html += `<div class="getmodel-note">Look for <strong>${esc(dl.name || searchQ)}</strong>${esc(quantTxt)} under <code>${esc(dest)}</code>.</div>`;
   } else {
     const docUrl = recipe.doc || recipe.doc_url || recipe.docs || SEL.doc || SEL.doc_url || SEL.url;
     if (docUrl) {
       html += `<div class="getmodel-actions"><a class="btn-browse" href="${esc(safeHref(docUrl))}" target="_blank" rel="noopener">Open recipe docs ↗</a></div>`;
-    } else {
-      html += `<div style="margin-top:6px;">No approved download source — see the recipe notes below.</div>`;
     }
-    html += `<div style="margin-top:4px;">If you already have the file, use <strong>Browse…</strong> or set a custom path to point the launcher at it.</div>`;
+    html += `<div class="getmodel-note">Already have it? <strong>Browse…</strong> above points the launcher at your file.</div>`;
   }
   box.innerHTML = html;
   box.style.display = "block";
