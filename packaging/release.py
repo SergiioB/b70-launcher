@@ -34,7 +34,7 @@ NAME = f"b70-launcher-{VERSION}-linux-source"
 
 # Files shipped in the source bundle, sorted for deterministic tar order.
 FILES = sorted(
-    "launcher.py webwindow.py appwindow.py recipes.json settings.json README.md "
+    "launcher.py webwindow.py appwindow.py recipes.json settings.json README.md LICENSE "
     "ui.png docs/api.md docs/recipe-format.md "
     "packaging/install.sh packaging/uninstall.sh packaging/b70-launcher.desktop "
     "patches/patch_champion_stack_overlay.py patches/patch_mtp_boundary.py "

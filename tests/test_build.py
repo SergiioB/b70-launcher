@@ -5,7 +5,7 @@ All calls are dry-builds: build() never executes the generated command.
 exl3 is intentionally not exercised — it probes `docker -H unix://...info`
 even for dry runs.
 
-Run:  cd /home/sergio/b70-launcher && python3 -m unittest discover -s tests -v
+Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 """
 import json
 import unittest

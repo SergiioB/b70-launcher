@@ -1,7 +1,7 @@
 """Tests for artifact detection: detect(), prepare_custom(), resolve_ctx(),
 _resolve_draft() — all against temp dirs and seeded SCAN state, no GPU/network.
 
-Run:  cd /home/sergio/b70-launcher && python3 -m unittest discover -s tests -v
+Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 """
 import json
 import unittest

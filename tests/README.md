@@ -6,7 +6,7 @@ project's own constraint.
 ## Run
 
 ```bash
-cd /home/sergio/b70-launcher
+cd b70-launcher
 python3 -m unittest discover -s tests -v
 ```
 

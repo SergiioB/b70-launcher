@@ -34,7 +34,7 @@
 
 Inspect local Arc Pro B70 hardware, find cookbook model artifacts, review the exact engine command, and optionally launch an inference server. This is a local desktop UI backed by Python stdlib; it does **not** bundle an engine, model weights, Docker, drivers, or a browser.
 
-Copyright retained by its owner. This owner-published source download does not grant a general redistribution, modification, or open-source license. Only the launcher source, recipe data, UI, and launcher-created icon are staged; Intel logos and third-party engine artwork are excluded. At startup the launcher contacts xecores.com once for the release check and the recipe manifest; the UI itself makes no other network requests until the user selects a model download, applies a recipe update, or a launched engine pulls its configured image/model. Verify the release manifest and checksum before sharing.
+B70 Launcher is open source under the [MIT License](LICENSE); the repository lives at [github.com/SergiioB/b70-launcher](https://github.com/SergiioB/b70-launcher). Third-party engine and vendor names/logos shown in the UI remain trademarks of their respective owners. At startup the launcher contacts xecores.com once for the release check and the recipe manifest; the UI itself makes no other network requests until the user selects a model download, applies a recipe update, or a launched engine pulls its configured image/model. Verify the release manifest and checksum before sharing.
 
 ## Start a server
 
