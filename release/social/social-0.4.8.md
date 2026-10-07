@@ -1,58 +1,63 @@
-# B70 Launcher 0.4.8 — Social Drafts
+# B70 Launcher 0.4.8 — Social Drafts (FINAL)
 
-Screenshots (attach in this order):
-- `release/screenshots/step1-models.png` — 3-step flow: model library, honest on-disk sizes, update banner
-- `release/screenshots/step2-config.png` — engine config + the "better recipe available" notice
-- `release/screenshots/step3-launch.png` — dry-run command preview showing the exact llama-server command + env
-- `release/screenshots/shot1-library.png` — alternate hero (1500px)
-- `release/screenshots/shot2-notice.png` — alternate notice close-up
-- `release/screenshots/shot3-dryrun.png` — alternate dry-run
+Screenshots (all retaken on the simplified UI):
+- `release/screenshots/fresh-first-run.png` — first run: catalog, honest "Needs ~19 GB", compact get-model
+- `release/screenshots/step1-models.png` — library with detected artifacts + engine/config/launch
+- `release/screenshots/step2-config.png` — config column for a missing model (Muse-Glimmer)
+- `release/screenshots/step3-launch.png` — dry-run command modal (exact llama-server command + env)
+- `release/screenshots/shot2-notice.png` — recipe-update notice (older UI, notice design unchanged)
 
 Live URLs:
-- https://xecores.com/match (install + checksum)
+- https://xecores.com/match (one-command install + checksum)
 - https://github.com/SergiioB/b70-launcher (source, MIT)
-- https://xecores.com/shots/launcher/step2-config.png (hotlinkable)
+- https://github.com/SergiioB/b70-launcher/releases/tag/v0.4.8 (release + assets)
 
 ---
 
 ## X (Twitter)
 
-### Main post (attach step2-config.png)
+### Main post (attach step1-models.png)
 
-B70 Launcher 0.4.8 is out — a local desktop UI for running LLMs on Intel Arc Pro B70.
+B70 Launcher 0.4.8 is out — open-source local desktop UI for running LLMs on Intel Arc Pro B70.
 
-Model library → engine pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → launch & open in your chat app. Recipes update themselves: when a better validated recipe ships, the launcher tells you and applies it without touching your install.
+```
+curl -fsSL https://xecores.com/downloads/get.sh | sh
+```
 
-xecores.com/match — source on GitHub: github.com/SergiioB/b70-launcher (MIT)
+Model library → engine pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → launch & open in your chat app. MIT: github.com/SergiioB/b70-launcher
 
 ### Reply 1 (attach step3-launch.png)
 
-Nothing is hidden: "Preview command" shows the exact llama-server flags, KV cache dtypes, SYCL env vars and mount layout before anything runs. Native llama.cpp servers survive app restarts — re-adopted on relaunch, stoppable from the UI.
+Nothing is hidden: dry-run shows the exact llama-server flags, KV-cache dtypes, SYCL env vars and mounts before anything runs. Native servers survive app restarts — re-adopted, stoppable from the UI.
 
-### Reply 2 (attach step1-models.png)
+### Reply 2 (attach fresh-first-run.png)
 
-Fresh install is rootless: ~/.local only, XDG-aware, no hardcoded paths. Point it at ~/models or let it scan — it reports real artifact sizes or "not found", never fake numbers.
+Rootless install (~/.local only, XDG-aware, zero hardcoded paths). Honest by design: real artifact sizes or "not on disk", never fake numbers. Recipe updates arrive over a channel and apply as state overlays — your catalog is never rewritten.
 
 ---
 
 ## LinkedIn
 
-Releasing B70 Launcher 0.4.8 today — a local desktop launcher for LLM inference on the Intel Arc Pro B70, now live at xecores.com.
+I've just released B70 Launcher 0.4.8 — an open-source (MIT) local desktop launcher for LLM inference on the Intel Arc Pro B70. Source: github.com/SergiioB/b70-launcher — install: xecores.com/match
 
-The problem it solves: getting a validated model + engine running on Battlemage hardware normally means juggling Docker flags, SYCL environment variables, KV-cache dtypes and HF repos by hand. The launcher turns that into three steps — pick a model from the library (with honest "on disk / not found" status and real sizes), pick an engine (vLLM XPU, llama.cpp SYCL, OpenVINO OVMS, EXL3), launch and open it in Pi, Factory Droid, OMP or Open WebUI behind an OpenAI-compatible endpoint.
+The problem it solves: getting a validated model + engine running on Battlemage hardware normally means juggling Docker flags, SYCL environment variables, KV-cache dtypes and HF repos by hand. The launcher reduces that to three steps — pick a model from the library (honest "on disk / not found" status and real sizes), pick an engine recipe (vLLM XPU, llama.cpp SYCL, OpenVINO OVMS, EXL3), launch, and open it in Pi, Factory Droid, OMP or Open WebUI behind an OpenAI-compatible endpoint.
 
-What's new in 0.4.8:
+Install is one command:
 
-- Recipe update channel. Validated launch recipes are versioned on the site. When a better recipe ships — a KV-cache change, a fixed flag, a new model — installed launchers show a badge and a one-click "Get updated recipe" notice. The update applies to your state directory, never modifies the installed catalog, and your own overrides always win.
-- Custom artifacts. Point the launcher at any GGUF / OpenVINO IR / safetensors tree under your scan roots; it sniffs the format, matches it to the right engine and refuses honestly if you pick the wrong one.
-- Native llama.cpp lifecycle. oneAPI runtime libraries are resolved automatically, new llama.cpp builds get correct flash-attention flags, and a running llama-server is re-adopted after an app restart — visible and stoppable, not orphaned.
-- Hardened local API. Random session token delivered out-of-band (cookie bootstrap, 0600 token file), remote recipe fields allow-listed, host-header and origin checks — everything on loopback only.
-- Transparency by default. Dry-run shows the exact command + environment before anything launches. Per-card watts, VRAM and token accounting are live in the UI.
+curl -fsSL https://xecores.com/downloads/get.sh | sh
 
-The install is rootless (~/.local only, XDG-aware, no hardcoded paths) and the source is inspectable before you run it — the install page verifies the SHA256 checksum first. No telemetry; the only network calls are the update check and downloads you explicitly request.
+It resolves the current release, verifies the SHA256 checksum before extracting, and installs rootless under ~/.local — XDG-aware, no hardcoded paths, state preserved across reinstalls. For the cautious: the script and the Python source (stdlib only, zero pip dependencies) are on GitHub to read first.
 
-Dual Intel Arc Pro B70 (2×32GB) is the target platform. Download + checksum-verified install instructions: xecores.com/match — source on GitHub: github.com/SergiioB/b70-launcher (MIT)
+What's in 0.4.8:
 
-[Screenshot: step2-config.png — the recipe-update notice; optionally step1 + step3 as a comment]
+- Recipe update channel — validated launch recipes are versioned; when a better one ships, installed launchers show a badge and a one-click "Get updated recipe" notice. Applies to your state dir; your own overrides always win.
+- Custom artifacts — point it at any GGUF / OpenVINO IR / safetensors tree under your scan roots; it sniffs the format, matches the right engine, refuses honestly if wrong.
+- Native llama.cpp lifecycle — oneAPI runtime resolution, correct flags per build, running servers re-adopted after restart instead of orphaned.
+- Hardened local API — session token via cookie bootstrap (0600 token file), recipe-overlay field allow-listing, host/origin checks, loopback only.
+- Transparency — dry-run shows the exact command + environment before anything launches; per-card watts/VRAM and load timing are live in the UI.
 
-#IntelArc #Battlemage #LocalAI #LLM #OpenSource
+Target platform: dual Intel Arc Pro B70 (2×32GB). No telemetry; the only network calls are the update check and downloads you explicitly request.
+
+[Screenshot: step1-models.png hero; dry-run or fresh-run as second]
+
+#IntelArc #Battlemage #LocalAI #LLM #OpenSource #OpenVINO #llamacpp
