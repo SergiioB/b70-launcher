@@ -55,6 +55,14 @@ Unfinished steps stay dimmed and cannot take focus. On wide screens, completed c
 
 ## Install (current user only)
 
+One command (downloads, verifies SHA256, extracts, installs):
+
+```sh
+curl -fsSL https://xecores.com/downloads/get.sh | sh
+```
+
+Or inspect-first, manually:
+
 1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.4.8-linux-source.tar.gz.sha256`.
 2. Extract it: `tar -xzf b70-launcher-0.4.8-linux-source.tar.gz`.
 3. Inspect `launcher.py`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.4.8-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`.
