@@ -1,4 +1,22 @@
+<p align="center">
+  <img src=".github/banner.png" alt="B70 Launcher — local LLM inference on Intel Arc Pro B70" width="720">
+</p>
+
+<p align="center">
+  <a href="https://github.com/SergiioB/b70-launcher/releases/latest"><img src="https://img.shields.io/github/v/release/SergiioB/b70-launcher?color=00f0ff" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-00f0ff" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/platform-Linux-lightgrey" alt="Linux">
+  <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+</p>
+
 # B70 Launcher 0.4.8 (Linux source)
+
+Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
+
+```sh
+curl -fsSL https://xecores.com/downloads/get.sh | sh
+```
 
 ## What is new in 0.4.8
 
