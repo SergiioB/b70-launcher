@@ -3258,11 +3258,15 @@ function renderServerState(runningList) {
       const secs = Math.max(0, Math.round((Date.now() - t0) / 1000));
       if (secs > 5) elapsed = ` ${Math.floor(secs/60)}m${secs%60}s`;
     }
+    const phase = running.phase ? ` · ${running.phase}` : "";
+    const loadedIn = running.load_s != null
+      ? ` · ready in ${running.load_s >= 60 ? `${Math.floor(running.load_s/60)}m${Math.round(running.load_s%60)}s` : `${Math.round(running.load_s)}s`}`
+      : "";
     launchBtn.innerHTML = loading
-      ? `<span aria-hidden="true">⏳</span> Loading${elapsed}… <span style="font-size:10px;opacity:.8">(click to stop)</span>`
+      ? `<span aria-hidden="true">⏳</span> Loading${elapsed}${phase}… <span style="font-size:10px;opacity:.8">(click to stop)</span>`
       : `<span aria-hidden="true">■</span> Stop server (${running.port})`;
     launchBtn.title = loading
-      ? `${running.model} is still loading on port ${running.port} — click to abort`
+      ? `${running.model} is still loading on port ${running.port}${phase} — click to abort`
       : `Stop active server ${running.model} running on port ${running.port}`;
     launchBtn.onclick = () => stopRunningServer(running.id);
 
@@ -3274,7 +3278,7 @@ function renderServerState(runningList) {
     }
 
     if (!window.MODEL_LOADING) {
-      $('conn-status-msg').textContent = `● Server active on port ${running.port} (inference ready)`;
+      $('conn-status-msg').textContent = `● Server active on port ${running.port} (inference ready)${loadedIn}`;
       $('conn-status-msg').style.color = 'var(--ok)';
     }
 

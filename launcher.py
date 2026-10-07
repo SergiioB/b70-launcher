@@ -1793,7 +1793,7 @@ def build(cfg):
 
 # ---------------------------------------------------------------- usage history
 
-SESSION_FIELDS = ("id", "model", "engine", "port", "started")
+SESSION_FIELDS = ("id", "model", "engine", "port", "started", "load_s")
 
 
 def _usage_load():
@@ -1886,7 +1886,35 @@ MEM_RES = [
     (re.compile(r"buffer size =\s*([\d.]+)\s*(MiB|GiB)", re.I), "buffer (log)"),
 ]
 PROM_RE = re.compile(r"^([A-Za-z_:][A-Za-z0-9_:]*)(?:\{[^}]*\})?\s+(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?|NaN)\s*$")
-INTERNAL_KEYS = {"proc", "_prev"}
+INTERNAL_KEYS = {"proc", "_prev", "launch_ts", "ready_at"}
+
+# last-match-wins milestone markers scanned in the tail of an engine log while
+# the endpoint is not yet answering — ordered by typical appearance
+LOAD_PHASES = [
+    ("loading weights", r"load_tensors|loading (model|weights)|weights loaded|reading model"),
+    ("compiling kernels", r"torch\.compile|compil(ing|ation)|jit|kernel build"),
+    ("graph capture", r"captur|cuda ?graph|xpu graph|cudagraph|graph batch"),
+    ("warmup", r"warm[- ]?up|warming"),
+    ("serving", r"uvicorn running|application startup complete|srv\s+startup|start the main server"),
+]
+LOAD_PHASE_RES = [(name, re.compile(rx, re.I)) for name, rx in LOAD_PHASES]
+
+
+def _log_phase(log_path):
+    """Current engine load milestone from the log tail, or ""."""
+    try:
+        with open(log_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 16384))
+            tail = f.read().decode("utf-8", "replace")
+    except Exception:
+        return ""
+    phase = ""
+    for name, rx in LOAD_PHASE_RES:
+        if rx.search(tail):
+            phase = name
+    return phase
 
 
 def _parse_prom(text):
@@ -2133,27 +2161,32 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
                 rf'\g<1>{port}\g<2>',
                 text
             )
+            # the launched model first (works for custom/remote-only ids), then
+            # every catalog entry — omp refuses ids it doesn't know
+            pairs = [(model_name, model_name), (model_id, model_name)]
             for rm in RECIPES.get("models", []):
-                for mid in (rm.get("name"), rm.get("id")):
-                    # regex-inserted into YAML — refuse anything that could
-                    # break the document (newlines, colons, quotes)
-                    safe = mid and rm.get("name") and all(
-                        re.fullmatch(r"[A-Za-z0-9_.,:+() -]+", str(x))
-                        for x in (mid, rm["name"]))
-                    if safe and mid not in text and "b70-vllm:" in text:
-                        pattern = r'(b70-vllm:\s*\n(?:\s+.*\n)*?\s+models:\s*\n)'
-                        m_entry = (
-                            f"    - id: {mid}\n"
-                            f"      name: {rm.get('name')} (B70 vLLM)\n"
-                            f"      input:\n"
-                            f"      - text\n"
-                            f"      - image\n"
-                            f"      supportsTools: false\n"
-                            f"      reasoning: true\n"
-                            f"      contextWindow: 102400\n"
-                            f"      maxTokens: 16384\n"
-                        )
-                        text = re.sub(pattern, rf'\g<1>{m_entry}', text, count=1)
+                pairs += [(rm.get("name"), rm.get("name")),
+                          (rm.get("id"), rm.get("name"))]
+            for mid, disp in pairs:
+                # regex-inserted into YAML — refuse anything that could
+                # break the document (newlines, colons, quotes)
+                safe = mid and disp and all(
+                    re.fullmatch(r"[A-Za-z0-9_.,:+() -]+", str(x))
+                    for x in (mid, disp))
+                if safe and mid not in text and "b70-vllm:" in text:
+                    pattern = r'(b70-vllm:\s*\n(?:\s+.*\n)*?\s+models:\s*\n)'
+                    m_entry = (
+                        f"    - id: {mid}\n"
+                        f"      name: {disp} (B70 vLLM)\n"
+                        f"      input:\n"
+                        f"      - text\n"
+                        f"      - image\n"
+                        f"      supportsTools: false\n"
+                        f"      reasoning: true\n"
+                        f"      contextWindow: 102400\n"
+                        f"      maxTokens: 16384\n"
+                    )
+                    text = re.sub(pattern, rf'\g<1>{m_entry}', text, count=1)
             _atomic_write(omp_cfg, text)
     except Exception as exc:
         print(f"Warning: failed updating ~/.omp/agent/models.yml: {exc}")
@@ -2166,7 +2199,7 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
             models_dict = data.setdefault("models", {})
             models_dict["desktop-b70"] = {
                 "name": "Desktop B70 Loaded Model",
-                "provider": "openai",
+                "provider": "generic-chat-completion-api",
                 "modelId": model_name,
                 "baseUrl": f"http://127.0.0.1:{port}/v1"
             }
@@ -2175,8 +2208,9 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
             if b70_custom:
                 b70_custom["model"] = model_name
                 b70_custom["baseUrl"] = f"http://127.0.0.1:{port}/v1"
+                b70_custom["apiKey"] = "local-b70"
                 b70_custom["displayName"] = f"{model_name} (B70)"
-                b70_custom["provider"] = "openai"
+                b70_custom["provider"] = "generic-chat-completion-api"
             else:
                 custom_models.insert(0, {
                     "model": model_name,
@@ -2187,7 +2221,7 @@ def sync_harness_configs(port=8000, model_name="Qwen3.8-27B", model_id="qwen38-2
                     "displayName": f"{model_name} (B70)",
                     "maxOutputTokens": 32768,
                     "noImageSupport": True,
-                    "provider": "openai"
+                    "provider": "generic-chat-completion-api"
                 })
             favs = data.setdefault("modelFavorites", [])
             cid = "custom:Desktop-B70-Loaded-Model-0"
@@ -2291,6 +2325,7 @@ def launch(cfg, built):
              "port": port, "native": bool(built.get("native")),
              "cmd": built["cmd"], "artifact_mib": built.get("artifact_mib"),
              "log": str(log), "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+             "launch_ts": time.time(), "ready_at": None,
              "status": "starting", "proc": None,
              "tokens_in": 0, "tokens_out": 0, "requests": 0,
              "sess_in": 0, "sess_out": 0, "sess_reqs": 0}
@@ -2630,6 +2665,9 @@ def servers_snapshot():
             ready, exc = False, ex
         if not ready:
             items[idx]["status"] = "starting"
+            phase = _log_phase(items[idx].get("log") or "")
+            if phase:
+                items[idx]["phase"] = phase
             with LOCK:
                 e = RUNNING.get(rid)
                 # log the first readiness failure per server so a wedged
@@ -2640,6 +2678,16 @@ def servers_snapshot():
         else:
             with LOCK:
                 e = RUNNING.get(rid)
+                if e is not None and e.get("ready_at") is None:
+                    # first successful probe: the load time users care about is
+                    # spawn → endpoint answering (weights + kernels + graphs +
+                    # warmup all included)
+                    e["ready_at"] = now
+                    if e.get("launch_ts"):
+                        e["load_s"] = round(now - e["launch_ts"], 1)
+                        items[idx]["load_s"] = e["load_s"]
+                elif e is not None and e.get("load_s") is not None:
+                    items[idx]["load_s"] = e["load_s"]
                 due = e is not None and now - (e.get("_metrics_ts") or 0) >= 3
             if due:
                 _account_engine(rid, e, now)

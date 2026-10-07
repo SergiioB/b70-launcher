@@ -4,7 +4,7 @@
     "appwindow.py": "0e40dbed01c37a249d967b4accd5ac6ffa21f3d1aff547dd9081f775e759a6bb",
     "docs/api.md": "1a952f49a9cdd9c1177f6729c482b17390bef1bedb1ff1c924ddd15ee5257f42",
     "docs/recipe-format.md": "ff78e5d1ed8f20920299264d0674c5839546c503abc3d48d2393e3dfca52a93d",
-    "launcher.py": "f1de7b1ca7cde06123fcd738efd3ea7529f4cf03faa6f150d979c38b6e35d3ec",
+    "launcher.py": "8d123baba94328462f2f9fbc1110731e5460c822ccb030dacd5b2ae82033df65",
     "packaging/b70-launcher.desktop": "b2e96baceb4eb8407a67878b342731e294d982b9fe01c78ef6d881527706a5bc",
     "packaging/install.sh": "2b7bd120c645005deba5723e8c4e402d0fbeb8e8df15147c63c2fae5c88ef038",
     "packaging/uninstall.sh": "84307cad9d20df968b0dd7066ca63e55645c3a19f734a88ed9dd5d149a8bbea8",
@@ -23,7 +23,7 @@
     "web/assets/b70-launcher-48.png": "1893e4a43aa0e5ff77424a8a951240f00b1df6822d8f969ccbc17841c46d6e53",
     "web/assets/b70-launcher-512.png": "5cde533d0b342f6a6b46269380f297cd858b7aa4eeddda5a7738daf788ad3540",
     "web/assets/b70-launcher.svg": "8c17bbe1ae2fc1f71462e84fe967eacd8da840d91908b791ddcd15aabca70275",
-    "web/index.html": "9ba5ec264be4a836090fc9d2a79aa2d128b8c760ccb369d85f723592a84c8448",
+    "web/index.html": "cd9d1a108bbc26ebfc232e587812aef56ed86367de0bc69aa8c3a62b3d840970",
     "webwindow.py": "5b67f8f728c692d77935d893db4883552f6d152b7078ff57c23d587ffb5393bf"
   },
   "platform": "Linux source (Python 3.9+)",
