@@ -1,9 +1,35 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
-release/*.tar.gz
-release/*.sha256
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Build artifacts
 build/
 dist/
+*.spec
+
+# Generated release outputs (packaging/release.py regenerates these)
+release/*.tar.gz
+release/*.sha256
+release/*.manifest.json
+release/version.json
+release/recipes.json
+release/recipes-manifest.json
+
+# Local scratch / machine-specific
 home/
 verify_*.png
+*.log
+.DS_Store
+Thumbs.db
+
+# Secrets and runtime state — never commit
+.env
+.env.*
+*.pem
+*.key
+token
+state/
