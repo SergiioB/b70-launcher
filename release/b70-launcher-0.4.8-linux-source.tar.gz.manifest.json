@@ -13,7 +13,7 @@
     "patches/patch_mtp_nightly.py": "070c59980a435a4c5360fbd46437f38749e356c90818605cec655f9760eed604",
     "patches/patch_vllm_worker_affinity.py": "37597260d92dc9fd15d7f546cc51645416baf600053ba219040b9b4016898727",
     "patches/patch_xpu_grouped_topk_native_v2.py": "ea65513442e08fc427394693210fb3e2ad6c938e168a5f85b8bca3185bcad990",
-    "recipes.json": "2318360021bf6acdb8148ee763f2f0c0a7fbce2450824ac7ed265d77e91863c6",
+    "recipes.json": "f099979416e58643217d9ff66f3df1d48ecfbe93fed7fc260f36c5918a19d6be",
     "settings.json": "0db86b775382f13cf5da42f74a16133381ebf7d3c3a1fa58dde1fc1242440091",
     "ui.png": "a5c65ecc34a147d70d21fb6c52ae82661831805122bd49c6486b9a366ff15a75",
     "web/assets/b70-launcher-128.png": "4e17cafdc831847302ef7f374486923d4fca24c2925759199e40bf7a38486b66",
