@@ -469,5 +469,91 @@ class TestHarnessLine(LauncherStateCase):
                         .endswith("mytool --flag"))
 
 
+class TestHarnessSync(LauncherStateCase):
+    """sync_harness_configs writes the LAUNCHED model into the client configs —
+    omp refuses unknown model ids, so a custom/remote model missing from
+    models.yml would make 'Open in OMP' silently unusable."""
+
+    def test_omp_gets_launched_model(self):
+        ompdir = FAKE_HOME / ".omp" / "agent"
+        ompdir.mkdir(parents=True, exist_ok=True)
+        cfgf = ompdir / "models.yml"
+        cfgf.write_text(
+            "providers:\n"
+            "  b70-vllm:\n"
+            "    baseUrl: http://127.0.0.1:9999/v1\n"
+            "    apiKey: local-b70\n"
+            "    api: openai-completions\n"
+            "    models:\n"
+            "    - id: old-model\n"
+            "      name: Old\n")
+        launcher.sync_harness_configs(8000, "stub-model-27b", "stub-id", "vllm")
+        text = cfgf.read_text()
+        self.assertIn("baseUrl: http://127.0.0.1:8000/v1", text)
+        self.assertIn("- id: stub-model-27b", text)
+        self.assertIn("- id: stub-id", text)
+
+    def test_droid_provider_is_chat_completions(self):
+        dcfg = FAKE_HOME / ".factory" / "settings.json"
+        dcfg.parent.mkdir(parents=True, exist_ok=True)
+        dcfg.write_text("{}")
+        launcher.sync_harness_configs(8000, "stub-model-27b", "x", "llamacpp")
+        data = json.loads(dcfg.read_text())
+        m = data["customModels"][0]
+        # /v1/responses is vLLM-only; chat-completions works on every engine
+        self.assertEqual(m["provider"], "generic-chat-completion-api")
+        self.assertEqual(m["apiKey"], "local-b70")
+        self.assertEqual(m["baseUrl"], "http://127.0.0.1:8000/v1")
+
+
+class TestLoadPhases(LauncherStateCase):
+    """Endpoint readiness drives status; the first ready probe stamps load_s,
+    and a still-loading engine exposes a phase from its log tail."""
+
+    def _entry(self, rid, port, log_text):
+        logf = TMP / f"{rid}.log"
+        logf.write_text(log_text)
+        return {"id": rid, "status": "running", "model": "m",
+                "model_id": "m1", "engine": "llamacpp",
+                "cfg": {}, "cname": "", "endpoint": f"http://127.0.0.1:{port}/v1",
+                "port": port, "native": True, "log": str(logf),
+                "started": "s", "launch_ts": launcher.time.time() - 30,
+                "ready_at": None, "proc": None, "pid": __import__("os").getpid(),
+                "cmd": "c", "artifact_mib": 1,
+                "tokens_in": 0, "tokens_out": 0, "requests": 0,
+                "sess_in": 0, "sess_out": 0, "sess_reqs": 0}
+
+    def test_loading_shows_phase_from_log(self):
+        port = free_port()  # nothing listens -> probe fails -> still starting
+        launcher.RUNNING["loadtest"] = self._entry(
+            "loadtest", port,
+            "llama_model_load: load_tensors: offloaded 62/62 layers\n"
+            "main: Capturing CUDA graph for batch 512\n")
+        items = {i["id"]: i for i in launcher.servers_snapshot()}
+        self.assertEqual(items["loadtest"]["status"], "starting")
+        self.assertEqual(items["loadtest"]["phase"], "graph capture")
+
+    def test_ready_stamps_load_s(self):
+        import http.server, threading
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+            def log_message(self, *a):
+                pass
+        port = free_port()
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        launcher.RUNNING["ready1"] = self._entry("ready1", port, "")
+        items = {i["id"]: i for i in launcher.servers_snapshot()}
+        e = launcher.RUNNING["ready1"]
+        self.assertEqual(items["ready1"]["status"], "running")
+        self.assertIsNotNone(e["ready_at"])
+        self.assertGreaterEqual(items["ready1"]["load_s"], 29)
+
+
 if __name__ == "__main__":
     unittest.main()

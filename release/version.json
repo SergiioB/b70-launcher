@@ -3,7 +3,7 @@
  "name": "B70 Launcher",
  "download_url": "https://xecores.com/match",
  "tarball_url": "https://xecores.com/downloads/b70-launcher-0.4.8-linux-source.tar.gz",
- "sha256": "2689e95070c9a347a1187f87785ec6d7a1e2816e1f9b35107d4e21ca2a4c811e",
+ "sha256": "a3ccb606bb3832d388d9f9c234e86bf69ade01fa975ef921bc20fc5dd547fdc0",
  "recipes_manifest_url": "https://xecores.com/downloads/recipes-manifest.json",
  "message": "B70 Launcher v0.4.8 is available."
 }
