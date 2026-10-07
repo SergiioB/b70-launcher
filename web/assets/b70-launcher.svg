@@ -1,49 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- B70 Launcher — bold geometric B70 wordmark under a rising ignition trajectory -->
   <defs>
-    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="64" y1="2" x2="64" y2="126">
-      <stop offset="0" stop-color="#161616"/>
-      <stop offset="1" stop-color="#101010"/>
+    <linearGradient id="bgB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141417"/><stop offset="1" stop-color="#0a0a0c"/>
     </linearGradient>
-    <linearGradient id="sheen" gradientUnits="userSpaceOnUse" x1="64" y1="2" x2="64" y2="70">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    <linearGradient id="acB" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#00f0ff"/><stop offset="1" stop-color="#8b5cf6"/>
     </linearGradient>
-    <linearGradient id="blue" gradientUnits="userSpaceOnUse" x1="14" y1="114" x2="116" y2="18">
-      <stop offset="0" stop-color="#0071C5"/>
-      <stop offset="0.55" stop-color="#2E93DE"/>
-      <stop offset="1" stop-color="#5CB3F2"/>
-    </linearGradient>
-    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="106" cy="28" r="18">
-      <stop offset="0" stop-color="#5CB3F2" stop-opacity="0.30"/>
-      <stop offset="0.6" stop-color="#5CB3F2" stop-opacity="0.11"/>
-      <stop offset="1" stop-color="#5CB3F2" stop-opacity="0"/>
+    <radialGradient id="glB" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#00f0ff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#00f0ff" stop-opacity="0"/>
     </radialGradient>
   </defs>
-
-  <!-- dark neutral rounded-square silhouette -->
-  <rect x="2" y="2" width="124" height="124" rx="28" fill="url(#bg)"/>
-  <rect x="2" y="2" width="124" height="124" rx="28" fill="url(#sheen)"/>
-  <!-- faint white inner stroke for edge definition -->
-  <rect x="3" y="3" width="122" height="122" rx="27" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-
-  <!-- ignition glow at trajectory head -->
-  <circle cx="106" cy="28" r="18" fill="url(#glow)"/>
-
-  <!-- rising trajectory with comet head -->
-  <path d="M 16 42 C 46 20 84 16 106 28" fill="none" stroke="url(#blue)"
-        stroke-width="13" stroke-linecap="round"/>
-  <circle cx="106" cy="28" r="8" fill="url(#blue)"/>
-
-  <!-- B70 wordmark, geometric paths only (stroke 10, cap height 38, outer 62-110) -->
-  <g fill="none" stroke="url(#blue)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
-    <!-- B -->
-    <path d="M 16 67 V 105"/>
-    <path d="M 16 67 H 27 A 10.5 9.5 0 0 1 27 86 H 16"/>
-    <path d="M 16 86 H 29 A 11.5 9.5 0 0 1 29 105 H 16"/>
-    <!-- 7 -->
-    <path d="M 52 67 H 76 L 63 105"/>
-    <!-- 0 -->
-    <ellipse cx="101" cy="86" rx="10" ry="19"/>
-  </g>
+  <rect x="4" y="4" width="120" height="120" rx="30" fill="url(#bgB)"/>
+  <rect x="5" y="5" width="118" height="118" rx="29" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.5"/>
+  <!-- Xe-core tile grid: 2x2 rounded dies, one hot -->
+  <rect x="30" y="30" width="30" height="30" rx="8" fill="#26262b"/>
+  <rect x="68" y="30" width="30" height="30" rx="8" fill="#26262b"/>
+  <rect x="30" y="68" width="30" height="30" rx="8" fill="#26262b"/>
+  <circle cx="83" cy="83" r="34" fill="url(#glB)"/>
+  <rect x="68" y="68" width="30" height="30" rx="8" fill="url(#acB)"/>
 </svg>
