@@ -55,7 +55,7 @@ from pathlib import Path
 
 import appwindow
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 UPDATE_URL = os.environ.get("B70_UPDATE_URL", "https://xecores.com/downloads/version.json")
 UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"}
@@ -1208,6 +1208,46 @@ def _resolve_draft(val):
     return None
 
 
+def _find_draft_dir(recipe):
+    """Locate a speculative-draft model dir for container mounts.
+
+    recipe["draft"] may hold an absolute "path" or a "search" fragment matched
+    (case-insensitive, depth-limited) against configured scan roots. The dir
+    must look like a model dir — config.json plus weights — or it is skipped."""
+    spec = recipe.get("draft") or {}
+    raw = str(spec.get("path") or "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        return str(p) if p.is_dir() else None
+    want = str(spec.get("search") or "").lower()
+    if not want:
+        return None
+
+    def looks_like_model(d):
+        try:
+            names = {f.name for f in d.iterdir()}
+        except OSError:
+            return False
+        return "config.json" in names and any(
+            n.endswith((".safetensors", ".bin", ".gguf")) for n in names)
+
+    for root in scan_roots():
+        stack = [(root, 0)]
+        while stack:
+            cur, depth = stack.pop()
+            if depth > 4:
+                continue
+            try:
+                if cur.is_dir() and want in cur.name.lower() and looks_like_model(cur):
+                    return str(cur)
+                for child in cur.iterdir():
+                    if child.is_dir() and not child.name.startswith("."):
+                        stack.append((child, depth + 1))
+            except OSError:
+                continue
+    return None
+
+
 def container_path(det, fallback):
     """Map an on-disk artifact to its container path and the mount that exposes it.
 
@@ -1227,13 +1267,13 @@ def container_path(det, fallback):
 
 
 CUSTOM_TEMPLATES = {
-    "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+    "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
                  "ctx": 32768, "power": 150, "download": {"kind": "file", "quant": "GGUF (custom)"}},
-    "openvino": {"kind": "ovms", "image": "openvino/model_server:2026.2.1-gpu",
+    "openvino": {"kind": "ovms", "image": "openvino/model_server:2026.4.1-gpu@sha256:a928903fe429f1e3e27107cc45932d30d95febfd2d1159dc50869c3eac76fc58",
                  "ctx": 20480, "power": 150, "download": {"kind": "snapshot", "quant": "OpenVINO IR (custom)"}},
-    "vllm": {"kind": "vllm", "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+    "vllm": {"kind": "vllm", "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
              "ctx": 32768, "power": 150, "dtype": "bfloat16", "download": {"kind": "snapshot", "quant": "HF/safetensors (custom)"}},
-    "exl3": {"kind": "exl3", "image": "ghcr.io/0xsero/exl3xpu",
+    "exl3": {"kind": "exl3", "image": "ghcr.io/0xsero/exl3xpu:0.1.0@sha256:21412bdd7535e9c653eeb3d099dce3bc79a83d440def2cd9556111c79c870fa8",
              "docker_sock": "/run/b70-exl3-docker.sock", "inner_port": 8100,
              "ctx": 65536, "power": 230, "download": {"kind": "snapshot", "quant": "EXL3 trellis (custom)"}},
 }
@@ -1378,9 +1418,9 @@ def build(cfg):
         warns.append(f"using your local \"{det.get('found_name')}\" — recipe default was "
                      f"{recipe.get('download', {}).get('name') or recipe.get('download', {}).get('search') or 'the listed quant'}")
     try:
-        ctx = int(cfg["ctx"]) if cfg.get("ctx") else ctxres["value"]
-        port = int(cfg.get("port") or 8000)
-        slots = int(cfg.get("slots") or 1)
+        ctx = int(cfg["ctx"]) if cfg.get("ctx") is not None else ctxres["value"]
+        port = int(cfg["port"]) if cfg.get("port") is not None else 8000
+        slots = int(cfg["slots"]) if cfg.get("slots") is not None else 1
         extra = shlex.split(cfg.get("extra", "") or "")
     except (ValueError, TypeError) as exc:
         return {"error": f"Invalid context, port, slots or extra flags: {exc}", "warnings": warns}
@@ -1391,14 +1431,17 @@ def build(cfg):
     extra_env = {}
     for line in (cfg.get("extra_env") or "").splitlines():
         line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            k = k.strip()
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", k):
-                return {"error": "Invalid environment variable name", "warnings": warns}
-            if _BLOCKED_ENV.match(k):
-                return {"error": f"Environment variable {k} is not allowed (it can redirect code loading or process startup)", "warnings": warns}
-            extra_env[k] = v.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            return {"error": f"Invalid environment entry {line!r} — expected NAME=value", "warnings": warns}
+        k, v = line.split("=", 1)
+        k = k.strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", k):
+            return {"error": "Invalid environment variable name", "warnings": warns}
+        if _BLOCKED_ENV.match(k):
+            return {"error": f"Environment variable {k} is not allowed (it can redirect code loading or process startup)", "warnings": warns}
+        extra_env[k] = v.strip()
     envargs = [x for k, v in extra_env.items() for x in ("-e", f"{k}={v}")]
     gpus = cfg.get("gpus", [0])
     kv = cfg.get("kv") or "recipe default"
@@ -1408,7 +1451,12 @@ def build(cfg):
     if not isinstance(gpus, list) or not gpus or len(gpus) != len(set(map(str, gpus))) or any(type(g) is not int or g not in (0, 1) for g in gpus):
         return {"error": "Select one or two distinct GPU indices (0 or 1).", "warnings": warns}
     if len(gpus) > 1:
-        warns.append("Dual-card B70 execution enabled: multi-GPU tensor-split or tensor-parallel active.")
+        if kind in ("ovms", "exl3"):
+            warns.append("this engine serves a single GPU — extra device selections are ignored.")
+        else:
+            warns.append("Dual-card B70 execution enabled: multi-GPU tensor-split or tensor-parallel active.")
+    if cfg.get("use_docker") is False and not kind.startswith("gguf"):
+        warns.append("--native ignored: this engine only runs in a container.")
     if not 1 <= port <= 65535 or not 1 <= slots <= 128 or not 512 <= ctx <= 262144:
         return {"error": "Port, slots, or context out of range.", "warnings": warns}
     preflight = hardware_preflight() if not IS_WIN else {"devices": []}
@@ -1445,8 +1493,10 @@ def build(cfg):
                    "--model_repository_path", "/models",
                    "--source_model", source_model,
                    "--task", "text_generation",
-                   "--target_device", "GPU",
+                   "--target_device", f"GPU.{gpus[0]}",
                    "--enable_prefix_caching", "true"]
+        if slots > 1:
+            warns.append("OVMS manages concurrency internally — --slots is advisory.")
         if recipe.get("tool_parser"):
             tokens += ["--tool_parser", recipe["tool_parser"]]
         if recipe.get("reasoning_parser"):
@@ -1470,15 +1520,21 @@ def build(cfg):
             mount_src = cfg.get("models_dir") or SETTINGS.get("models_dir", "~/models")
             mount_dst = "/models"
             warns.append("model not detected on disk — using recipe default path")
-        # a single mapped render node enumerates as device 0 inside the container
-        selector = "level_zero:" + ",".join(str(i) for i in range(len(gpus)))
+        # ONEAPI_DEVICE_SELECTOR takes absolute device indices
+        selector = "level_zero:" + ",".join(str(g) for g in gpus)
         cname = f"b70-{model['id']}-vllm"
         served_name = model["name"]
-        use_mtp = bool(recipe.get("spec_tokens")) and cfg.get("mtp", True)
+        has_spec = bool(recipe.get("spec_tokens") or recipe.get("speculative"))
+        use_mtp = has_spec and cfg.get("mtp", True)
+        if cfg.get("mtp") and not has_spec:
+            warns.append("recipe has no speculative-decoding config — --mtp ignored.")
 
         if kind == "vllm-tp2" and not IS_WIN:
             patches_dir = HERE / "patches"
-            tp_size = len(gpus) if len(gpus) > 1 else recipe.get("tp", 2)
+            tp_size = len(gpus)
+            if tp_size < recipe.get("tp", 2):
+                warns.append(f"TP{recipe.get('tp', 2)} recipe forced onto {tp_size} GPU — "
+                             "tensor parallelism reduced; weights+KV may not fit.")
             mount_src_path = Path(det["path"]) if det and det.get("path") else Path(mount_src).expanduser()
             tokens = ["docker", "run", "-d", "--rm", "--name", cname,
                       "--device", "/dev/dri", "-v", "/dev/dri:/dev/dri:ro",
@@ -1496,6 +1552,8 @@ def build(cfg):
                       "-e", "CCL_SYCL_REDUCE_SCATTER_SIMPLE_THRESHOLD=4294967296",
                       "-e", "CCL_SYCL_ALLGATHERV_SIMPLE_THRESHOLD=4294967296",
                       "-e", "CCL_SYCL_ALLTOALL_TMP_BUF=1"] + envargs
+            if len(gpus) == 1:
+                tokens += ["-e", f"ZE_AFFINITY_MASK={gpus[0]}"]  # select the right card for TP1
             serve = ["vllm", "serve", "/model",
                      "--quantization", "fp8",
                      "--dtype", recipe.get("dtype", "bfloat16"),
@@ -1516,7 +1574,8 @@ def build(cfg):
             serve += recipe.get("fixed_flags", []) + extra
             script = "set -e; python /patch_affinity.py; exec " + " ".join(shlex.quote(a) for a in serve)
             tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
-            warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL threshold pins active; prefix caching enabled.")
+            if tp_size > 1:
+                warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL threshold pins active; prefix caching enabled.")
         elif kind == "vllm-arext" and not IS_WIN:
             patches_dir = HERE / "patches"
             needed = ("patch_mtp_nightly.py", "patch_mtp_boundary.py", "patch_champion_stack_overlay.py")
@@ -1593,7 +1652,114 @@ def build(cfg):
             script = "set -e; python /patch_mtp.py; python /patch_boundary.py; exec " + " ".join(shlex.quote(a) for a in serve)
             tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
             warns.append("cookbook MTP path: BF16 draft + FP8 KV + patched GDN boundary; prefix caching enabled.")
+        elif kind == "vllm-dflash" and not IS_WIN:
+            # cookbook-proven Nemotron DFlash route: grouped-topk patch + SSU
+            # tuning + a separate BF16 draft mounted at the recipe's spec path
+            patches_dir = HERE / "patches"
+            wanted = [Path(p).name for p in (recipe.get("patches") or [])]
+            missing = [p for p in wanted if not (patches_dir / p).is_file()]
+            if missing:
+                return {"error": "bundled DFlash patch scripts are missing from this install: "
+                                 + ", ".join(missing), "warnings": warns}
+            model_dir = (det or {}).get("path")
+            scfg = recipe.get("speculative") or {}
+            draft_dir = _find_draft_dir(recipe) if scfg.get("model") else None
+            spec_on = bool(scfg) and cfg.get("mtp", True)
+            if spec_on and not draft_dir:
+                wants = (recipe.get("draft") or {}).get("search", "a DFlash draft dir")
+                warns.append(f"DFlash draft not detected ({wants}) — serving without "
+                             "speculation; drop the draft dir under a scan root (b70 scan --roots).")
+                spec_on = False
+            tokens = ["docker", "run", "-d", "--rm", "--name", cname,
+                      "--device", "/dev/dri", "-v", "/dev/dri:/dev/dri:ro",
+                      "--group-add", str(render_gid(render_node) or "render"),
+                      "--ipc=host", "--shm-size", recipe.get("shm_size", "16g"),
+                      "-v", (f"{model_dir}:/model:ro" if model_dir else
+                             f"{Path(mount_src).expanduser()}:{mount_dst}:ro"),
+                      "-p", f"127.0.0.1:{port}:{port}",
+                      "-e", "VLLM_TARGET_DEVICE=xpu",
+                      "-e", "VLLM_XPU_ENABLE_XPU_GRAPH=1",
+                      "-e", "ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE",
+                      "-e", f"ZE_AFFINITY_MASK={gpus[0]}",
+                      "-e", f"ONEAPI_DEVICE_SELECTOR={selector}",
+                      "-e", "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0",
+                      "-e", "SYCL_CACHE_PERSISTENT=0",
+                      "-e", "PYTORCH_ALLOC_CONF=expandable_segments:True"] + envargs
+            steps = []
+            for i, pname in enumerate(wanted):
+                tokens += ["-v", f"{patches_dir / pname}:/patch_{i}.py:ro"]
+                steps.append(f"python /patch_{i}.py")
+            ssu_dir = patches_dir / "ssu-b70-b8w4"
+            if ssu_dir.is_dir():
+                tokens += ["-v", f"{ssu_dir}:/ssu:ro"]
+                steps.append("for d in /workspace/vllm/vllm /opt/venv/lib/python3.12/site-packages/vllm; "
+                             "do [ -d \"$d/model_executor/layers/mamba/ops/configs/selective_state_update\" ] && "
+                             "cp /ssu/*.json \"$d/model_executor/layers/mamba/ops/configs/selective_state_update/\"; "
+                             "done; true")
+            if draft_dir:
+                tokens += ["-v", f"{draft_dir}:{scfg['model']}:ro"]
+            serve = ["vllm", "serve", "/model" if model_dir else model_path,
+                     "--served-model-name", served_name,
+                     "--dtype", recipe.get("dtype", "float16"),
+                     "--quantization", recipe.get("quantization", "gptq"),
+                     "--max-model-len", str(ctx),
+                     "--max-num-seqs", str(slots),
+                     "--max-num-batched-tokens", "8192",
+                     "--gpu-memory-utilization", "0.90",
+                     "--language-model-only", "--async-scheduling",
+                     "--host", "0.0.0.0", "--port", str(port)]
+            if recipe.get("prefix_caching"):
+                serve += ["--enable-prefix-caching"]
+            else:
+                serve += ["--no-enable-prefix-caching"]
+            if kv not in ("recipe default", ""):
+                if kv in ("fp8", "fp16", "bf16", "auto", "fp8_e4m3", "fp8_e5m2"):
+                    serve += ["--kv-cache-dtype", kv]
+                else:
+                    warns.append(f"invalid --kv '{kv}' ignored "
+                                 "(valid: fp8, fp8_e4m3, fp8_e5m2, fp16, bf16, auto)")
+            if spec_on:
+                serve += ["--speculative-config", json.dumps(
+                    {"method": scfg.get("method", "dflash"),
+                     "model": scfg["model"],
+                     "num_speculative_tokens": scfg.get("num_speculative_tokens", 7)})]
+            serve += recipe.get("fixed_flags", []) + extra
+            script = "set -e; " + "; ".join(steps) + ("; " if steps else "") + \
+                     "exec " + " ".join(shlex.quote(a) for a in serve)
+            tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
+            warns.append("Nemotron DFlash: grouped-topk router patch + SSU B8/W4 tuning"
+                         + (f" + draft {Path(draft_dir).name} (n={scfg.get('num_speculative_tokens', 7)})"
+                            if draft_dir else "") + "; prefix caching off.")
         else:
+            serve_args = ["--model", model_path,
+                          "--dtype", recipe.get("dtype", "bfloat16"),
+                          "--gpu-memory-utilization", "0.92",
+                          "--max-model-len", str(ctx),
+                          "--enable-prefix-caching",
+                          "--port", str(port)]
+            if use_mtp:
+                scfg = recipe.get("speculative") or {}
+                spec = {"method": scfg.get("method", "mtp"),
+                        "num_speculative_tokens": scfg.get("num_speculative_tokens",
+                                                           recipe.get("spec_tokens", 4))}
+                if scfg.get("model"):
+                    spec["model"] = scfg["model"]
+                serve_args += ["--speculative-config", json.dumps(spec)]
+            if kv == "fp8" or recipe.get("kv") == "fp8":
+                serve_args += ["--kv-cache-dtype", "fp8"]
+            serve_args += recipe.get("fixed_flags", [])
+            if len(gpus) > 1:
+                serve_args += ["--tensor-parallel-size", str(len(gpus))]
+                warns.append("Multi-GPU TP on XPU: verify the level_zero selector string on your driver.")
+            if slots > 1:
+                serve_args += ["--max-num-seqs", str(slots)]
+            serve_args += extra
+            patches_dir = HERE / "patches"
+            wanted = [Path(p).name for p in (recipe.get("patches") or [])]
+            missing = [p for p in wanted if not (patches_dir / p).is_file()]
+            if missing:
+                return {"error": "bundled patch scripts are missing from this install: "
+                                 + ", ".join(missing), "warnings": warns}
             tokens = ["docker", "run", "-d", "--rm", "--name", cname]
             if not IS_WIN:
                 tokens += ["--privileged", "--device", "/dev/dri",
@@ -1603,29 +1769,17 @@ def build(cfg):
             tokens += ["--ipc=host",
                        "-v", f"{Path(mount_src).expanduser()}:{mount_dst}:ro",
                        "-p", f"127.0.0.1:{port}:{port}",
-                       "-e", f"ONEAPI_DEVICE_SELECTOR={selector}"] + envargs + [
-                       recipe["image"],
-                       "--model", model_path,
-                       "--dtype", recipe.get("dtype", "bfloat16"),
-                       "--gpu-memory-utilization", "0.92",
-                       "--max-model-len", str(ctx),
-                       "--enable-prefix-caching",
-                       "--port", str(port)]
-            if use_mtp:
-                spec = {"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 4)}
-                if recipe.get("speculative"):
-                    spec["model"] = recipe["speculative"]
-                tokens += ["--speculative-config", json.dumps(spec)]
-            if kv == "fp8" or recipe.get("kv") == "fp8":
-                tokens += ["--kv-cache-dtype", "fp8"]
-            if kind in ("vllm-autoround", "vllm-mtp"):
-                tokens += recipe.get("fixed_flags", [])
-            if len(gpus) > 1:
-                tokens += ["--tensor-parallel-size", str(len(gpus))]
-                warns.append("Multi-GPU TP on XPU: verify the level_zero selector string on your driver.")
-            if slots > 1:
-                tokens += ["--max-num-seqs", str(slots)]
-            tokens += extra
+                       "-e", f"ONEAPI_DEVICE_SELECTOR={selector}"] + envargs
+            if wanted:
+                steps = []
+                for i, pname in enumerate(wanted):
+                    tokens += ["-v", f"{patches_dir / pname}:/patch_{i}.py:ro"]
+                    steps.append(f"python /patch_{i}.py")
+                script = "set -e; " + "; ".join(steps) + "; exec vllm serve " + \
+                         " ".join(shlex.quote(a) for a in serve_args)
+                tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
+            else:
+                tokens += [recipe["image"]] + serve_args
         if kind == "vllm-autoround":
             warns.append("FP16 crash guard: dtype float16 + --enforce-eager is intentional (dt_bias crash on BF16 path).")
     elif kind == "exl3":
@@ -1697,12 +1851,21 @@ def build(cfg):
                   "q8_0": ["--cache-type-k", "q8_0", "--cache-type-v", "q8_0"],
                   "q8_0/q4_1": ["--cache-type-k", "q8_0", "--cache-type-v", "q4_1"],
                   "f16": ["--cache-type-k", "f16", "--cache-type-v", "f16"]}
+        if kv == "recipe default":
+            kv = recipe.get("kv") or "q8_0"
+        if kv not in kv_map:
+            warns.append(f"--kv '{kv}' isn't a llama.cpp cache type "
+                         f"({', '.join(kv_map)}) — using q8_0.")
+            kv = "q8_0"
         if kv == "f16":
             warns.append("f16 KV wastes VRAM with zero quality gain on these workloads. q8_0 recommended.")
         llama_bin = (recipe.get("llama_bin") or SETTINGS.get("llama_bin") or "").strip()
         if llama_bin:
             llama_bin = str(Path(llama_bin).expanduser())
         if (llama_bin and Path(llama_bin).is_file()) and not cfg.get("use_docker"):
+            if not det:
+                warns.append("native binary will use the literal recipe path — "
+                             "point a scan root at the real file or pass --path.")
             tokens = [llama_bin]
             native = True
             model_arg = host_gpath
@@ -1746,18 +1909,35 @@ def build(cfg):
         tokens += ["-m", model_arg, "-ngl", "99", "--host", host, "--port", str(port),
                    "-c", str(ctx), "--flash-attn", "on", "--metrics"]
         if "--cache-type-k" not in recipe.get("fixed_flags", []):
-            tokens += kv_map.get(kv, kv_map.get(recipe.get("kv"), kv_map["q8_0"]))
-        if len(gpus) > 1 or recipe.get("tensor_split"):
+            tokens += kv_map[kv]
+        if len(gpus) > 1:
             ts = recipe.get("tensor_split", "49,51" if len(gpus) == 2 else ",".join(["1"] * len(gpus)))
-            tokens += ["--device", ",".join(f"SYCL{g}" for g in gpus),
+            # ZE_AFFINITY_MASK renumbers visible devices 0..n-1 natively, while a
+            # container keeps the absolute SYCL indices of the mapped nodes
+            devs = ",".join(f"SYCL{i}" for i in range(len(gpus))) if native \
+                else ",".join(f"SYCL{g}" for g in gpus)
+            tokens += ["--device", devs,
                        "--tensor-split", ts,
                        "--split-mode", recipe.get("split_mode", "layer")]
             warns.append(f"Dual-GPU tensor split: {ts} (split-mode: {recipe.get('split_mode', 'layer')}).")
+        elif recipe.get("tensor_split"):
+            warns.append("recipe is tuned for a dual-GPU tensor split — running single-GPU (split disabled).")
+        elif not native and gpus != [0]:
+            tokens += ["--device", f"SYCL{gpus[0]}"]  # container sees every card; pick the right one
         if recipe.get("offload_tensors"):
             tokens += ["-ot", recipe["offload_tensors"]]
             warns.append("3-Tiered Memory: N-gram embedding & MoE boundary blocks offloaded to CPU host RAM (-ot).")
         draft = _resolve_draft(recipe.get("draft_model"))
+        if draft and not cfg.get("mtp", True):
+            warns.append("MTP speculative draft disabled by --no-mtp.")
+            draft = None
+        if cfg.get("mtp") and not recipe.get("draft_model"):
+            warns.append("recipe has no draft model — --mtp ignored.")
         if draft:
+            dd = recipe.get("draft_device", "SYCL1")
+            if len(gpus) == 1 and dd != "SYCL0":
+                dd = "SYCL0"
+                warns.append("single GPU selected — draft moved off the second card onto SYCL0.")
             draft_arg = draft if native else f"/draft/{Path(draft).name}"
             if not native:
                 tokens.insert(tokens.index("-v") if "-v" in tokens else len(tokens), "-v")
@@ -1767,8 +1947,8 @@ def build(cfg):
                        "--spec-draft-n-max", str(recipe.get("spec_tokens", 3)),
                        "--spec-draft-p-min", str(recipe.get("spec_p_min", 0.75)),
                        "--spec-draft-backend-sampling",
-                       "--spec-draft-device", recipe.get("draft_device", "SYCL1")]
-            warns.append(f"MTP Speculative Decoding: draft model {Path(draft).name} on {recipe.get('draft_device', 'SYCL1')}.")
+                       "--spec-draft-device", dd]
+            warns.append(f"MTP Speculative Decoding: draft model {Path(draft).name} on {dd}.")
         if slots > 1:
             tokens += ["-np", str(slots)]
         tokens += recipe.get("fixed_flags", []) + extra
@@ -2317,6 +2497,21 @@ def _rid(cfg):
 def launch(cfg, built):
     rid = _rid(cfg)
     port = int(cfg.get("port") or 8000)
+    if cfg.get("dry_run"):
+        # previews are pure: no tracked entry, no log file — but do surface
+        # port contention so a dry-run plan isn't a promise the port is free
+        busy = True
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind(("127.0.0.1", port))
+                busy = False
+            except OSError:
+                pass
+        if busy:
+            built.setdefault("warnings", []).append(
+                f"port {port} is currently in use — a real launch would fail; pick another with --port.")
+        return rid
     log = LOGDIR / f"{rid}-{int(time.time())}.log"
     model_id_val = cfg.get("model_id") or cfg.get("model") or built.get("model_id")
     entry = {"id": rid, "model": built["model_name"], "model_id": model_id_val,
@@ -2337,49 +2532,44 @@ def launch(cfg, built):
             raise ValueError("A server with this model, engine, and port is already tracked. Stop it before launching again.")
         RUNNING[rid] = entry
     try:
-        if cfg.get("dry_run"):
-            entry["status"] = "dry-run"
-            with open(log, "ab") as lf:
-                lf.write(("[dry-run] " + built["cmd"] + "\n").encode())
-        else:
-            # the OS is authoritative: try the real bind first
-            free = False
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                try:
-                    probe.bind(("127.0.0.1", port))
-                    free = True
-                except OSError:
-                    pass
-            if not free:
-                owner = None
-                with LOCK:
-                    for other, oe in RUNNING.items():
-                        if other != rid and oe.get("port") == port and oe.get("status") in ("running", "starting", "running (adopted)"):
-                            owner = other
-                            break
-                if owner:
-                    raise ValueError(f"Port {port} is held by a running server ({owner}). Stop it first.")
-                raise ValueError(f"Port {port} is already in use on this machine (something is bound to it). Pick another port.")
-            # port is free — clear any stale tracked entries squatting on it
+        # the OS is authoritative: try the real bind first
+        free = False
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind(("127.0.0.1", port))
+                free = True
+            except OSError:
+                pass
+        if not free:
+            owner = None
             with LOCK:
                 for other, oe in RUNNING.items():
-                    if other != rid and oe.get("port") == port and oe.get("status") not in ("stopped", "dry-run"):
-                        oe["status"] = "stopped"
-                        oe["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            env = dict(os.environ)
-            env.update(built.get("env") or {})
-            with open(log, "ab") as lf:
-                lf.write((built["cmd"] + "\n").encode())
-                lf.flush()
-                entry["proc"] = subprocess.Popen(built["tokens"], env=env, stdout=lf,
-                                                 stderr=subprocess.STDOUT, cwd=str(HERE))
-                entry["pid"] = entry["proc"].pid
-            with LOCK:
-                if entry["status"] != "starting":
-                    # a stop request landed while the engine was spawning
-                    raise ValueError("stopped during launch")
-                entry["status"] = "running"
+                    if other != rid and oe.get("port") == port and oe.get("status") in ("running", "starting", "running (adopted)"):
+                        owner = other
+                        break
+            if owner:
+                raise ValueError(f"Port {port} is held by a running server ({owner}). Stop it first.")
+            raise ValueError(f"Port {port} is already in use on this machine (something is bound to it). Pick another port.")
+        # port is free — clear any stale tracked entries squatting on it
+        with LOCK:
+            for other, oe in RUNNING.items():
+                if other != rid and oe.get("port") == port and oe.get("status") not in ("stopped", "dry-run"):
+                    oe["status"] = "stopped"
+                    oe["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        env = dict(os.environ)
+        env.update(built.get("env") or {})
+        with open(log, "ab") as lf:
+            lf.write((built["cmd"] + "\n").encode())
+            lf.flush()
+            entry["proc"] = subprocess.Popen(built["tokens"], env=env, stdout=lf,
+                                             stderr=subprocess.STDOUT, cwd=str(HERE))
+            entry["pid"] = entry["proc"].pid
+        with LOCK:
+            if entry["status"] != "starting":
+                # a stop request landed while the engine was spawning
+                raise ValueError("stopped during launch")
+            entry["status"] = "running"
     except Exception:
         proc = entry.get("proc")
         try:
@@ -2400,8 +2590,7 @@ def launch(cfg, built):
             entry["status"] = "stopped"
             entry["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
         raise
-    if not cfg.get("dry_run"):
-        sync_harness_configs(port, built["model_name"], model_id_val, built.get("engine"))
+    sync_harness_configs(port, built["model_name"], model_id_val, built.get("engine"))
     persist_state()
     return rid
 

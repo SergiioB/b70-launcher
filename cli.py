@@ -22,6 +22,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -34,12 +35,15 @@ API_TIMEOUT = 15
 # ── styling ──────────────────────────────────────────────────────────────
 
 _TTY = sys.stdout.isatty()
-_NO_COLOR = bool(os.environ.get("NO_COLOR"))
+_NO_COLOR = bool(os.environ.get("NO_COLOR")) or not _TTY
+_JSON = False  # set in main() once args are parsed
 
 
 def _init_color(no_color):
-    global _NO_COLOR
+    global _NO_COLOR, OK, WARN, ERR, DOT
     _NO_COLOR = _NO_COLOR or no_color
+    if _NO_COLOR:
+        OK, WARN, ERR, DOT = "✓", "!", "✗", "·"
 
 
 def _c(code, s):
@@ -90,11 +94,32 @@ class DaemonDown(CliError):
     code = 3
 
 
+class AuthError(CliError):
+    """Daemon answered but rejected the token — never auto-restart over it."""
+    code = 1
+
+
 def die(msg, code=1, hint=None):
-    print(f"{ERR} {red(msg)}", file=sys.stderr)
-    if hint:
-        print(f"  {dim(hint)}", file=sys.stderr)
+    if _JSON:
+        jprint({"ok": False, "error": msg, "code": code})
+    else:
+        print(f"{ERR} {red(msg)}", file=sys.stderr)
+        if hint:
+            print(f"  {dim(hint)}", file=sys.stderr)
     raise SystemExit(code)
+
+
+def _model_miss(query, cands):
+    """Best error wording for an unresolved model query."""
+    q = (query or "").lower()
+    ambiguous = bool(cands) and any(
+        m["id"].lower().startswith(q) or q in m["id"].lower()
+        or q in m.get("name", "").lower() for m in cands)
+    if ambiguous:
+        return (f"ambiguous model {query!r} — be more specific",
+                "candidates: " + ", ".join(m["id"] for m in cands[:8]))
+    return (f"unknown model {query!r}",
+            "try: " + ", ".join(m["id"] for m in cands[:8]))
 
 
 def jprint(obj):
@@ -130,6 +155,9 @@ class Client:
     def __init__(self, api=None, token=None, timeout=API_TIMEOUT):
         self.api = (api or os.environ.get("B70_API")
                     or "http://127.0.0.1:7570").rstrip("/")
+        u = urllib.parse.urlparse(self.api)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            die(f"invalid daemon address {self.api!r} — expected http://host:port", code=2)
         self.token = read_token() if token is None else token
         self.timeout = timeout
 
@@ -155,9 +183,15 @@ class Client:
             except Exception:
                 body = {}
             msg = body.get("error") or f"HTTP {e.code} from launcher"
-            if e.code == 403 and not self.token:
-                msg += " — no API token found; is the daemon running? (b70 serve)"
+            if e.code in (401, 403):
+                if not self.token:
+                    msg += " — no API token found; is the daemon running? (b70 serve)"
+                else:
+                    msg += " — daemon rejected the API token (check --token / B70_TOKEN)"
+                raise AuthError(msg)
             raise CliError(msg)
+        except ValueError as e:
+            raise CliError(f"invalid daemon address {self.api!r} ({e})")
         except urllib.error.URLError as e:
             raise DaemonDown(f"launcher daemon unreachable at {self.api} ({e.reason})")
         except (http.client.HTTPException, ConnectionResetError, ConnectionAbortedError):
@@ -173,10 +207,13 @@ class Client:
         return self._req("POST", path, obj, timeout=timeout)
 
     def alive(self):
+        """True only if the API answers. Auth failures propagate — a live
+        daemon with a wrong token must NOT trigger autostart (that would
+        kill and replace a healthy daemon)."""
         try:
             self.get("/api/state", timeout=3)
             return True
-        except CliError:
+        except DaemonDown:
             return False
 
 
@@ -211,7 +248,7 @@ def start_daemon(port, quiet=False):
         logf = open(os.devnull, "ab")
     argv = [launcher, "--no-open", "--port", str(port)]
     if launcher.endswith(".py"):
-        argv = [sys.executable] + argv
+        argv = [sys.executable, "-u"] + argv  # -u: daemon.log gets live output
     try:
         subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=logf,
                          stderr=subprocess.STDOUT, start_new_session=True)
@@ -219,17 +256,26 @@ def start_daemon(port, quiet=False):
         die(f"could not start launcher daemon: {exc}", code=3)
     if not quiet:
         print(f"{DOT} started launcher daemon (pid detached, log: {logdir}/daemon.log)")
+    w = Wait("waiting for daemon api", quiet=quiet).start()
     deadline = time.time() + 30
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                pass
-        except OSError:
-            time.sleep(0.25)
-            continue
-        if read_token():
-            return True
-        time.sleep(0.25)
+    try:
+        while time.time() < deadline:
+            # readiness = the API actually answering — a stale token file or a
+            # foreign squatter on the port must not count as "up"
+            tok = read_token()
+            if tok:
+                try:
+                    Client(api=f"http://127.0.0.1:{port}", token=tok) \
+                        .get("/api/state", timeout=2)
+                    w.done()
+                    return True
+                except CliError:
+                    w.tick("launching")
+            else:
+                w.tick("waiting for token")
+            time.sleep(0.3)
+    finally:
+        w.done()
     die("daemon started but did not become ready in 30s",
         code=3, hint=f"check {logdir}/daemon.log")
 
@@ -358,6 +404,12 @@ def rid_or_die(client, query):
     if ent is None:
         running = [e["id"] for e in state.get("running", [])
                    if e.get("status") in ("running", "starting", "running (adopted)")]
+        if not query:
+            if running:
+                die("which engine? multiple are running",
+                    hint="ids: " + ", ".join(running))
+            die("no engines running",
+                hint="launch one first: b70 launch <model>")
         hint = "running servers: " + ", ".join(running) if running \
             else "nothing is running — launch one first: b70 launch <model>"
         die(f"no server matches {query!r}", hint=hint)
@@ -432,27 +484,83 @@ SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 
 class Wait:
-    """Spinner on a TTY; periodic status lines otherwise."""
+    """Animated braille spinner on a TTY (~90ms frames, drawn by a render
+    thread so the animation stays smooth no matter how slow the poll is);
+    a status line every 15s when piped to a file."""
 
-    def __init__(self, label):
+    def __init__(self, label, quiet=False):
         self.label = label
-        self.i = 0
-        self.last_line = 0
+        self.quiet = quiet
+        self.note = ""
         self.t0 = time.time()
+        self._stop = threading.Event()
+        self._thr = None
+        self._last_line = 0.0
+
+    def start(self):
+        if _TTY and not self.quiet:
+            self._thr = threading.Thread(target=self._spin, daemon=True)
+            self._thr.start()
+        return self
+
+    def _spin(self):
+        i = 0
+        while not self._stop.wait(0.09):
+            line = (f"\r  {cyan(SPINNER[i % len(SPINNER)])} {self.label} "
+                    f"{dim(fmt_dur(time.time() - self.t0))}  {dim(self.note)}   ")
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            i += 1
 
     def tick(self, note=""):
-        if _TTY:
-            el = fmt_dur(time.time() - self.t0)
-            line = f"\r  {cyan(SPINNER[self.i % len(SPINNER)])} {self.label} {dim(el)}  {dim(note)}   "
-            print(line, end="", flush=True)
-            self.i += 1
-        elif time.time() - self.last_line > 15:
-            self.last_line = time.time()
+        """Update the detail text. Off-TTY, prints a progress line every 15s."""
+        self.note = note
+        if not _TTY and not self.quiet and time.time() - self._last_line > 15:
+            self._last_line = time.time()
             print(f"  {DOT} {self.label} — {fmt_dur(time.time() - self.t0)} {note}")
 
     def done(self):
+        self._stop.set()
+        if self._thr:
+            self._thr.join(timeout=0.6)
+            self._thr = None
         if _TTY:
-            print("\r" + " " * 78 + "\r", end="", flush=True)
+            sys.stdout.write("\r" + " " * 88 + "\r")
+            sys.stdout.flush()
+
+
+def spin_while(label, fn):
+    """Run fn() (a blocking call) under a spinner; returns fn()'s result
+    and re-raises its exceptions. Off-TTY it's just the call."""
+    if not _TTY:
+        return fn()
+    w = Wait(label).start()
+    box = {}
+
+    def run():
+        try:
+            box["v"] = fn()
+        except Exception as exc:  # noqa: BLE001 — propagated below
+            box["e"] = exc
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    while t.is_alive():
+        t.join(0.05)
+    w.done()
+    if "e" in box:
+        raise box["e"]
+    return box.get("v")
+
+
+def vram_bar(used_gib, total_gib, width=10):
+    """Compact VRAM gauge: [██████░░░░] colored by pressure."""
+    frac = (used_gib / total_gib) if total_gib else 0.0
+    frac = max(0.0, min(1.0, frac))
+    fill = round(frac * width)
+    bar = "█" * fill + "░" * (width - fill)
+    paint = green if frac < 0.70 else yellow if frac < 0.90 else red
+    return paint(bar)
 
 
 def progress_bar(pct, width=28):
@@ -488,8 +596,8 @@ def cmd_serve(g, a):
                 hint="install via packaging/install.sh or set B70_LAUNCHER")
         argv = [launcher, "--no-open", "--port", str(port)]
         if launcher.endswith(".py"):
-            argv = [sys.executable] + argv
-        print(f"{DOT} daemon in foreground on {c.api} — Ctrl+C to stop")
+            argv = [sys.executable, "-u"] + argv
+        print(f"{DOT} daemon in foreground on {c.api} — Ctrl+C to stop", flush=True)
         os.execvp(argv[0], argv)
     start_daemon(port, quiet=g.quiet)
     c2 = Client(api=g.api, token=g.token)
@@ -544,12 +652,18 @@ def cmd_list(g, a):
     matches = _detect_map(c)
     running = {e.get("id") for e in st.get("running", [])
                if e.get("status") in ("running", "starting", "running (adopted)")}
+    only_eng = a.engine
     if g.json:
+        models = recipes.get("models", [])
+        if only_eng:
+            models = [dict(m, recipes={only_eng: m["recipes"][only_eng]})
+                      for m in models if only_eng in m.get("recipes", {})]
+            if not models:
+                die(f"no recipes match engine '{only_eng}'")
         jprint({"catalog_ver": recipes.get("catalog_ver"),
-                "models": recipes.get("models", []),
+                "models": models,
                 "detected": matches, "running": sorted(running)})
         return 0
-    only_eng = a.engine
     rows = []
     for m in recipes.get("models", []):
         for eng, rec in m.get("recipes", {}).items():
@@ -581,8 +695,11 @@ def cmd_show(g, a):
     eng_meta = engines_by_id(recipes)
     model, cands = pick_model(recipes, a.model)
     if model is None:
-        names = ", ".join(m["id"] for m in cands[:8])
-        die(f"unknown model {a.model!r}", hint=f"try: {names}")
+        msg, hint = _model_miss(a.model, cands)
+        die(msg, hint=hint)
+    if a.engine and a.engine not in model.get("recipes", {}):
+        die(f"model '{model['id']}' has no '{a.engine}' recipe",
+            hint="available: " + ", ".join(model.get("recipes", {})))
     matches = _detect_map(c)
     if g.json:
         jprint({"model": model, "detected": matches.get(model["id"], {})})
@@ -698,7 +815,7 @@ def _wait_ready(c, rid, timeout):
 
     The daemon marks an entry 'running' only after GET /v1/models returns 200,
     so reaching that state == serving."""
-    w = Wait(f"loading {rid}")
+    w = Wait(f"loading {rid}").start()
     deadline = time.time() + timeout
     note = ""
     try:
@@ -734,9 +851,12 @@ def cmd_launch(g, a):
     cfg = {}
     target = a.model
     custom_path = a.path
-    if target and not custom_path and ("/" in target or target.startswith("~")) \
-            and Path(target).expanduser().exists():
-        custom_path, target = target, None  # `b70 launch ./model.gguf`
+    if target and not custom_path and ("/" in target or target.startswith("~")):
+        if Path(target).expanduser().exists():
+            custom_path, target = target, None  # `b70 launch ./model.gguf`
+        else:
+            die(f"artifact not found on disk: {target!r}",
+                hint="check the path (or use --path); to pick a recipe: b70 list")
 
     if custom_path:
         cfg["model_id"] = "__custom__"
@@ -768,8 +888,8 @@ def cmd_launch(g, a):
                 a.engine = eng
         model, cands = pick_model(recipes, target)
         if model is None:
-            names = ", ".join(m["id"] for m in cands[:8])
-            die(f"unknown model {target!r}", hint=f"candidates: {names}")
+            msg, hint = _model_miss(target, cands)
+            die(msg, hint=hint)
         engine = pick_engine(model, a.engine)
         recipe = model["recipes"].get(engine, {})
         cfg["model_id"] = model["id"]
@@ -780,6 +900,11 @@ def cmd_launch(g, a):
                  ("kv", a.kv), ("power", a.power)):
         if v is not None:
             cfg[k] = v
+    for name, val, lo, hi in (("port", a.port, 1, 65535),
+                              ("slots", a.slots, 1, 128),
+                              ("ctx", a.ctx, 512, 262144)):
+        if val is not None and not lo <= val <= hi:
+            die(f"--{name} {val} out of range ({lo}–{hi})", code=2)
     gpus = parse_gpus(a.gpus)
     if gpus is None:
         gpus = default_gpus(recipe)
@@ -791,6 +916,9 @@ def cmd_launch(g, a):
     if a.extra:
         cfg["extra"] = a.extra
     if a.env:
+        for item in a.env:
+            if "=" not in item:
+                die(f"-E expects NAME=value (got {item!r})", code=2)
         cfg["extra_env"] = "\n".join(a.env)
     port = int(cfg.get("port") or 8000)
     rid_guess = f"{cfg['model_id']}-{cfg['engine']}-{port}"
@@ -813,7 +941,8 @@ def cmd_launch(g, a):
         cfg["dry_run"] = True
 
     try:
-        out = c.post("/api/launch", cfg, timeout=60)
+        out = spin_while("preparing launch",
+                         lambda: c.post("/api/launch", cfg, timeout=60))
     except CliError as exc:
         if not g.json and "not detected" in str(exc).lower() and recipe.get("download"):
             print(f"{ERR} {red(str(exc))}", file=sys.stderr)
@@ -944,7 +1073,8 @@ def _gpu_rows(metrics):
             f"{p['cap_w']}W" if p.get("cap_w") else "-",
             f"{p['temp_c']}°C" if p.get("temp_c") is not None else "-",
             f"{p['util_pct']}%" if p.get("util_pct") is not None else "-",
-            (f"{p['vram_used_gb']:.1f}/{p['vram_total_gb']:.0f} GiB"
+            (f"{vram_bar(p['vram_used_gb'], p['vram_total_gb'])} "
+             f"{p['vram_used_gb']:.1f}/{p['vram_total_gb']:.0f} GiB"
              if p.get("vram_used_gb") is not None and p.get("vram_total_gb")
              else "-"),
         ])
@@ -991,7 +1121,7 @@ def _print_status(payload):
         print()
         print(table(rows, ["SERVER", "PORT", "STATUS", "LOAD", "RATE", "REQS", "TOK IN/OUT"]))
     else:
-        print(f"  {dim('no engines running —') }b70 launch <model>")
+        print(f"  {dim('no engines running —')} b70 launch <model>")
 
     active = {k: v for k, v in (dls or {}).items()
               if v.get("state") in ("queued", "resolving", "downloading")}
@@ -1000,15 +1130,23 @@ def _print_status(payload):
               f"  {dim(d.get('speed', ''))} {dim(d.get('eta', ''))}")
 
 
+def _status_json(payload):
+    """One stable machine envelope for both `status` and `monitor`."""
+    st = payload["state"]
+    running = [e for e in st.get("running", [])
+               if e.get("status") not in ("stopped", "dry-run")]
+    return {"version": st.get("version"),
+            "catalog_ver": st.get("recipes", {}).get("catalog_ver"),
+            "running": running,
+            "metrics": payload["metrics"],
+            "downloads": payload["downloads"]}
+
+
 def cmd_status(g, a):
     c = daemon_client(g)
     payload = _status_payload(c)
     if g.json:
-        jprint({"version": payload["state"].get("version"),
-                "running": payload["state"].get("running", []),
-                "metrics": payload["metrics"],
-                "downloads": payload["downloads"],
-                "catalog_ver": payload["state"].get("recipes", {}).get("catalog_ver")})
+        jprint(_status_json(payload))
     else:
         _print_status(payload)
     return 0
@@ -1018,17 +1156,20 @@ def cmd_monitor(g, a):
     c = daemon_client(g)
     if a.once or (not _TTY and not a.follow):
         payload = _status_payload(c)
-        (jprint if g.json else _print_status)(payload)
+        (lambda p: jprint(_status_json(p)) if g.json else _print_status(p))(payload)
         return 0
     try:
         while True:
             payload = _status_payload(c)
             if not g.json:
-                print("\033[H\033[2J", end="")
+                if _TTY:
+                    print("\033[H\033[2J", end="")
+                else:
+                    print("── " + time.strftime("%H:%M:%S") + " " + "─" * 40)
                 _print_status(payload)
                 print(f"\n  {dim('refresh 1.5s — Ctrl+C to exit')}", flush=True)
             else:
-                jprint(payload)
+                jprint(_status_json(payload))
             time.sleep(1.5)
     except KeyboardInterrupt:
         return 0
@@ -1098,7 +1239,10 @@ def cmd_test(g, a):
     prompt = " ".join(prompt_parts) or \
         "Why is dual Intel Arc Pro B70 effective for local MoE inference?"
     try:
-        out = c.post("/api/test_prompt", {"port": port, "prompt": prompt}, timeout=130)
+        out = spin_while(
+            f"{rid or 'port ' + str(port)} thinking",
+            lambda: c.post("/api/test_prompt", {"port": port, "prompt": prompt},
+                           timeout=130))
     except CliError as exc:
         die(str(exc))
     if g.json:
@@ -1125,8 +1269,8 @@ def cmd_download(g, a):
     recipes = st.get("recipes", {})
     model, cands = pick_model(recipes, a.model)
     if model is None:
-        names = ", ".join(m["id"] for m in cands[:8])
-        die(f"unknown model {a.model!r}", hint=f"candidates: {names}")
+        msg, hint = _model_miss(a.model, cands)
+        die(msg, hint=hint)
     engine = pick_engine(model, a.engine)
     rec = model["recipes"][engine]
     dl = rec.get("download") or {}
@@ -1147,7 +1291,7 @@ def cmd_download(g, a):
         print(f"  {dim('repo:')} {dl.get('repo')}")
     if a.no_wait:
         return 0
-    w = Wait(f"downloading {did}")
+    w = Wait(f"downloading {did}").start()
     terminal = {"done", "error", "cancelled"}
     try:
         while True:
@@ -1211,20 +1355,33 @@ def cmd_open(g, a):
         tok = c.token or read_token()
         url = f"{c.api}/?token={tok}"
         if g.json:
-            jprint({"url": url, "opened": _has_display() and not getattr(g, "print_url", False)})
+            # machine mode is side-effect-free — report the URL, opened=false
+            jprint({"url": url, "opened": False})
         else:
             _open_url(url, g, label="launcher UI")
         return 0
     # engine endpoint by rid or port
+    untracked = False
     if target.isdigit():
         port = int(target)
+        if not 1 <= port <= 65535:
+            die(f"port {port} out of range (1–65535)", code=2)
+        try:
+            st = c.get("/api/state")
+            live = {e.get("port") for e in st.get("running", [])
+                    if e.get("status") in ("running", "starting", "running (adopted)")}
+            untracked = port not in live
+        except CliError:
+            pass
     else:
         ent = rid_or_die(c, target)
         port = ent.get("port")
     url = f"http://127.0.0.1:{port}"
     if g.json:
-        jprint({"url": url, "port": port})
+        jprint({"url": url, "port": port, "tracked": not untracked, "opened": False})
     else:
+        if untracked:
+            print(f"{WARN} {yellow(f'port {port} is not a tracked engine — a bare port may be something else')}")
         _open_url(url, g, label=f"engine :{port}")
     return 0
 
@@ -1291,7 +1448,8 @@ def cmd_scan(g, a):
         if not out.get("ok"):
             die(out.get("error", "scan roots rejected"))
         print(f"{OK} scan roots updated: {', '.join(out.get('scan_dirs', []))}")
-    body = c.get("/api/scan", timeout=120)
+    body = spin_while("scanning artifact roots",
+                      lambda: c.get("/api/scan", timeout=120))
     if g.json:
         jprint(body)
         return 0
@@ -1332,13 +1490,14 @@ def cmd_recipes_update(g, a):
         model_state = c.get("/api/state").get("recipes", {})
         model, cands = pick_model(model_state, a.model)
         if model is None:
-            names = ", ".join(m["id"] for m in cands[:8])
-            die(f"unknown model {a.model!r}", hint=f"candidates: {names}")
+            msg, hint = _model_miss(a.model, cands)
+            die(msg, hint=hint)
         body["model_id"] = model["id"]
         if a.engine:
             body["engine"] = pick_engine(model, a.engine)
     try:
-        out = c.post("/api/recipes/update", body, timeout=60)
+        out = spin_while("fetching recipe catalog",
+                         lambda: c.post("/api/recipes/update", body, timeout=60))
     except CliError as exc:
         die(str(exc))
     if g.json:
@@ -1421,6 +1580,8 @@ def build_parser():
                         help=argparse.SUPPRESS)
     common.add_argument("--no-autostart", action="store_true",
                         default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    common.add_argument("-V", "--version", action="version",
+                        version=f"b70 {CLI_VERSION}", help=argparse.SUPPRESS)
 
     p = argparse.ArgumentParser(
         prog="b70",
@@ -1433,6 +1594,8 @@ def build_parser():
     p.add_argument("-q", "--quiet", action="store_true", help="minimal chatter")
     p.add_argument("--no-autostart", action="store_true",
                    help="fail instead of auto-starting the daemon")
+    p.add_argument("-V", "--version", action="version",
+                   version=f"b70 {CLI_VERSION}")
     sub = p.add_subparsers(dest="cmd", metavar="<command>", parser_class=argparse.ArgumentParser)
 
     def add(name, **kw):
@@ -1529,6 +1692,11 @@ def build_parser():
                    help="print the URL instead of opening")
     s.set_defaults(fn=cmd_open)
 
+    s = add("ui", help="shortcut for `open ui` — the launcher web UI")
+    s.add_argument("--print", dest="print_url", action="store_true",
+                   help="print the URL instead of opening")
+    s.set_defaults(fn=cmd_open, target="ui")
+
     s = add("env", help="print OpenAI client env vars for a server")
     s.add_argument("rid", nargs="?", help="server id (default: only running)")
     s.set_defaults(fn=cmd_env)
@@ -1552,13 +1720,18 @@ def build_parser():
     s.add_argument("shell", nargs="?", default="bash", choices=["bash"])
     s.set_defaults(fn=cmd_completion)
 
+    s = add("help", help="show this help")
+    s.set_defaults(fn=lambda g, a: (p.print_help(), 0)[1])
+
     return p
 
 
 def main(argv=None):
+    global _JSON
     p = build_parser()
     args = p.parse_args(argv)
     _init_color(args.no_color)
+    _JSON = bool(args.json)
     if not args.cmd:
         if _TTY and not args.json:
             banner()

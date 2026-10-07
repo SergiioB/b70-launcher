@@ -28,7 +28,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 ROOT = Path(__file__).resolve().parent.parent
 NAME = f"b70-launcher-{VERSION}-linux-source"
 
@@ -42,6 +42,7 @@ FILES = sorted(
     "patches/patch_xpu_grouped_topk_native_v2.py "
     "web/index.html ".split()
     + [f"web/assets/{p.name}" for p in (ROOT / "web" / "assets").iterdir()]
+    + [f"patches/ssu-b70-b8w4/{p.name}" for p in (ROOT / "patches" / "ssu-b70-b8w4").iterdir()]
 )
 
 HEX64 = re.compile(r"[0-9a-fA-F]{64}")

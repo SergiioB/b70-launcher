@@ -97,6 +97,7 @@ mkdir -p "$app/web/assets" "$app/patches" "$bin" "$desktop_dir"
 cp "$root/launcher.py" "$root/cli.py" "$root/webwindow.py" "$root/appwindow.py" \
    "$root/recipes.json" "$root/settings.json" "$root/README.md" "$app/"
 cp "$root"/patches/*.py "$app/patches/"
+cp -R "$root"/patches/ssu-b70-b8w4 "$app/patches/" 2>/dev/null || true
 cp "$root/web/index.html" "$app/web/"
 cp -R "$root/web/assets/." "$app/web/assets/"
 if [ -d "$root/docs" ]; then

@@ -273,11 +273,10 @@ class TestServer(unittest.TestCase):
         self.assertTrue(out["id"].startswith("qwen36-35b-llamacpp-"))
         self.assertIn("docker", out["cmd"])
         self.assertFalse(out["detected"])
-        # the dry-run is now tracked as a server entry
+        # dry-runs are pure previews: no tracked entry, no state pollution
         _, state = self.get("/api/state")
         match = [e for e in state["running"] if e["id"] == out["id"]]
-        self.assertEqual(len(match), 1)
-        self.assertEqual(match[0]["status"], "dry-run")
+        self.assertEqual(len(match), 0)
 
     def test_launch_real_blocked_by_preflight(self):
         # no dry_run -> preflight runs; with PATH masked the docker blocker

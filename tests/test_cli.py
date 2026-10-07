@@ -353,7 +353,8 @@ class TestCliE2E(unittest.TestCase):
     def test_launch_unknown_model(self):
         rc, _, err = self.b70("launch", "no-such-model")
         self.assertEqual(rc, 1)
-        self.assertIn("candidates", err)
+        self.assertIn("unknown model", err)
+        self.assertIn("try:", err)
 
     def test_launch_bad_engine(self):
         rc, _, err = self.b70("launch", "ornith-35b-gguf", "-e", "vllm")
@@ -399,7 +400,7 @@ class TestCliE2E(unittest.TestCase):
     def test_env_requires_server(self):
         rc, _, err = self.b70("env")
         self.assertEqual(rc, 1)
-        self.assertIn("nothing is running", err)
+        self.assertIn("no engines running", err)
 
     def test_daemon_down_no_autostart(self):
         rc, _, err = self.b70("--no-autostart", "--api",

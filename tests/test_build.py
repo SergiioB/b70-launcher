@@ -85,7 +85,8 @@ class TestBuildLlamaCppDocker(LauncherStateCase):
         self.assertTrue(any("f16 KV wastes VRAM" in w for w in b["warnings"]))
 
     def test_tiered_memory_flags(self):
-        b = launcher.build(cfg(model_id="qwen38-flashnext", engine="llamacpp"))
+        b = launcher.build(cfg(model_id="qwen38-flashnext", engine="llamacpp",
+                               gpus=[0, 1]))
         t = b["tokens"]
         self.assertIn("-ot", t)                       # offload_tensors
         self.assertIn("--tensor-split", t)
@@ -180,7 +181,8 @@ class TestBuildDraftModel(LauncherStateCase):
             "snapshots": {}}
 
     def test_draft_flags_docker(self):
-        b = launcher.build(cfg(model_id="qwen38-flashnext", engine="llamacpp"))
+        b = launcher.build(cfg(model_id="qwen38-flashnext", engine="llamacpp",
+                               gpus=[0, 1]))
         t = b["tokens"]
         self.assertEqual(t[0], "docker")
         self.assertIn(f"{self.draft.parent}:/draft:ro", t)
@@ -216,7 +218,7 @@ class TestBuildOtherEngines(LauncherStateCase):
         t = b["tokens"]
         self.assertEqual(t[:3], ["docker", "run", "-d"])
         self.assertIn("b70-qwen36-35b-ovms", t)
-        self.assertIn("openvino/model_server:2026.2.1-gpu", t)
+        self.assertTrue(any(x.startswith("openvino/model_server:2026.4.1") for x in t))
         port = b["endpoint"].rsplit(":", 1)[-1].split("/")[0]
         self.assertEqual(t[t.index("--rest_port") + 1], port)
         self.assertIn(f"127.0.0.1:{port}:{port}", t)
@@ -234,17 +236,21 @@ class TestBuildOtherEngines(LauncherStateCase):
                                ctx=20480))
         self.assertNotIn("--cache_interval_multiplier", b["tokens"])
 
-    def test_vllm_generic_command(self):
+    def test_vllm_dflash_command(self):
+        # nemotron-35 routes through the vllm-dflash branch: patch mounts +
+        # SSU tuning + `vllm serve` under an entrypoint script
         b = launcher.build(cfg(model_id="nemotron-35", engine="vllm",
                                kv="fp8"))
         t = b["tokens"]
         self.assertEqual(t[0], "docker")
         self.assertIn("b70-nemotron-35-vllm", t)
-        self.assertEqual(t[t.index("--model") + 1],
-                         "/models/Nemotron-3.5-Lightning-GPTQ-Int4")
-        self.assertEqual(t[t.index("--kv-cache-dtype") + 1], "fp8")
-        self.assertEqual(t[t.index("--max-model-len") + 1], "8192")
-        self.assertIn("--enable-prefix-caching", t)
+        script = " ".join(t)
+        self.assertIn("vllm serve /models/Nemotron-3.5-Lightning-GPTQ-Int4", script)
+        self.assertIn("--kv-cache-dtype fp8", script)
+        self.assertIn("--max-model-len 8192", script)
+        self.assertIn("--no-enable-prefix-caching", script)
+        self.assertTrue(any("patch" in x for x in t))
+        self.assertTrue(any("/ssu" in x for x in t))
 
     def test_vllm_recipe_default_kv_has_no_flag(self):
         b = launcher.build(cfg(model_id="nemotron-35", engine="vllm"))
@@ -332,15 +338,11 @@ class TestBuildValidation(LauncherStateCase):
         self.assertIn("error", launcher.build(cfg(model_id="qwen36-35b",
                         engine="llamacpp", slots=-1)))
 
-    def test_falsy_numeric_fields_silently_default(self):
-        # documents current behavior: `int(cfg.get(x) or default)` treats 0 as
-        # "unset" — port 0 -> 8000, slots 0 -> 1, ctx 0 -> recipe default
+    def test_falsy_numeric_fields_rejected(self):
+        # explicit 0 is a value, not "unset" — out-of-range port/slots must error
         b = launcher.build(cfg(model_id="qwen36-35b", engine="llamacpp",
                                port=0, slots=0, ctx=0))
-        self.assertNotIn("error", b)
-        self.assertTrue(b["endpoint"].endswith(":8000/v1"))
-        self.assertNotIn("-np", b["tokens"])          # slots defaulted to 1
-        self.assertEqual(b["ctx"], 131072)            # recipe ctx used
+        self.assertIn("error", b)
 
     def test_bad_ctx_port_values(self):
         self.assertIn("error", launcher.build(cfg(model_id="qwen36-35b",

@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.5.0 (Linux source)
+# B70 Launcher 0.5.1 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -32,6 +32,14 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 </table>
 
 **How it works:** pick a model → pick an engine recipe (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command (dry-run preview) → launch. Running servers survive restarts and are re-adopted; recipe updates arrive over the release channel and apply as state overlays — your install is never rewritten.
+
+## What is new in 0.5.1
+
+- **Runtime refresh.** All engine images moved to current upstream pins, digest-verified against their registries: `vllm/vllm-openai-xpu:v0.31.0` (DFlash is now a native speculative method), `openvino/model_server:2026.4.1-gpu`, `llama.cpp server-intel-b11429`, `intel/llm-scaler-vllm:0.26.0-b2`, `exl3xpu:0.1.0` (unchanged — already latest).
+- **Nemotron DFlash recipe.** New `vllm-dflash` engine path: mounts the grouped-topk router patch and the SSU B8/W4 tuning profiles, auto-detects the DFlash draft directory under scan roots, and falls back to plain serving with a warning when the draft is absent. `--no-mtp` disables speculation everywhere now.
+- **Launch correctness.** Single-GPU overrides no longer emit dual-card tensor splits or draft devices on `SYCL1`; invalid `--kv` values warn instead of silently switching to `q8_0`; duplicated `--language-model-only` flags are gone; out-of-range `--port`/`--slots`/`--ctx` fail fast.
+- **Dry runs are pure.** `--dry-run` no longer creates running entries or log files, and it warns when the requested port is already occupied.
+- **CLI polish.** JSON mode emits machine-readable error envelopes; `--no-color` and piped output stay ANSI-free; `open` validates ports and reports `opened` honestly in `--json`; `-V/--version` and `--json` work in any position; the spinner animates on its own thread and wraps blocking API calls.
 
 ## What is new in 0.5.0
 
@@ -118,9 +126,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.5.0-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.5.0-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.5.0-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.5.1-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.5.1-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.5.1-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. Container images may be pulled when launching; review recipes and image provenance first. Some recipe images use mutable tags.
 

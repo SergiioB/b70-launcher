@@ -57,9 +57,9 @@
      "source_model": "OpenVINO/Qwen3.6-35B-A3B-int4-ov",
      "tool_parser": "qwen3coder",
      "reasoning_parser": "qwen3",
-     "image": "openvino/model_server:2026.2.1-gpu",
+     "image": "openvino/model_server:2026.4.1-gpu@sha256:a928903fe429f1e3e27107cc45932d30d95febfd2d1159dc50869c3eac76fc58",
      "ctx": 131072,
-     "ctx_note": "128K with cache_interval_multiplier 64 on linear-attention MoE (OVMS 2026.2.1)",
+     "ctx_note": "128K with cache_interval_multiplier 64 on linear-attention MoE (OVMS 2026.4.1)",
      "perf": "B70-verified (Intel OVMS docs + engine sweep 2026-07-05)",
      "cim_long_ctx": 64,
      "download": {
@@ -72,14 +72,15 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     },
     "vllm": {
      "kind": "vllm-mtp",
      "model_path": "/models/Qwen3.6-35B-A3B-GPTQ-Int4",
      "search_name": "Qwen3.6-35B-A3B-GPTQ-Int4",
      "spec_tokens": 4,
-     "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+     "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 131072,
      "ctx_note": "128K native MTP4 (cookbook: 170.9 tok/s peak decode)",
      "power": 150,
@@ -98,13 +99,14 @@
        "quantize_config.json"
       ]
      },
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     },
     "llamacpp": {
      "kind": "gguf",
      "gguf": "/models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
      "search_name": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 131072,
      "ctx_note": "128K",
      "power": 150,
@@ -117,7 +119,8 @@
       "match": "qwen3.6-35b",
       "quant": "UD-Q4_K_XL (Unsloth Dynamic) ~21 GB"
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
@@ -156,7 +159,7 @@
      "kind": "gguf-tiered",
      "gguf": "/models/Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
      "search_name": "Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 8192,
      "ctx_max": 131072,
      "ctx_note": "8K standard (up to 128K near-boundary validated on 2× B70)",
@@ -205,7 +208,8 @@
       "quant": "AP-Q4_K_XL (95 GB) + MTP draft (2.5 GB)",
       "note": "The MTP draft Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf is published separately in dzannotti/Qwen3.8-Flash-Next-MTP-GGUF."
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
@@ -252,7 +256,7 @@
       "--language-model-only",
       "--trust-remote-code"
      ],
-     "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+     "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 65536,
      "ctx_max": 102400,
      "ctx_note": "102400 is the single-card vLLM ceiling; fp8 KV",
@@ -280,13 +284,14 @@
       ]
      },
      "ctx_safe": 98304,
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     },
     "llamacpp": {
      "kind": "gguf",
      "gguf": "/models/Qwen3.8-27B-UD-Q4_K_M.gguf",
      "search_name": "Qwen3.8-27B-UD-Q4_K_M.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 262144,
      "ctx_max": 262144,
      "ctx_note": "full 256K served (37.8 @512 -> 16.0 @256K); add -md <draft.gguf> via extra flags for speed",
@@ -304,13 +309,14 @@
       "quant": "UD-Q4_K_M (Unsloth Dynamic)"
      },
      "ctx_safe": 131072,
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     },
     "openvino": {
      "kind": "ovms",
      "source_model": "SergiioB/Qwen3.8-27B-int4-gdn8-ov",
      "search_name": "Qwen3.8-27B-int4-gdn8-ov",
-     "image": "openvino/model_server:2026.2.1-gpu",
+     "image": "openvino/model_server:2026.4.1-gpu@sha256:a928903fe429f1e3e27107cc45932d30d95febfd2d1159dc50869c3eac76fc58",
      "ctx": 32768,
      "ctx_max": 131072,
      "ctx_note": "INT4-OV + MTP draft; OV GenAI route showed ~1/7 stability on long generations (CL_OUT_OF_RESOURCES) — retry if it faults",
@@ -331,14 +337,15 @@
       ]
      },
      "ctx_safe": 65536,
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     },
     "exl3": {
      "kind": "exl3",
      "model_path": "~/models/Qwen3.8-27B-exl3",
      "search_name": "qwen3.8-27b exl3 4bpw",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
-     "image": "ghcr.io/0xsero/exl3xpu@sha256:21412bdd7535e9c653eeb3d099dce3bc79a83d440def2cd9556111c79c870fa8",
+     "image": "ghcr.io/0xsero/exl3xpu:0.1.0@sha256:21412bdd7535e9c653eeb3d099dce3bc79a83d440def2cd9556111c79c870fa8",
      "docker_sock": "/run/b70-exl3-docker.sock",
      "inner_port": 8100,
      "ctx": 65536,
@@ -363,7 +370,8 @@
       ]
      },
      "ctx_safe": 131072,
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
@@ -409,14 +417,13 @@
      "dtype": "bfloat16",
      "kv": "fp8",
      "spec_tokens": 8,
-     "image": "vllm/vllm-openai-xpu@sha256:f01e24f6c7ff01f1e0662234255a1372297d1dbd89d003cf13c8fad3eab1ba4f",
+     "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 98304,
      "ctx_max": 98304,
      "ctx_note": "98K dual-card sweep verified (57.3 tok/s at 96K, 73.0 tok/s at 512 ctx)",
      "power": 180,
      "perf": "73.0 tok/s decode @512 ctx, 57.3 @96K — catalog-verified",
      "fixed_flags": [
-      "--language-model-only",
       "--mamba-ssm-cache-dtype",
       "float16"
      ],
@@ -433,7 +440,8 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
@@ -469,10 +477,10 @@
    ],
    "recipes": {
     "vllm": {
-     "kind": "vllm",
+     "kind": "vllm-dflash",
      "model_path": "/models/Nemotron-3.5-Lightning-GPTQ-Int4",
      "search_name": "Nemotron-3.5-Lightning-GPTQ-Int4",
-     "image": "vllm/vllm-openai-xpu@sha256:fc0e112afb64e3a06fe8daff34652435822a629412f38efce8f0f67a46636b8d",
+     "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 262144,
      "ctx_note": "262,144 tokens verified with router patch (needle 250K pass 3/3)",
      "power": 230,
@@ -498,14 +506,26 @@
      "patches": [
       "patches/patch_xpu_grouped_topk_native_v2.py"
      ],
-     "recipe_ver": "2026-10-05",
-     "ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07",
+     "dtype": "float16",
+     "quantization": "gptq",
+     "shm_size": "16g",
+     "draft": {
+      "search": "Nemotron-3.5-Lightning-30B-A3B-DFlash",
+      "download": {
+       "kind": "snapshot",
+       "repo": "SergiioB/Nemotron-3.5-Lightning-30B-A3B-DFlash-BF16",
+       "quant": "BF16 DFlash draft"
+      }
+     },
+     "perf_note": "228 tok/s was measured on the pre-0.31 pinned image; v0.31.0 makes dflash a native method — pending re-measure."
     },
     "llamacpp": {
      "kind": "gguf",
      "gguf": "/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf",
      "search_name": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 32768,
      "ctx_note": "fallback value; GGUF headers do not expose a context field",
      "power": 180,
@@ -518,7 +538,8 @@
       "match": "nemotron-3.5-lightning",
       "quant": "UD-Q4_K_M GGUF (~24 GB)"
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "nvidia",
@@ -563,7 +584,7 @@
      "fixed_flags": [
       "--enforce-eager"
      ],
-     "image": "intel/llm-scaler-vllm@sha256:032916bd9264da44cab3e99092ffaf12331072ec51c3b380cbbe5fd98eb0254b",
+     "image": "intel/llm-scaler-vllm:0.26.0-b2@sha256:52218ad85513ab6686d4c090c83c2bd8c5b02423c63aa4dabd41837fe641fe3b",
      "power": 180,
      "perf": "128 tok / 11.1s non-stream (engine sweep 2026-07-05)",
      "download": {
@@ -578,7 +599,7 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-05",
+     "recipe_ver": "2026-10-07",
      "ver": "2026-10-07"
     }
    },
@@ -617,7 +638,7 @@
      "kind": "gguf",
      "gguf": "/models/ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
      "search_name": "ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 131072,
      "ctx_note": "128K (dense 27B lane)",
      "power": 180,
@@ -634,7 +655,8 @@
       "quant": "Q4_K_M GGUF (~16 GB)",
       "note": "Repo is license-gated on HF — accept the model terms first; if the in-app download 401s, fetch the file manually."
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
@@ -672,7 +694,7 @@
      "kind": "gguf",
      "gguf": "/models/Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
      "search_name": "Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 131072,
      "ctx_note": "128K measured p512/g128 (cookbook)",
      "fixed_flags": [
@@ -693,7 +715,8 @@
       ],
       "note": "Optional DFlash draft (dflash-Muse-Glimmer-30B-Q4_K_M.gguf) lives in the same repo — grab it there if you want speculative decoding."
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "generic",
@@ -727,7 +750,7 @@
      "kind": "gguf",
      "gguf": "/models/ornith-1.0-35b-Q4_K_M.gguf",
      "search_name": "ornith-1.0-35b-Q4_K_M.gguf",
-     "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
+     "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 32768,
      "ctx_note": "fallback value; GGUF headers do not expose a context field",
      "power": 150,
@@ -740,7 +763,8 @@
       "match": "ornith-1.0-35b",
       "quant": "Q4_K_M GGUF (~20 GB)"
      },
-     "recipe_ver": "2026-10-07"
+     "recipe_ver": "2026-10-07",
+     "ver": "2026-10-07"
     }
    },
    "brand": "generic",
