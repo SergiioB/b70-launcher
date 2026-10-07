@@ -472,7 +472,7 @@
      "kind": "vllm",
      "model_path": "/models/Nemotron-3.5-Lightning-GPTQ-Int4",
      "search_name": "Nemotron-3.5-Lightning-GPTQ-Int4",
-     "image": "vllm/vllm-openai-xpu:v0.30.0",
+     "image": "vllm/vllm-openai-xpu@sha256:fc0e112afb64e3a06fe8daff34652435822a629412f38efce8f0f67a46636b8d",
      "ctx": 262144,
      "ctx_note": "262,144 tokens verified with router patch (needle 250K pass 3/3)",
      "power": 230,
@@ -498,7 +498,8 @@
      "patches": [
       "patches/patch_xpu_grouped_topk_native_v2.py"
      ],
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-05",
+     "ver": "2026-10-07"
     },
     "llamacpp": {
      "kind": "gguf",
@@ -562,7 +563,7 @@
      "fixed_flags": [
       "--enforce-eager"
      ],
-     "image": "intel/llm-scaler-vllm",
+     "image": "intel/llm-scaler-vllm@sha256:032916bd9264da44cab3e99092ffaf12331072ec51c3b380cbbe5fd98eb0254b",
      "power": 180,
      "perf": "128 tok / 11.1s non-stream (engine sweep 2026-07-05)",
      "download": {
@@ -577,7 +578,8 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-05"
+     "recipe_ver": "2026-10-05",
+     "ver": "2026-10-07"
     }
    },
    "brand": "qwen",
