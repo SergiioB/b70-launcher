@@ -10,6 +10,7 @@ Screenshots (attach in this order):
 
 Live URLs:
 - https://xecores.com/match (install + checksum)
+- https://github.com/SergiioB/b70-launcher (source, MIT)
 - https://xecores.com/shots/launcher/step2-config.png (hotlinkable)
 
 ---
@@ -22,7 +23,7 @@ B70 Launcher 0.4.8 is out — a local desktop UI for running LLMs on Intel Arc P
 
 Model library → engine pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → launch & open in your chat app. Recipes update themselves: when a better validated recipe ships, the launcher tells you and applies it without touching your install.
 
-xecores.com/match
+xecores.com/match — source on GitHub: github.com/SergiioB/b70-launcher (MIT)
 
 ### Reply 1 (attach step3-launch.png)
 
@@ -50,7 +51,7 @@ What's new in 0.4.8:
 
 The install is rootless (~/.local only, XDG-aware, no hardcoded paths) and the source is inspectable before you run it — the install page verifies the SHA256 checksum first. No telemetry; the only network calls are the update check and downloads you explicitly request.
 
-Dual Intel Arc Pro B70 (2×32GB) is the target platform. Download + checksum-verified install instructions: xecores.com/match
+Dual Intel Arc Pro B70 (2×32GB) is the target platform. Download + checksum-verified install instructions: xecores.com/match — source on GitHub: github.com/SergiioB/b70-launcher (MIT)
 
 [Screenshot: step2-config.png — the recipe-update notice; optionally step1 + step3 as a comment]
 
