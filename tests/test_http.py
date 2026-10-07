@@ -5,7 +5,7 @@ at a temp dir and PATH masked to an empty dir (no docker/sudo/pkill/fuser
 resolve inside the child, so no external command path can fire). The update
 check URL is a file:// path — no network socket is ever opened.
 
-Run:  cd ~/b70-launcher && python3 -m unittest discover -s tests -v
+Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 """
 import http.client
 import json

@@ -1,6 +1,6 @@
 """Pure-function unit tests for launcher.py — no GPU, docker, or network.
 
-Run:  cd ~/b70-launcher && python3 -m unittest discover -s tests -v
+Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 """
 import json
 import shlex

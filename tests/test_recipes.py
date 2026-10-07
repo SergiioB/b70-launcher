@@ -2,7 +2,7 @@
 user recipe_overrides precedence over the remote catalog, remote document
 merge semantics, version comparison and per-recipe notices.
 
-Run:  cd ~/b70-launcher && python3 -m unittest discover -s tests -v
+Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 """
 import json
 import unittest
