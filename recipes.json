@@ -5,29 +5,29 @@
    "id": "openvino",
    "label": "OpenVINO (OVMS)",
    "tag": "OVMS",
-   "tagline": "Easiest \u00b7 Intel's official server",
-   "note": "Official OpenAI-compatible server from Intel. Verified on B70 \u2014 supports tools, reasoning, and vision."
+   "tagline": "Easiest · Intel's official server",
+   "note": "Official OpenAI-compatible server from Intel. Verified on B70 — supports tools, reasoning, and vision."
   },
   {
    "id": "vllm",
    "label": "vLLM XPU",
    "tag": "vLLM",
-   "tagline": "Fastest \u00b7 many users at once",
+   "tagline": "Fastest · many users at once",
    "note": "Highest throughput when several apps or users connect at the same time. Runs in a pinned container image."
   },
   {
    "id": "llamacpp",
    "label": "llama.cpp SYCL",
    "tag": "SYCL",
-   "tagline": "Single GGUF file \u00b7 most control",
+   "tagline": "Single GGUF file · most control",
    "note": "Runs a single .gguf model file. Most control over quantization and VRAM usage."
   },
   {
    "id": "exl3",
    "label": "EXL3 XPU",
    "tag": "EXL3",
-   "tagline": "Smallest download \u00b7 longest context",
-   "note": "Trellis-compressed weights (~15.7 GiB) \u2014 the only single-card route to the full 262K context. Runs on the isolated b70-exl3 dockerd."
+   "tagline": "Smallest download · longest context",
+   "note": "Trellis-compressed weights (~15.7 GiB) — the only single-card route to the full 262K context. Runs on the isolated b70-exl3 dockerd."
   }
  ],
  "models": [
@@ -121,7 +121,7 @@
     }
    },
    "brand": "qwen",
-   "subtitle": "MoE 35B / 3B active  \u2022  Best overall for B70",
+   "subtitle": "MoE 35B / 3B active  •  Best overall for B70",
    "chips": [
     "LLM",
     "Instruct",
@@ -129,21 +129,21 @@
     "3B active"
    ],
    "recommended_engine": "openvino",
-   "recommendation": "Validated default for Arc Pro B70 \u2014 runs well on a single card using OpenVINO (OVMS)."
+   "recommendation": "Validated default for Arc Pro B70 — runs well on a single card using OpenVINO (OVMS)."
   },
   {
    "id": "qwen38-flashnext",
    "name": "Qwen3.8-Flash-Next",
-   "arch": "180B MoE (37B active) \u00b7 3-Tiered Memory",
-   "blurb": "Maximum intelligence tier on 2\u00d7 B70. Active layers in 64GB VRAM (split 49/51%), Engram memory table in host RAM, zero-copy NVMe weights streaming.",
-   "badge": "MAXIMUM INTELLIGENCE \u00b7 2\u00d7 B70 TIERED",
+   "arch": "180B MoE (37B active) · 3-Tiered Memory",
+   "blurb": "Maximum intelligence tier on 2× B70. Active layers in 64GB VRAM (split 49/51%), Engram memory table in host RAM, zero-copy NVMe weights streaming.",
+   "badge": "MAXIMUM INTELLIGENCE · 2× B70 TIERED",
    "tags": [
     {
      "t": "Top tier 180B",
      "c": "violet"
     },
     {
-     "t": "2\u00d7 B70 Tiered",
+     "t": "2× B70 Tiered",
      "c": "green"
     },
     {
@@ -159,9 +159,9 @@
      "image": "ghcr.io/ggml-org/llama.cpp:server-intel",
      "ctx": 8192,
      "ctx_max": 131072,
-     "ctx_note": "8K standard (up to 128K near-boundary validated on 2\u00d7 B70)",
+     "ctx_note": "8K standard (up to 128K near-boundary validated on 2× B70)",
      "power": 195,
-     "perf": "30.7\u201333.3 tok/s decode matched (37.4 tok/s wired MTP) on 2\u00d7 B70",
+     "perf": "30.7–33.3 tok/s decode matched (37.4 tok/s wired MTP) on 2× B70",
      "gpus": [
       0,
       1
@@ -192,9 +192,9 @@
       "q4_1"
      ],
      "topology": {
-      "vram": "Dual B70 (64 GB) \u00b7 Active MoE Compute (GPU0 49% / GPU1 51%) with XMX Xe2 acceleration",
-      "ram": "Host RAM (~30+ GB) \u00b7 51B Engram / PLE Token Embedding table + Boundary MoE Experts (-ot offload)",
-      "nvme": "PCIe Gen4 NVMe \u00b7 Zero-Copy direct OS mmap weight streaming"
+      "vram": "Dual B70 (64 GB) · Active MoE Compute (GPU0 49% / GPU1 51%) with XMX Xe2 acceleration",
+      "ram": "Host RAM (~30+ GB) · 51B Engram / PLE Token Embedding table + Boundary MoE Experts (-ot offload)",
+      "nvme": "PCIe Gen4 NVMe · Zero-Copy direct OS mmap weight streaming"
      },
      "download": {
       "kind": "file",
@@ -209,7 +209,7 @@
     }
    },
    "brand": "qwen",
-   "subtitle": "180B MoE (37B active)  \u2022  3-Tiered Memory",
+   "subtitle": "180B MoE (37B active)  •  3-Tiered Memory",
    "chips": [
     "LLM",
     "Instruct",
@@ -217,7 +217,7 @@
     "High performance"
    ],
    "recommended_engine": "llamacpp",
-   "recommendation": "Maximum intelligence tier. Requires 2\u00d7 B70: the 3-Tiered Memory Architecture spans dual B70 VRAM, host RAM, and NVMe."
+   "recommendation": "Maximum intelligence tier. Requires 2× B70: the 3-Tiered Memory Architecture spans dual B70 VRAM, host RAM, and NVMe."
   },
   {
    "id": "qwen38-27b",
@@ -313,9 +313,9 @@
      "image": "openvino/model_server:2026.2.1-gpu",
      "ctx": 32768,
      "ctx_max": 131072,
-     "ctx_note": "INT4-OV + MTP draft; OV GenAI route showed ~1/7 stability on long generations (CL_OUT_OF_RESOURCES) \u2014 retry if it faults",
+     "ctx_note": "INT4-OV + MTP draft; OV GenAI route showed ~1/7 stability on long generations (CL_OUT_OF_RESOURCES) — retry if it faults",
      "power": 180,
-     "perf": "GDN8 IR: short-context INT4 champion (79.5 tok/s @512 measured); plain int4-ov hub export is broken \u2014 do not use it",
+     "perf": "GDN8 IR: short-context INT4 champion (79.5 tok/s @512 measured); plain int4-ov hub export is broken — do not use it",
      "download": {
       "kind": "snapshot",
       "repo": "SergiioB/Qwen3.8-27B-int4-gdn8-ov",
@@ -324,7 +324,7 @@
       "prefer": [
        "gdn8"
       ],
-      "quant": "INT4-OV IR GDN8 \u2014 validated export (plain int4-ov hub export is broken)",
+      "quant": "INT4-OV IR GDN8 — validated export (plain int4-ov hub export is broken)",
       "verify": [
        "openvino_language_model.bin",
        "openvino_language_model.xml"
@@ -343,7 +343,7 @@
      "inner_port": 8100,
      "ctx": 65536,
      "ctx_max": 262144,
-     "ctx_note": "full 262K proven on one card \u2014 real 261,920-token prompt completed 2026-09-27 (fp8 KV pool 287K tok @ gmu 0.94)",
+     "ctx_note": "full 262K proven on one card — real 261,920-token prompt completed 2026-09-27 (fp8 KV pool 287K tok @ gmu 0.94)",
      "power": 230,
      "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; +33-42% chunk-rate at 230W vs 150W",
      "download": {
@@ -367,19 +367,19 @@
     }
    },
    "brand": "qwen",
-   "subtitle": "Dense 27B  \u2022  Balanced performance",
+   "subtitle": "Dense 27B  •  Balanced performance",
    "chips": [
     "LLM",
     "Instruct",
     "~16 GB"
    ],
    "recommended_engine": "exl3",
-   "recommendation": "Dense 27B model for balanced performance. EXL3 4bpw is the primary route \u2014 full 262K context on a single card."
+   "recommendation": "Dense 27B model for balanced performance. EXL3 4bpw is the primary route — full 262K context on a single card."
   },
   {
    "id": "qwen38-27b-fp8-tp2",
    "name": "Qwen3.8-27B FP8 TP2",
-   "arch": "Dense 27B \u00b7 Dual B70 TP2",
+   "arch": "Dense 27B · Dual B70 TP2",
    "blurb": "Official 29 GB FP8 model on sata-tforce running across dual B70s with vLLM tensor parallelism.",
    "badge": "DUAL B70 TENSOR PARALLEL",
    "tags": [
@@ -414,7 +414,7 @@
      "ctx_max": 98304,
      "ctx_note": "98K dual-card sweep verified (57.3 tok/s at 96K, 73.0 tok/s at 512 ctx)",
      "power": 180,
-     "perf": "73.0 tok/s decode @512 ctx, 57.3 @96K \u2014 catalog-verified",
+     "perf": "73.0 tok/s decode @512 ctx, 57.3 @96K — catalog-verified",
      "fixed_flags": [
       "--language-model-only",
       "--mamba-ssm-cache-dtype",
@@ -437,7 +437,7 @@
     }
    },
    "brand": "qwen",
-   "subtitle": "Dense 27B  \u2022  Dual B70 TP2",
+   "subtitle": "Dense 27B  •  Dual B70 TP2",
    "chips": [
     "LLM",
     "Instruct",
@@ -446,7 +446,7 @@
     "Dual B70"
    ],
    "recommended_engine": "vllm",
-   "recommendation": "Requires 2\u00d7 B70. Maximum throughput using vLLM TP2 tensor parallelism across both cards with FP8 KV cache."
+   "recommendation": "Requires 2× B70. Maximum throughput using vLLM TP2 tensor parallelism across both cards with FP8 KV cache."
   },
   {
    "id": "nemotron-35",
@@ -521,7 +521,7 @@
     }
    },
    "brand": "nvidia",
-   "subtitle": "MoE 30B (A3B)  \u2022  DFlash n7 speculative, up to 262K context",
+   "subtitle": "MoE 30B (A3B) • up to 262K context",
    "chips": [
     "LLM",
     "Instruct",
@@ -581,7 +581,7 @@
     }
    },
    "brand": "qwen",
-   "subtitle": "Dense 27B  \u2022  AutoRound Quantized",
+   "subtitle": "Dense 27B  •  AutoRound Quantized",
    "chips": [
     "LLM",
     "Instruct",
@@ -594,7 +594,7 @@
   {
    "id": "thinkingcap-27b",
    "name": "Qwen3.6-27B ThinkingCap",
-   "arch": "Dense 27B \u00b7 Q4_K_M",
+   "arch": "Dense 27B · Q4_K_M",
    "blurb": "GGUF reasoning tune. Full VRAM offload.",
    "tags": [
     {
@@ -630,13 +630,13 @@
        "thinkingcap"
       ],
       "quant": "Q4_K_M GGUF (~16 GB)",
-      "note": "Repo is license-gated on HF \u2014 accept the model terms first; if the in-app download 401s, fetch the file manually."
+      "note": "Repo is license-gated on HF — accept the model terms first; if the in-app download 401s, fetch the file manually."
      },
      "recipe_ver": "2026-10-07"
     }
    },
    "brand": "qwen",
-   "subtitle": "Dense 27B  \u2022  Reasoning & Thinking",
+   "subtitle": "Dense 27B  •  Reasoning & Thinking",
    "chips": [
     "LLM",
     "Reasoning",
@@ -649,7 +649,7 @@
   {
    "id": "muse-glimmer",
    "name": "Muse-Glimmer-30B",
-   "arch": "MoE 30B \u00b7 vision",
+   "arch": "MoE 30B · vision",
    "blurb": "Vision + DFlash. Needs mmproj sidecar (auto-selected).",
    "tags": [
     {
@@ -689,7 +689,7 @@
       "extra_files": [
        "mmproj-Muse-Glimmer-30B-Q4_K_M.gguf"
       ],
-      "note": "Optional DFlash draft (dflash-Muse-Glimmer-30B-Q4_K_M.gguf) lives in the same repo \u2014 grab it there if you want speculative decoding."
+      "note": "Optional DFlash draft (dflash-Muse-Glimmer-30B-Q4_K_M.gguf) lives in the same repo — grab it there if you want speculative decoding."
      },
      "recipe_ver": "2026-10-07"
     }
@@ -704,7 +704,7 @@
   {
    "id": "ornith-35b-gguf",
    "name": "Ornith-1.0-35B GGUF",
-   "arch": "MoE 35B \u00b7 Q4_K_M",
+   "arch": "MoE 35B · Q4_K_M",
    "blurb": "Uncensored AEON lineage. Lowercase filename is correct (HF quirk).",
    "tags": [
     {

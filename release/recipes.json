@@ -521,7 +521,7 @@
     }
    },
    "brand": "nvidia",
-   "subtitle": "MoE 30B (A3B)  \u2022  DFlash n7 speculative, up to 262K context",
+   "subtitle": "MoE 30B (A3B) \u2022 up to 262K context",
    "chips": [
     "LLM",
     "Instruct",
