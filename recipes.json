@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-13.2",
+ "catalog_ver": "2026-10-13.3",
  "engines": [
   {
    "id": "openvino",
@@ -478,7 +478,7 @@
      "model_path": "~/models/Qwen3.8-27B-exl3-SC_5.00bpw_H6",
      "search_name": "qwen3.8-27b exl3 sc5",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
-     "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261012c@sha256:7bb0c5cfed8a35da8f4db0034338d8dbe5f53731253d96ea8f1db2b5bddd4a40",
+     "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261013@sha256:5e2d1fab3a8ba559b4d3af7fb1fa5eeff324c4f4274847e3079ec2d57c698ba4",
      "docker_sock": "/run/b70-exl3-docker.sock",
      "inner_port": 8100,
      "ctx": 65536,
@@ -510,7 +510,7 @@
       "note": "Branch SC_5.00bpw_H6 of the same repo; it downloads into its own directory (dest) so it never mixes with the plain 4.00bpw snapshot."
      },
      "recipe_note": "New: Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7) — quality pick over plain 4.00bpw at ~0.89x decode on a single B70.",
-     "recipe_ver": "2026-10-13.2",
+     "recipe_ver": "2026-10-13.3",
      "ver": "2026-10-13"
     }
    },

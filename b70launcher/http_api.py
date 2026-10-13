@@ -10,7 +10,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from . import builders, catalog, downloads, hardware, harness, paths, runtime, scan, telemetry
+from . import builders, catalog, downloads, hardware, harness, paths, runtime, scan, selfupdate, telemetry
 from .locks import LOCK
 
 API_TOKEN = ''
@@ -46,7 +46,8 @@ def scan_response():
 def state_response():
     running = runtime.servers_snapshot()
     return {'recipes': catalog.RECIPES, 'settings': catalog.SETTINGS, 'running': running,
-            'version': paths.VERSION, 'is_win': paths.IS_WIN, 'update': catalog.UPDATE_INFO,
+            'version': paths.VERSION, 'is_win': paths.IS_WIN,
+            'update': dict(catalog.UPDATE_INFO, install=selfupdate.status()),
             'recipe_notices': catalog.recipe_notices(), 'recipes_remote': catalog.RECIPE_REMOTE,
             'preflight': runtime.preflight(), 'scan': {'state': scan.SCAN.get('state'), 'ts': scan.SCAN.get('ts'), 'roots': scan.SCAN.get('roots', [])}}
 
@@ -180,6 +181,8 @@ POST_ROUTES = {
     '/api/harness': _harness,
     '/api/recipes/update': lambda cfg: catalog.apply_recipe_update(cfg.get('model_id'), cfg.get('engine')),
     '/api/settings': _settings,
+    '/api/update/install': selfupdate.start_install,
+    '/api/update/restart': selfupdate.restart,
 }
 
 
