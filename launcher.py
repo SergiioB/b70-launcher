@@ -682,6 +682,7 @@ def detect(model, engine):
     if want and want in pool:
         return wrap(want, pool[want], True)
     prefer = [_norm(p) for p in _as_list(dl.get("prefer"))]
+    exclude = [_norm(x) for x in _as_list(dl.get("exclude")) if _norm(x)]
     cands = []
     for name, hit in pool.items():
         if dl.get("kind") != "file" and isinstance(hit, dict):
@@ -698,6 +699,8 @@ def detect(model, engine):
             continue
         if prefer and not any(p in nn for p in prefer):
             continue  # right model, wrong artifact format for this engine
+        if any(x in nn for x in exclude):
+            continue  # sibling artifact of the same repo that another recipe owns
         if keys and any(k in nn for k in keys):
             score = sum(1 for p in prefer if p and p in nn) - len(nn) / 1000.0
             cands.append((score, name, hit))
@@ -1091,7 +1094,10 @@ def download_worker(did, model, engine):
             root = Path(SETTINGS.get("ovms_repo", "~/models/ovms-repo")).expanduser()
             if engine != "openvino":
                 root = Path(SETTINGS.get("models_dir", "~/models")).expanduser()
-            dest_dir = root / repo.split("/")[-1]
+            dest_name = dl.get("dest") or repo.split("/")[-1]
+            if "/" in dest_name or not safe_artifact(dest_name):
+                raise ValueError("Recipe download dest must be a single directory name")
+            dest_dir = root / dest_name
         if not wanted or any(not safe_artifact(w) for w in wanted):
             raise ValueError("Repository contains unsafe or empty artifact paths")
         if dl.get("kind") == "file" and any(w not in files for w in wanted):

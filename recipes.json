@@ -367,11 +367,15 @@
       "verify": [
        "quantization_config.json",
        "config.json"
+      ],
+      "exclude": [
+       "sc_4.00bpw",
+       "sc_5.00bpw"
       ]
      },
      "ctx_safe": 131072,
-     "recipe_ver": "2026-10-07",
-     "ver": "2026-10-07"
+     "recipe_ver": "2026-10-13",
+     "ver": "2026-10-13"
     }
    },
    "brand": "qwen",
@@ -479,7 +483,7 @@
    "recipes": {
     "exl3": {
      "kind": "exl3",
-     "model_path": "~/models/Qwen3.8-27B-exl3-SC5",
+     "model_path": "~/models/Qwen3.8-27B-exl3-SC_5.00bpw_H6",
      "search_name": "qwen3.8-27b exl3 sc5",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
      "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261012c@sha256:7bb0c5cfed8a35da8f4db0034338d8dbe5f53731253d96ea8f1db2b5bddd4a40",
@@ -495,6 +499,7 @@
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
       "revision": "dfe2f4fd71bf9a1994051d4d47e6460fa96dd723",
+      "dest": "Qwen3.8-27B-exl3-SC_5.00bpw_H6",
       "search": "qwen3.8-27b exl3 sc5",
       "match": [
        "sc_5.00bpw",
@@ -509,7 +514,7 @@
        "quantization_config.json",
        "config.json"
       ],
-      "note": "Branch SC_5.00bpw_H6 of the same repo — the snapshot lands as Qwen3.8-27B-exl3; rename it to Qwen3.8-27B-exl3-SC5 so it coexists with the plain 4.00bpw snapshot."
+      "note": "Branch SC_5.00bpw_H6 of the same repo; it downloads into its own directory (dest) so it never mixes with the plain 4.00bpw snapshot."
      },
      "recipe_note": "New: Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7) — quality pick over plain 4.00bpw at ~0.89x decode on a single B70.",
      "recipe_ver": "2026-10-13",

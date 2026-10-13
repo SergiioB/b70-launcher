@@ -86,7 +86,8 @@ text; `tag` is a short badge.
 {"kind": "file|snapshot", "repo": "org/repo", "revision": "abc123",
  "name": "file.gguf", "extra_files": ["mmproj-*.gguf"],
  "search": "...", "match": "qwen3.8-27b" | ["alt1", "alt2"],
- "prefer": ["w4a16", "gptq"], "quant": "GPTQ-INT4 sym G128",
+ "prefer": ["w4a16", "gptq"], "exclude": ["sc_5.00bpw"], "dest": "dir-name",
+ "quant": "GPTQ-INT4 sym G128",
  "verify": ["config.json"], "note": "...", "hf_search": "..."}
 ```
 
@@ -94,11 +95,15 @@ text; `tag` is a short badge.
   into `models_dir`; matched against GGUF basenames from the scan.
 - `kind=snapshot`: a whole repo tree into `ovms_repo` (openvino) or
   `models_dir` (everything else); matched against detected model directories.
+  The directory is the repo basename unless `dest` names another single
+  directory; use `dest` when two recipes pin different branches of one repo.
 - `repo`: automatic download is only offered when it is in the
   `HF_APPROVED_REPOS` allow-list in `launcher.py`; otherwise the UI falls back
   to manual instructions (`hf_search` link, else `search` text).
 - `match` / `search` / `name` accept a string or a list of alternates;
-  `prefer` narrows same-family hits to the right quant/format.
+  `prefer` narrows same-family hits to the right quant/format; `exclude`
+  drops same-family hits whose normalized name contains any listed string
+  (e.g. a sibling branch that another recipe owns).
 - `quant`, `note`: display only. `verify` is inert metadata — nothing reads it.
 - `doc`/`doc_url`/`docs` (recipe or model level): the UI turns them into an
   "Open recipe docs" link only when neither `repo` nor `hf_search`/`search`

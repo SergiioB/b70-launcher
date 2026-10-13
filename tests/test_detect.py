@@ -129,6 +129,52 @@ class TestDetectSnapshots(LauncherStateCase):
         self.assertEqual(det["ctx"], 262144)
         self.assertEqual(det["mount_root"], str(d))
 
+    def test_sibling_branch_dirs_stay_with_their_recipe(self):
+        # plain 4.00bpw and SC_5.00bpw_H6 are branches of one HF repo; each
+        # recipe must only ever see its own directory (the stock image cannot
+        # serve the mixed-K branch)
+        sc5 = self._snap("Qwen3.8-27B-exl3-SC_5.00bpw_H6", "exl3")
+        self.assertIsNone(launcher.detect(model("qwen38-27b"), "exl3"))
+        self.assertEqual(launcher.detect(model("qwen38-27b-sc5"), "exl3")["path"], str(sc5))
+        plain = self._snap("Qwen3.8-27B-exl3", "exl3")
+        self.assertEqual(launcher.detect(model("qwen38-27b"), "exl3")["path"], str(plain))
+        self.assertEqual(launcher.detect(model("qwen38-27b-sc5"), "exl3")["path"], str(sc5))
+
+
+class TestSnapshotDownloadDest(LauncherStateCase):
+    """download.dest picks the snapshot directory; default is the repo basename."""
+
+    def _run(self, mid, dest_override=None):
+        from unittest import mock
+        m = json.loads(json.dumps(model(mid)))
+        if dest_override is not None:
+            m["recipes"]["exl3"]["download"]["dest"] = dest_override
+        did = f"{mid}-exl3"
+        launcher.DOWNLOADS[did] = {"id": did, "state": "queued", "done": 0}
+        root = TMP / "dl-models"
+        fetched = []
+        with mock.patch.dict(launcher.SETTINGS, {"models_dir": str(root)}), \
+             mock.patch.object(launcher, "resolve_repo", return_value=("turboderp/Qwen3.8-27B-exl3", None)), \
+             mock.patch.object(launcher, "hf_files", return_value={"config.json": 0}), \
+             mock.patch.object(launcher, "_download_file", side_effect=lambda url, dest, e: (fetched.append((url, dest)), write_file(dest))), \
+             mock.patch.object(launcher, "start_scan_async"):
+            launcher.download_worker(did, m, "exl3")
+        return launcher.DOWNLOADS[did], fetched, root
+
+    def test_dest_names_the_directory_and_revision_is_pinned(self):
+        entry, fetched, root = self._run("qwen38-27b-sc5")
+        self.assertEqual(entry["state"], "done", entry.get("error"))
+        self.assertEqual(entry["dest"], str(root / "Qwen3.8-27B-exl3-SC_5.00bpw_H6"))
+        self.assertIn("/resolve/dfe2f4fd71bf9a1994051d4d47e6460fa96dd723/", fetched[0][0])
+        plain, _, _ = self._run("qwen38-27b")
+        self.assertEqual(plain["dest"], str(root / "Qwen3.8-27B-exl3"))
+
+    def test_dest_rejects_paths(self):
+        for bad in ("../escape", "a/b", ".."):
+            entry, fetched, _ = self._run("qwen38-27b-sc5", dest_override=bad)
+            self.assertEqual(entry["state"], "error", bad)
+            self.assertEqual(fetched, [])
+
 
 class TestDetectDirectPath(LauncherStateCase):
     """Recipe fields gguf/model_path/source_model are probed directly,
