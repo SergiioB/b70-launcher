@@ -1,10 +1,12 @@
 # b70 — headless CLI
 
 `b70` (`cli.py`) is the command-line face of B70 Launcher. It talks to the
-same daemon the windowed app uses (`launcher.py`, `127.0.0.1:7570` by
-default), so every recipe the UI can launch — `ovms`, `vllm`, `vllm-mtp`,
-`vllm-tp2`, `vllm-arext`, `vllm-autoround`, `gguf`, `gguf-tiered`, `exl3` —
-launches identically from a terminal with no display at all.
+same daemon the windowed app uses (`launcher.py` + the `b70launcher/` package,
+`127.0.0.1:7570` by default), so every recipe the UI can launch — engine keys
+`openvino`, `vllm`, `llamacpp`, `exl3`, recipe kinds `ovms`, `vllm`, `vllm-mtp`,
+`vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`,
+`gguf-tiered`, `exl3` — launches identically from a terminal with no display at
+all.
 
 Stdlib only, Python 3.9+, no GUI dependencies. Installed as
 `~/.local/bin/b70` by `packaging/install.sh`.
@@ -36,14 +38,14 @@ Stdlib only, Python 3.9+, no GUI dependencies. Installed as
 | `b70 stop [rid]` | stop an engine (`--all` for everything; no arg = the only running one) |
 | `b70 status` | GPUs (draw/cap/temp/clock/VRAM) + engines (status, load time, tok/s, tokens) |
 | `b70 monitor` | live dashboard on a TTY; one snapshot when piped (`-f` streams, `--once` single) |
-| `b70 logs <rid>` | engine log tail (`-f` follow, `-n` lines) |
-| `b70 test [rid|port] [prompt]` | smoke prompt end-to-end; latency + approx tok/s (prompt-only arg works with a single running engine) |
-| `b70 download <model> -e <eng>` | fetch the recipe artifact; progress bar to done |
-| `b70 open [ui|rid|port]` | open UI or engine endpoint; prints URL + SSH hint when headless |
+| `b70 logs <rid>` | engine log tail (`-f` follow by byte offset, `-n` lines, default 60) |
+| `b70 test [rid|port] [prompt]` | smoke prompt end-to-end; latency + approx tok/s (`--show-thinking` also prints the reasoning text) |
+| `b70 download <model> -e <eng>` | fetch the recipe artifact; size/space check first, then progress to done |
+| `b70 open [ui|rid|port]` | open UI or engine endpoint; prints the URL + SSH hint when headless |
 | `b70 env [rid]` | `export OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL_NAME` |
 | `b70 doctor` | render nodes, B70 identification, blockers, scan roots |
 | `b70 scan` | detected artifacts + per-recipe matches (`--roots a,b` to set roots) |
-| `b70 recipes-update [model]` | apply the published recipe catalog overlay |
+| `b70 recipes-update [model]` | apply the published recipe catalog overlay (`-e` limits it to one engine) |
 | `b70 version` | CLI / daemon / catalog versions |
 | `b70 completion bash` | bash completion script |
 
@@ -97,13 +99,14 @@ b70 test 'say ok'          # smoke-check the endpoint
 
 # control from another machine: tunnel, then point the CLI at the local end
 ssh -L 7570:127.0.0.1:7570 -L 8000:127.0.0.1:8000 b70host
-export B70_API=http://127.0.0.1:7570 B70_TOKEN=<token from b70host:~/.local/state/b70-launcher/token>
+export B70_API=http://127.0.0.1:7570 B70_TOKEN=<token from b70host:~/.local/state/b70-launcher/token-7570>
 b70 status --json | jq .
 ```
 
-`b70 open` prints the tokenized UI URL plus the matching `ssh -L` line when
-no display is present (`--print` forces it). `b70 env` output is
-`eval`-able: `eval "$(b70 env)"` gives local agents an OpenAI client.
+`b70 open` asks the daemon for a single-use nonce UI URL (`POST /api/window`,
+valid 30 s) and prints the matching `ssh -L` line when no display is present
+(`--print` forces it). `b70 env` output is `eval`-able: `eval "$(b70 env)"` gives
+local agents an OpenAI client.
 
 ## Environment
 
@@ -112,7 +115,7 @@ no display is present (`--print` forces it). `b70 env` output is
 | `B70_API` | daemon base URL (default `http://127.0.0.1:7570`) |
 | `B70_TOKEN` / `B70_TOKEN_FILE` | API token / token file path |
 | `B70_LAUNCHER` | launcher.py (or wrapper) used for auto-start |
-| `XDG_STATE_HOME` | moves the state dir (token, logs, servers-state) |
+| `XDG_STATE_HOME` | moves the state dir (`token-<port>`, logs, servers-state) |
 | `NO_COLOR` | disable ANSI color |
 
 ## Notes & edge cases
@@ -125,6 +128,12 @@ no display is present (`--print` forces it). `b70 env` output is
 - Launching a rid that's already up short-circuits with its endpoint — it
   never spawns a second engine.
 - Downloads resume via `.part` files; Ctrl+C on `b70 download` detaches —
-  the daemon keeps fetching.
+  the daemon keeps fetching. A repository whose file sizes cannot be read is
+  refused before the download starts, because the free-space check would be
+  meaningless without them.
+- `b70 logs -f` polls with a byte offset, so a rotated or truncated log cannot
+  replay lines you already saw.
+- `b70 test` reports the answer and the reasoning text separately and exits 1
+  when the engine returned reasoning only.
 - `b70 stop` understands "starting" engines too: mid-load launches are
   cancelled cleanly.

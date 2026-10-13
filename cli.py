@@ -29,7 +29,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-CLI_VERSION = "1.0.0"
+from b70launcher.paths import VERSION as CLI_VERSION
 API_TIMEOUT = 15
 
 # ── styling ──────────────────────────────────────────────────────────────
@@ -134,17 +134,19 @@ def state_dir():
     return (Path(xdg) if xdg else Path.home() / ".local" / "state") / "b70-launcher"
 
 
-def token_file():
+def token_file(port=None):
     override = os.environ.get("B70_TOKEN_FILE")
-    return Path(override) if override else state_dir() / "token"
+    if port is None:
+        port = urllib.parse.urlparse(os.environ.get("B70_API", "http://127.0.0.1:7570")).port or 7570
+    return Path(override) if override else state_dir() / f"token-{int(port)}"
 
 
-def read_token():
+def read_token(port=None):
     tok = os.environ.get("B70_TOKEN")
     if tok:
         return tok.strip()
     try:
-        return token_file().read_text().strip()
+        return token_file(port).read_text().strip()
     except OSError:
         return ""
 
@@ -158,7 +160,7 @@ class Client:
         u = urllib.parse.urlparse(self.api)
         if u.scheme not in ("http", "https") or not u.hostname:
             die(f"invalid daemon address {self.api!r} — expected http://host:port", code=2)
-        self.token = read_token() if token is None else token
+        self.token = read_token(self.port) if token is None else token
         self.timeout = timeout
 
     @property
@@ -262,7 +264,7 @@ def start_daemon(port, quiet=False):
         while time.time() < deadline:
             # readiness = the API actually answering — a stale token file or a
             # foreign squatter on the port must not count as "up"
-            tok = read_token()
+            tok = read_token(port)
             if tok:
                 try:
                     Client(api=f"http://127.0.0.1:{port}", token=tok) \
@@ -373,7 +375,7 @@ def resolve_rid(client, query, allow_port=True):
     """Map a rid / model name / bare port to a tracked server entry."""
     state = client.get("/api/state")
     running = [e for e in state.get("running", [])
-               if not str(e.get("status", "")).startswith(("stopped", "dry-run"))]
+               if e.get("status") != "stopped"]
     if not running:
         return None, state
     if not query:
@@ -403,7 +405,7 @@ def rid_or_die(client, query):
             hint="running: " + ", ".join(e["id"] for e in ent))
     if ent is None:
         running = [e["id"] for e in state.get("running", [])
-                   if e.get("status") in ("running", "starting", "running (adopted)")]
+                   if e.get("status") in ("running", "starting")]
         if not query:
             if running:
                 die("which engine? multiple are running",
@@ -585,10 +587,6 @@ def cmd_serve(g, a):
             print(f"  {dim('open it: b70 open    stop it: b70 down')}")
         return 0
     port = c.port
-    if a.kill:
-        subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True)
-        subprocess.run(["pkill", "-f", "webwindow.py"], capture_output=True)
-        time.sleep(0.5)
     if a.foreground:
         launcher = find_launcher()
         if not launcher:
@@ -651,7 +649,7 @@ def cmd_list(g, a):
     eng_meta = engines_by_id(recipes)
     matches = _detect_map(c)
     running = {e.get("id") for e in st.get("running", [])
-               if e.get("status") in ("running", "starting", "running (adopted)")}
+               if e.get("status") in ("running", "starting")}
     only_eng = a.engine
     if g.json:
         models = recipes.get("models", [])
@@ -824,12 +822,13 @@ def _wait_ready(c, rid, timeout):
             ent = next((e for e in st.get("running", []) if e.get("id") == rid), None)
             status = (ent or {}).get("status", "gone")
             note = (ent or {}).get("phase") or note
-            if status == "running" or status == "running (adopted)":
+            if status == "running":
                 w.done()
                 return ent or {}
             if status == "stopped" or status.startswith("exited"):
                 w.done()
-                raise CliError(f"engine exited during load (status: {status})")
+                reason = (ent or {}).get("error")
+                raise CliError(reason or f"engine exited during load (status: {status})")
             w.tick(note or "starting")
             time.sleep(1.2)
     except KeyboardInterrupt:
@@ -927,7 +926,7 @@ def cmd_launch(g, a):
     if not a.dry_run:
         prev = next((e for e in st.get("running", [])
                      if e.get("id") == rid_guess
-                     and e.get("status") in ("running", "starting", "running (adopted)")), None)
+                     and e.get("status") in ("running", "starting")), None)
         if prev:
             if g.json:
                 jprint({"id": rid_guess, "already_running": True,
@@ -939,6 +938,7 @@ def cmd_launch(g, a):
 
     if a.dry_run:
         cfg["dry_run"] = True
+    cfg["no_test"] = bool(getattr(a, "no_test", False))
 
     try:
         out = spin_while("preparing launch",
@@ -975,9 +975,6 @@ def cmd_launch(g, a):
         print(f"{OK} launch accepted: {bold(rid)}")
         print(f"  {dim('model')} {model_disp} · {cfg['engine']} · ctx {int(cfg.get('ctx') or 0) or 'recipe'}"
               f" · gpu{','.join(map(str, gpus))}")
-        if out.get("recipe_notice"):
-            n = out["recipe_notice"]
-            print(f"  {WARN} {yellow('newer recipe available: ' + str(n.get('remote_ver', '')))} — b70 recipes-update")
         if out.get("harness_line"):
             print(f"  {dim('client:')} {out['harness_line']}")
 
@@ -1004,22 +1001,37 @@ def cmd_launch(g, a):
             print(dim("  ── last log lines ──"), file=sys.stderr)
             for ln in lines[-12:]:
                 print("  " + dim(ln.rstrip()), file=sys.stderr)
-        print(f"  {dim('the engine may still be loading — watch:')} b70 logs {rid} -f",
-              file=sys.stderr)
+        if str(exc).startswith("timed out"):
+            print(f"  {dim('the engine may still be loading — watch:')} b70 logs {rid} -f",
+                  file=sys.stderr)
         return 1
 
     endpoint = ent.get("endpoint") or f"http://127.0.0.1:{port}/v1"
     load_s = ent.get("load_s")
-    served = ent.get("model") or model_disp
+    served = ent.get("served_name") or ent.get("model") or model_disp
+    test = ent.get("test") or {}
+    if not getattr(a, "no_test", False):
+        deadline = time.monotonic() + 130
+        while test.get("state") in ("pending", "running") and time.monotonic() < deadline:
+            time.sleep(.5)
+            fresh = c.get("/api/servers")
+            current = next((e for e in fresh.get("running", []) if e.get("id") == rid), None)
+            if current is None or current.get("status") != "running":
+                die("Server stopped before its answer check completed.")
+            test = current.get("test") or {}
+        if test.get("state") != "passed":
+            die(test.get("error") or "Answer check did not finish. Inspect the server logs.")
     if g.json:
         jprint({"id": rid, "ok": True, "endpoint": endpoint, "load_s": load_s,
-                "port": port, "model": served})
+                "port": port, "model": served, "test": test})
     else:
         print(f"{OK} {green(bold('serving'))} {bold(rid)}"
               + (f"  {dim('ready in ' + fmt_dur(load_s))}" if load_s else ""))
         print(f"  {dim('endpoint')}  {cyan(endpoint)}")
         print(f"  {dim('export')}    OPENAI_BASE_URL={endpoint}")
-        print(f"  {dim('         ')}  OPENAI_API_KEY=b70-local")
+        print(f"  {dim('         ')}  OPENAI_API_KEY=local-b70")
+        if test.get("state") == "passed":
+            print(f"  {OK} answered in {test.get('elapsed_s')}s")
         print(f"  {dim('next')}      b70 test {rid} · b70 open {port} · b70 stop {rid}")
     if a.open:
         _open_url(f"http://127.0.0.1:{port}", g, label="engine")
@@ -1032,7 +1044,7 @@ def cmd_stop(g, a):
     if a.all:
         st = c.get("/api/state")
         ids = [e["id"] for e in st.get("running", [])
-               if e.get("status") in ("running", "starting", "running (adopted)")]
+               if e.get("status") in ("running", "starting")]
         if not ids:
             if g.json:
                 jprint({"stopped": []})
@@ -1092,7 +1104,7 @@ def _print_status(payload):
     ver = st.get("version", "?")
     cat = st.get("recipes", {}).get("catalog_ver", "?")
     running = [e for e in st.get("running", [])
-               if e.get("status") not in ("stopped", "dry-run")]
+               if e.get("status") != "stopped"]
     print(bold(f"  b70-launcher {ver}  {dim('catalog ' + str(cat))}"))
 
     gpu_rows = _gpu_rows(metrics)
@@ -1115,8 +1127,8 @@ def _print_status(payload):
             rows.append([
                 e["id"], str(e.get("port") or "-"), s_disp, load,
                 f"{toks:.1f} t/s" if toks else "-",
-                str(m.get("requests", e.get("requests", 0))),
-                f"{m.get('tokens_in', e.get('tokens_in', 0))}/{m.get('tokens_out', e.get('tokens_out', 0))}",
+                f"{int(m.get('requests', e.get('requests', 0)) or 0):,}",
+                f"{int(m.get('tokens_in', e.get('tokens_in', 0)) or 0):,}/{int(m.get('tokens_out', e.get('tokens_out', 0)) or 0):,}",
             ])
         print()
         print(table(rows, ["SERVER", "PORT", "STATUS", "LOAD", "RATE", "REQS", "TOK IN/OUT"]))
@@ -1134,7 +1146,7 @@ def _status_json(payload):
     """One stable machine envelope for both `status` and `monitor`."""
     st = payload["state"]
     running = [e for e in st.get("running", [])
-               if e.get("status") not in ("stopped", "dry-run")]
+               if e.get("status") != "stopped"]
     return {"version": st.get("version"),
             "catalog_ver": st.get("recipes", {}).get("catalog_ver"),
             "running": running,
@@ -1177,31 +1189,22 @@ def cmd_monitor(g, a):
 
 def cmd_logs(g, a):
     c = daemon_client(g)
-    ent = rid_or_die(c, a.rid)
-    rid = ent["id"]
-
-    def fetch():
-        try:
-            return (c.get(f"/api/logs?id={urllib.parse.quote(rid)}") or {}).get("lines", [])
-        except CliError:
-            return []
-
-    lines = fetch()
+    rid = rid_or_die(c, a.rid)["id"]
+    result = c.get(f"/api/logs?id={urllib.parse.quote(rid)}")
     if g.json:
-        jprint({"id": rid, "lines": lines[-a.lines:]})
+        jprint(result)
         return 0
-    for ln in lines[-a.lines:]:
-        print(ln.rstrip())
+    for line in result.get("lines", [])[-a.lines:]:
+        print(line)
+    offset = result["offset"]
     if a.follow:
-        print(f"{dim('── following ' + rid + ' (Ctrl+C to stop) ──')}")
         try:
             while True:
                 time.sleep(1.5)
-                new = fetch()
-                if len(new) > len(lines):
-                    for ln in new[len(lines):]:
-                        print(ln.rstrip(), flush=True)
-                lines = new
+                result = c.get(f"/api/logs?id={urllib.parse.quote(rid)}&offset={offset}")
+                for line in result.get("lines", []):
+                    print(line, flush=True)
+                offset = result["offset"]
         except KeyboardInterrupt:
             pass
     return 0
@@ -1231,13 +1234,12 @@ def cmd_test(g, a):
             else:
                 hint = "running servers: " + ", ".join(e["id"] for e in running) \
                     if running else "nothing is running — launch one first: b70 launch <model>"
-                die(f"no server matches {q!r}", hint=hint)
+                die(f"no server matches {q!r}" if q else "nothing is running", hint=hint)
         port = ent.get("port")
         rid = ent["id"]
     if a.prompt:
         prompt_parts.append(a.prompt)
-    prompt = " ".join(prompt_parts) or \
-        "Why is dual Intel Arc Pro B70 effective for local MoE inference?"
+    prompt = " ".join(prompt_parts) or "Reply with exactly B70-OK."
     try:
         out = spin_while(
             f"{rid or 'port ' + str(port)} thinking",
@@ -1254,12 +1256,14 @@ def cmd_test(g, a):
             print(f"  {dim('engine log:')} b70 logs {rid}", file=sys.stderr)
         return 1
     toks = out.get("tokens") or 0
-    lat = out.get("latency_s") or 0
+    lat = out.get("elapsed_s") or 0
     rate = f"{toks / lat:.1f} tok/s approx" if lat else "-"
     print(f"{OK} {bold(rid or 'port ' + str(port))} answered in {lat}s ({toks} tok, {rate})")
     print(f"  {dim('model:')} {out.get('model')}")
     print()
-    print(out.get("reply", ""))
+    print(out.get("answer", ""))
+    if getattr(a, "show_thinking", False) and out.get("reasoning"):
+        print("\nReasoning:\n" + out["reasoning"])
     return 0
 
 
@@ -1278,7 +1282,17 @@ def cmd_download(g, a):
         die(f"recipe {model['id']}:{engine} has no downloadable artifact",
             hint="point a scan root at a local copy instead: b70 scan --roots")
     try:
-        out = c.post("/api/download", {"model_id": model["id"], "engine": engine})
+        plan = c.post("/api/download", {"model_id": model["id"], "engine": engine, "confirm": False}, timeout=60)
+        if not plan.get("enough"):
+            die(plan.get("error") or "Cannot verify download size and free space.")
+        if not g.json:
+            print(f"Download {human_gb(plan['size_bytes'] / 1048576)} to {plan['dest_dir']}; {human_gb(plan['free_bytes'] / 1048576)} free.")
+        if not getattr(a, "yes", False):
+            if not sys.stdin.isatty():
+                die("Download requires --yes when input is not a terminal.")
+            if input("Download these files? [y/N] ").strip().lower() not in ("y", "yes"):
+                return 0
+        out = c.post("/api/download", {"model_id": model["id"], "engine": engine, "confirm": True}, timeout=60)
     except CliError as exc:
         die(str(exc))
     if out.get("error"):
@@ -1302,7 +1316,7 @@ def cmd_download(g, a):
             if d.get("state") in terminal:
                 w.done()
                 break
-            note = f"{progress_bar(d.get('pct', 0))} {d.get('speed', '')} {d.get('eta', '')}"
+            note = f"{progress_bar(d.get('pct', 0))} {human_gb((d.get('speed') or 0) / 1048576)}/s · {fmt_dur(d.get('eta'))}"
             w.tick(note)
             time.sleep(1.0)
     except KeyboardInterrupt:
@@ -1352,8 +1366,7 @@ def cmd_open(g, a):
     c = daemon_client(g)
     target = (a.target or "ui").strip()
     if target.lower() in ("ui", "launcher", "web", "gui"):
-        tok = c.token or read_token()
-        url = f"{c.api}/?token={tok}"
+        url = c.post("/api/window", {})["url"]
         if g.json:
             # machine mode is side-effect-free — report the URL, opened=false
             jprint({"url": url, "opened": False})
@@ -1432,8 +1445,11 @@ def cmd_doctor(g, a):
     default = pf.get("default") or {}
     if default.get("model_id"):
         print(f"  {dim('suggested first launch:')} b70 launch {default['model_id']} -e {default.get('engine')}")
+    for index, device in enumerate(pf.get("devices", [])):
+        if device.get("busy"):
+            print(f"  {WARN} GPU {index} in use: {device.get('busy_by')}")
     if not pf.get("blockers"):
-        print(f"\n  {OK} no blockers — ready to launch")
+        print(f"\n  {OK} driver/access checks passed; model fit and free GPUs still need checking")
     return 0
 
 
@@ -1651,6 +1667,7 @@ def build_parser():
                    help="return immediately after the launch is accepted")
     s.add_argument("-t", "--timeout", type=int, default=900,
                    help="seconds to wait for the endpoint (default 900)")
+    s.add_argument("--no-test", action="store_true", help="skip the automatic answer check")
     s.add_argument("--open", action="store_true",
                    help="open the endpoint in a browser once serving")
     s.set_defaults(fn=cmd_launch)
@@ -1678,12 +1695,14 @@ def build_parser():
     s = add("test", help="send a smoke prompt to a running engine")
     s.add_argument("rid", nargs="?", help="server id or bare port (default: only running)")
     s.add_argument("prompt", nargs="?", help="prompt text")
+    s.add_argument("--show-thinking", action="store_true", help="also print reasoning text")
     s.set_defaults(fn=cmd_test)
 
     s = add("download", help="fetch a recipe artifact from Hugging Face")
     s.add_argument("model")
-    s.add_argument("-e", "--engine")
+    s.add_argument("-e", "--engine", help="engine recipe to download")
     s.add_argument("--no-wait", action="store_true")
+    s.add_argument("--yes", action="store_true", help="confirm download after its size and disk check")
     s.set_defaults(fn=cmd_download)
 
     s = add("open", help="open the UI or an engine endpoint")
