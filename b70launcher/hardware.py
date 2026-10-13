@@ -176,7 +176,7 @@ def gpu_clients():
         return CLIENT_CACHE["data"]
     code = r'''
 import glob,json,os,re
-desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|slack|code|electron|discord|obsidian|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-desktop-portal|gsd-|at-spi|dbus-daemon)",re.I)
+desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-desktop-portal|gsd-|at-spi|dbus-daemon)",re.I)
 procs=[];desktop_ids=set()
 for proc in glob.glob("/proc/[0-9]*"):
  try:
