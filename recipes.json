@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-07",
+ "catalog_ver": "2026-10-13",
  "engines": [
   {
    "id": "openvino",
@@ -455,6 +455,77 @@
    ],
    "recommended_engine": "vllm",
    "recommendation": "Requires 2× B70. Maximum throughput using vLLM TP2 tensor parallelism across both cards with FP8 KV cache."
+  },
+  {
+   "id": "qwen38-27b-sc5",
+   "name": "Qwen3.8-27B SC5",
+   "arch": "Dense 27B · EXL3 mixed-bit",
+   "blurb": "Quality pick: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) trellis on the patched exl3xpu-mixedk image — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed.",
+   "badge": "QUALITY PICK · EXL3 MIXED-BIT",
+   "tags": [
+    {
+     "t": "Quality pick",
+     "c": "violet"
+    },
+    {
+     "t": "~0.89x plain 4.0 speed",
+     "c": "amber"
+    },
+    {
+     "t": "Single B70 · 230W",
+     "c": "green"
+    }
+   ],
+   "recipes": {
+    "exl3": {
+     "kind": "exl3",
+     "model_path": "~/models/Qwen3.8-27B-exl3-SC5",
+     "search_name": "qwen3.8-27b exl3 sc5",
+     "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
+     "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261012c@sha256:7bb0c5cfed8a35da8f4db0034338d8dbe5f53731253d96ea8f1db2b5bddd4a40",
+     "docker_sock": "/run/b70-exl3-docker.sock",
+     "inner_port": 8100,
+     "ctx": 65536,
+     "ctx_max": 65536,
+     "ctx_safe": 16384,
+     "ctx_note": "configured max_model_len 65,536 @ gmu 0.90 (fp8 KV, FULL_DECODE_ONLY graphs, MTP3); longest tested prompt 8,162 tokens — beyond that is unverified",
+     "power": 230,
+     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts",
+     "download": {
+      "kind": "snapshot",
+      "repo": "turboderp/Qwen3.8-27B-exl3",
+      "revision": "dfe2f4fd71bf9a1994051d4d47e6460fa96dd723",
+      "search": "qwen3.8-27b exl3 sc5",
+      "match": [
+       "sc_5.00bpw",
+       "sc5"
+      ],
+      "prefer": [
+       "sc_5.00bpw",
+       "sc5"
+      ],
+      "quant": "EXL3 SC_5.00bpw_H6 (mixed K 4-7)",
+      "verify": [
+       "quantization_config.json",
+       "config.json"
+      ],
+      "note": "Branch SC_5.00bpw_H6 of the same repo — the snapshot lands as Qwen3.8-27B-exl3; rename it to Qwen3.8-27B-exl3-SC5 so it coexists with the plain 4.00bpw snapshot."
+     },
+     "recipe_note": "New: Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7) — quality pick over plain 4.00bpw at ~0.89x decode on a single B70.",
+     "recipe_ver": "2026-10-13",
+     "ver": "2026-10-13"
+    }
+   },
+   "brand": "qwen",
+   "subtitle": "Dense 27B  •  EXL3 mixed-bit quality pick",
+   "chips": [
+    "LLM",
+    "Instruct",
+    "~20 GB",
+    "EXL3 SC5"
+   ],
+   "recommended_engine": "exl3",
+   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, validated to 8K-token prompts."
   },
   {
    "id": "nemotron-35",

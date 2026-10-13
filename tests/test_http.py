@@ -141,7 +141,7 @@ class TestServer(unittest.TestCase):
         expected = re.search(r'^VERSION = "([^"]+)"',
                              (ROOT / "launcher.py").read_text(), re.M).group(1)
         self.assertEqual(body["version"], expected)
-        self.assertEqual(len(body["recipes"]["models"]), 9)
+        self.assertEqual(len(body["recipes"]["models"]), 10)
         self.assertIn("settings", body)
         self.assertIn("preflight", body)
         self.assertIn("blockers", body["preflight"])
