@@ -1189,6 +1189,7 @@
   /* Context Presets */
   .ctx-presets-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin-top: 4px;
     margin-bottom: 12px;
@@ -1203,10 +1204,18 @@
     cursor: pointer;
     transition: border-color 0.15s, background-color 0.15s, color 0.15s;
   }
-  .ctx-preset-chip:hover {
+  .ctx-preset-chip:hover:not(:disabled) {
     border-color: var(--accent);
     color: #fff;
   }
+
+  .ctx-preset-chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+  .ctx-preset-chip:disabled { opacity: .35; cursor: not-allowed; }
+  .ctx-preset-chip:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
 
   /* Browse & Artifacts Modal */
   .artifact-list-box {
@@ -1828,6 +1837,15 @@
           <input type="number" id="ctx" step="1024" min="2048" max="1048576" value="262144" aria-label="Context size in tokens" />
         </div>
         <div class="ctx-subtext" id="ctx-subtext">Set from the model (recommended)</div>
+        <div class="ctx-presets-row" role="group" aria-label="Context size presets">
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="8192" aria-pressed="false" onclick="setCtxPreset(8192)">8K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="16384" aria-pressed="false" onclick="setCtxPreset(16384)">16K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="32768" aria-pressed="false" onclick="setCtxPreset(32768)">32K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="65536" aria-pressed="false" onclick="setCtxPreset(65536)">64K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="98304" aria-pressed="false" onclick="setCtxPreset(98304)">96K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="131072" aria-pressed="false" onclick="setCtxPreset(131072)">128K</button>
+          <button type="button" class="ctx-preset-chip ctx-size-preset" data-tokens="262144" aria-pressed="false" onclick="setCtxPreset(262144)">256K</button>
+        </div>
         <div class="ctx-presets-row">
           <button class="ctx-preset-chip" id="ctx-safe-btn" onclick="setCtxSafe()">Safe</button>
           <button class="ctx-preset-chip" id="ctx-max-btn" onclick="setCtxMax()">Max</button>
@@ -2953,9 +2971,7 @@ function updateConfigView() {
   $("ctx").value = window.CTX_SAFE;
   $("ctx-safe-btn").textContent = "Safe · " + window.CTX_SAFE.toLocaleString();
   $("ctx-max-btn").textContent = "Max · " + ceiling.toLocaleString();
-  $("ctx-subtext").textContent = ceiling < 262144
-    ? "Engine ceiling: " + ceiling.toLocaleString() + " (model native: 262,144)"
-    : "Full model context supported: " + ceiling.toLocaleString();
+  $("ctx-subtext").textContent = "Limit: " + ceiling.toLocaleString() + " tokens, including the answer. Changes apply on the next launch.";
 
   // Recipe notes — only claim dual-GPU when the recipe actually uses 2 cards
   const gpuCount = detectedGpuCount();
@@ -3000,6 +3016,7 @@ function updateSummary() {
 
   const ctxVal = parseInt($("ctx").value || 262144, 10);
   $("sum-ctx").textContent = ctxVal.toLocaleString();
+  updateCtxPresets();
 
   // Honest model-file status in the summary
   const detInfo = (SC[SEL.id] && SC[SEL.id][ENGINE]) || {};
@@ -3512,6 +3529,23 @@ function setSizeFilter(size, label) {
   });
   setDropOpen('size-dropdown', 'flt-size', false);
   renderModels();
+}
+
+function updateCtxPresets() {
+  const selected = Number($("ctx").value);
+  const ceiling = Number($("ctx").max);
+  document.querySelectorAll(".ctx-size-preset").forEach(button => {
+    const tokens = Number(button.dataset.tokens);
+    button.disabled = tokens < Number($("ctx").min) || tokens > ceiling;
+    button.setAttribute("aria-pressed", String(tokens === selected));
+    button.title = button.disabled ? "Outside this recipe's context range" : tokens.toLocaleString() + " tokens";
+    button.setAttribute("aria-label", tokens.toLocaleString() + " context tokens");
+  });
+}
+function setCtxPreset(tokens) {
+  if (tokens < Number($("ctx").min) || tokens > Number($("ctx").max)) return;
+  $("ctx").value = tokens;
+  updateSummary();
 }
 
 function setCtxSafe() { $("ctx").value = window.CTX_SAFE || 65536; updateSummary(); }
