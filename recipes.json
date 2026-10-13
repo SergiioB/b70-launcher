@@ -492,7 +492,7 @@
      "ctx": 65536,
      "ctx_max": 65536,
      "ctx_safe": 16384,
-     "ctx_note": "configured max_model_len 65,536 @ gmu 0.90 (fp8 KV, FULL_DECODE_ONLY graphs, MTP3); longest tested prompt 8,162 tokens — beyond that is unverified",
+     "ctx_note": "configured max_model_len 65,536 @ gmu 0.90 (fp8 KV, FULL_DECODE_ONLY graphs, MTP3); checked to 8,162-token prompts and a 4-turn prefix-cache session up to 15,600 tokens — longer is unverified",
      "power": 230,
      "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts",
      "download": {
@@ -530,7 +530,7 @@
     "EXL3 SC5"
    ],
    "recommended_engine": "exl3",
-   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, validated to 8K-token prompts."
+   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, checked to 15.6K-token multi-turn sessions."
   },
   {
    "id": "nemotron-35",

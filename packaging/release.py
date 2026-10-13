@@ -28,7 +28,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 ROOT = Path(__file__).resolve().parent.parent
 NAME = f"b70-launcher-{VERSION}-linux-source"
 

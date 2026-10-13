@@ -55,7 +55,7 @@ from pathlib import Path
 
 import appwindow
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 UPDATE_URL = os.environ.get("B70_UPDATE_URL", "https://xecores.com/downloads/version.json")
 UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"}
@@ -2772,13 +2772,14 @@ def _pid_for_native(port, model_hint=""):
     return None
 
 
-def docker_containers_status(cnames):
+def docker_containers_status(cnames, docker_sock=""):
     """cname -> {'running': bool, 'exitcode': int|None}; None when docker is unreachable."""
     if not cnames or IS_WIN or not shutil.which("docker"):
         return None
+    docker_cmd = ["docker"] + (["-H", f"unix://{docker_sock}"] if docker_sock else [])
     try:
         fmt = "{{.Name}}|{{.State.Running}}|{{.State.ExitCode}}"
-        r = subprocess.run(["docker", "inspect", "--format", fmt, *cnames],
+        r = subprocess.run(docker_cmd + ["inspect", "--format", fmt, *cnames],
                            capture_output=True, text=True, timeout=15)
     except Exception:
         return None
@@ -2797,13 +2798,24 @@ def servers_snapshot():
         for p in TRANSIENT_PROCS[:]:  # reap closed terminals/browsers (no zombies)
             if p.poll() is not None:
                 TRANSIENT_PROCS.remove(p)
-    docker_names = {e.get("cname") for _, e in tracked
-                    if e.get("cname") and not e.get("native")}
+    # containers live on the default daemon or on a recipe's isolated daemon
+    # (exl3); inspect each name on the socket that started it
+    sock_groups = {}
+    for _, e in tracked:
+        if e.get("cname") and not e.get("native"):
+            recipe = (find_model(e.get("model_id") or "") or {}).get("recipes", {}).get(
+                e.get("engine") or (e.get("cfg") or {}).get("engine") or "", {})
+            sock_groups.setdefault(recipe.get("docker_sock", ""), set()).add(e["cname"])
     dstat = None
-    if docker_names:
+    if sock_groups:
         if time.time() - CONTAINER_CACHE["ts"] > 5:
-            CONTAINER_CACHE.update({"data": docker_containers_status(sorted(docker_names)),
-                                    "ts": time.time()})
+            merged, reachable = {}, False
+            for sock, names in sock_groups.items():
+                part = docker_containers_status(sorted(names), sock)
+                if part is not None:
+                    reachable = True
+                    merged.update(part)
+            CONTAINER_CACHE.update({"data": merged if reachable else None, "ts": time.time()})
         dstat = CONTAINER_CACHE["data"]
     items = []
     exited_now = []

@@ -556,6 +556,25 @@ class TestLoadPhases(LauncherStateCase):
         self.assertIsNotNone(e["ready_at"])
         self.assertGreaterEqual(items["ready1"]["load_s"], 29)
 
+    def test_container_status_uses_recipe_docker_sock(self):
+        # exl3 containers run on an isolated daemon; inspecting them on the
+        # default daemon reported "exited" while the engine was serving
+        from unittest import mock
+        e = self._entry("exl3sc5", free_port(), "")
+        e.update({"native": False, "pid": None, "cname": "b70-qwen38-27b-sc5-exl3",
+                  "model_id": "qwen38-27b-sc5", "engine": "exl3", "status": "starting"})
+        launcher.RUNNING["exl3sc5"] = e
+        launcher.CONTAINER_CACHE.update({"data": {}, "ts": 0.0})
+        calls = []
+
+        def fake_status(names, sock=""):
+            calls.append(sock)
+            return {n: {"running": True, "exitcode": "0"} for n in names} if sock else {}
+        with mock.patch.object(launcher, "docker_containers_status", side_effect=fake_status):
+            items = {i["id"]: i for i in launcher.servers_snapshot()}
+        self.assertEqual(calls, ["/run/b70-exl3-docker.sock"])
+        self.assertNotIn("exited", items["exl3sc5"]["status"])
+
 
 if __name__ == "__main__":
     unittest.main()
