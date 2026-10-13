@@ -330,6 +330,18 @@ class TestPrepareCustom(LauncherStateCase):
         with self.assertRaises(common.BuildError):
             builders.prepare_custom({"custom_path": str(d), "engine": "vllm"})
 
+    def test_exl3_image_follows_tensor_bit_widths(self):
+        def exl3_dir(name, ks):
+            d = self.root / name
+            write_file(d / "config.json", b"{}")
+            storage = {f"l{i}": {"quant_format": "exl3", "stored_tensors": {
+                f"l{i}.trellis": {"shape": [8, 8, 16 * k]}}} for i, k in enumerate(ks)}
+            write_file(d / "quantization_config.json", json.dumps(
+                {"quant_method": "exl3", "tensor_storage": storage}).encode())
+            return builders.prepare_custom({"custom_path": str(d), "engine": "exl3"})[0]["recipes"]["exl3"]["image"]
+        self.assertIn("0xsero/exl3xpu", exl3_dir("plain", [4, 4, 6]))
+        self.assertIn("exl3xpu-mixedk", exl3_dir("sc5", [4, 5, 7]))
+
     def test_unknown_file_type_rejected(self):
         f = write_file(self.root / "readme.txt")
         with self.assertRaises(common.BuildError):

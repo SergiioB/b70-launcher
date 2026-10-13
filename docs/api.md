@@ -80,18 +80,34 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "recipes":  "merged catalog: recipes.json + recipes-remote.json overlay + recipe_overrides",
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see POST /api/launch"],
-  "version":  "0.6.1",
+  "version":  "0.6.2",
   "is_win":   false,
   "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
-  "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
+"recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
   "recipes_remote": {"checked": true, "catalog_ver": "2026-10-13", "recipes_url": "...", "entries": {"<model_id>:<engine>": {"ver", "note", "recommended"}}},
+  "clients": {"pi": {"installed", "openable"}, "omp": {...}, "droid": {...},
+              "webui": {"installed", "openable", "url", "detail"},
+              "none": {"installed": true, "openable": true},
+              "terminal": {"installed", "name"}, "display": {"available", "reason"}},
+  "custom_templates": {"llamacpp": {...}, "openvino": {...}, "vllm": {...}, "exl3": {...}},
   "preflight": {"devices": [...], "blockers": [...], "blockers_by_kind": {"native": [], "docker": [], "exl3": []},
                 "notes": ["..."], "profile": {"b70_count": 1, "cards": [...]},
                 "default": {"model_id", "engine", "reason", "gpus": [0]}},
-  "scan": {"state": "idle|scanning|done", "ts": 0, "roots": ["..."]}
-}
-```
+  "scan": {"state": "idle|scanning|done", "ts": 0, "roots": ["..."]}}
+ ```
 
+`clients` reports which target applications this machine can open right now
+(cached ~10 s): `installed` = binary present (`webui`: a server answered on
+localhost:3000), `openable` = a GUI display is reachable. `custom_templates`
+is `builders.CUSTOM_TEMPLATES` verbatim, so clients don't duplicate engine
+defaults. Server entries in `running` additionally carry the launch-time
+recipe snapshot — `quant`, `variant`, `found_name`, `custom`, `recipe_ver`,
+`ctx_source`, `detected_path`, `artifact_mib`, `client` (target app), and
+`client_open` (timestamp of the last successful app open) — plus `ready`
+(true exactly when `status` is `running`, i.e. the endpoint answered
+`/v1/models`). These fields never change after launch: later catalog, scan
+or settings edits do not rewrite an existing session (`served_name` is the
+one exception — the engine reports it at first ready).
 Preflight is cached for 10 s (`hardware.PREFLIGHT_CACHE`); `runtime.preflight()`
 re-runs `enrich_busy` on top so the `busy`/`busy_by` fields are current. A B70 is
 identified by PCI ID `8086:e223` + subsystem `8086:1701`.
@@ -108,13 +124,17 @@ scan).
   "roots": ["/home/user/models"],
   "catalog": [{"kind": "gguf|openvino|vllm|exl3", "name", "path", "size_mib", "ctx"}],
   "free_gb": 111.0,
-  "matches": {"<model_id>": {"<engine>": {"detected": true, "path": "...", "size_mib": 21504.0, "ctx_native": 131072}}}
+  "matches": {"<model_id>": {"<engine>": {"detected": true, "path": "...", "size_mib": 21504.0, "ctx_native": 131072, "reason": ""}}}
 }
 ```
 
 `catalog` is every artifact found under the scan roots (depth 8, 90 s budget,
 dot-dirs and common junk skipped). `free_gb` is free space on the `models_dir`
-filesystem. `error` carries partial-scan notes.
+filesystem. `error` carries partial-scan notes. Each match's `reason` is `""`
+when `detected` is true, `"incompatible: …"` when a same-family artifact exists
+on disk but no variant satisfies the recipe (wrong format, quantization pin,
+sidecar, or a sibling another recipe owns), and `"not downloaded"` when nothing
+matching is on disk.
 
 ### `GET /api/power`
 
@@ -208,8 +228,9 @@ is kept as an alias.
 ```json
 {"cmd", "tokens", "env", "warnings", "operator_hold", "cname", "docker_sock",
  "endpoint", "served_name", "model_name", "engine", "kind", "rid", "gpus",
- "ctx", "ctx_source", "detected", "detected_path", "native",
- "effective_binary", "artifact_mib", "harness_line"}
+ "ctx", "ctx_source", "quant", "variant", "found_name", "custom", "recipe_ver",
+ "detected", "detected_path", "native", "effective_binary", "artifact_mib",
+ "harness_line"}
 ```
 
 or `{"error", "warnings"}` (unknown model+engine, unknown recipe kind, or a
@@ -287,7 +308,9 @@ state; a Docker refusal raises → `400 {"error": "Stop failed: ..."}`.
 completion to `127.0.0.1:<port>` with `temperature 0`, `enable_thinking: false`,
 and `max_tokens` 512 by default (120 s timeout). The `id` is looked up in the
 running table; otherwise the port is used (default 8000). A port outside
-1-65535 → `400`.
+1-65535 → `400`. An id/port resolving to a server that is not `running`
+returns `ok: false` without dialing the endpoint:
+`"Server <id> is <status> (<phase>); the endpoint is not ready yet."`
 
 ```json
 {"ok", "answer", "reasoning", "finish_reason", "http_status", "elapsed_s",
@@ -302,14 +325,18 @@ only when `answer` is non-empty. A reasoning-only reply fails with
 
 ### `POST /api/harness`
 
-`{"id"|"port", "harness"?, "harness_cmd"?}` → `{"line", "opened": true}`. The id
-(or fallback port) must name a server whose status is `running`, otherwise
+`{"id"|"port", "harness"?, "harness_cmd"?}` → `{"line", "opened", "client"}`.
+The id (or fallback port) must name a server whose status is `running`, otherwise
 `400 {"error": "Choose a ready server to open a client."}`. `line` is the shell
 line that was spawned with `OPENAI_BASE_URL` / `OPENAI_API_KEY` /
 `OPENAI_MODEL_NAME`; the client is `pi`, `omp`, `droid`, `webui`
-(`xdg-open http://localhost:3000`), or `none` (line only). Terminal preference:
-kitty, gnome-terminal, xfce4-terminal, x-terminal-emulator, xterm; no terminal →
-`400`. `harness_cmd` overrides the command text. Client ids are fixed in
+(`xdg-open http://localhost:3000`), or `none` (line only, `opened: false`).
+Server readiness and app-open success are separate facts: a headless session
+(no `DISPLAY`/`WAYLAND_DISPLAY`), a missing terminal (kitty, gnome-terminal,
+xfce4-terminal, x-terminal-emulator, xterm — otherwise `400`), or a client
+that exits nonzero within ~1.2 s raises `400` with the exact reason while the
+server stays ready. A successful open stamps `client_open` on the server
+entry. `harness_cmd` overrides the command text. Client ids are fixed in
 `harness.harness_line`; `settings.harnesses[]` is not consulted.
 
 ### `POST /api/recipes/update`

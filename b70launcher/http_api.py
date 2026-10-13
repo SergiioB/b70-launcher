@@ -29,9 +29,11 @@ def scan_response():
     for model in catalog.RECIPES.get('models', []):
         matches[model['id']] = {}
         for engine in model['recipes']:
-            det = scan.detect(model, engine) or {}
+            det, reason = scan.detect_status(model, engine)
+            det = det or {}
             matches[model['id']][engine] = {'detected': bool(det), 'path': det.get('path'),
-                                           'size_mib': det.get('size_mib'), 'ctx_native': det.get('ctx')}
+                                           'size_mib': det.get('size_mib'), 'ctx_native': det.get('ctx'),
+                                           'reason': reason}
     probe = Path(catalog.SETTINGS.get('models_dir') or '~').expanduser()
     while not probe.is_dir() and probe != probe.parent:
         probe = probe.parent
@@ -49,7 +51,9 @@ def state_response():
             'version': paths.VERSION, 'is_win': paths.IS_WIN,
             'update': dict(catalog.UPDATE_INFO, install=selfupdate.status()),
             'recipe_notices': catalog.recipe_notices(), 'recipes_remote': catalog.RECIPE_REMOTE,
-            'preflight': runtime.preflight(), 'scan': {'state': scan.SCAN.get('state'), 'ts': scan.SCAN.get('ts'), 'roots': scan.SCAN.get('roots', [])}}
+            'preflight': runtime.preflight(), 'scan': {'state': scan.SCAN.get('state'), 'ts': scan.SCAN.get('ts'), 'roots': scan.SCAN.get('roots', [])},
+            'clients': harness.clients_available(),
+            'custom_templates': builders.CUSTOM_TEMPLATES}
 
 
 def _settings(cfg):
@@ -158,7 +162,8 @@ def _harness(cfg):
     if not entry or entry.get('status') != 'running':
         raise ValueError('Choose a ready server to open a client.')
     cfg = dict(cfg, port=entry['port'])
-    return {'line': harness.open_harness(cfg, entry), 'opened': True}
+    # open_harness reports the app-open outcome; readiness was gated above
+    return harness.open_harness(cfg, entry)
 
 
 GET_ROUTES = {

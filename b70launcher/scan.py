@@ -81,6 +81,25 @@ def read_quant_method(model_dir):
     return None
 
 
+def read_exl3_bits(model_dir):
+    """Set of trellis bit widths (K) in an EXL3 artifact, from
+    quantization_config.json tensor_storage (trellis last dim = 16*K).
+    Empty when the file is missing or unreadable."""
+    import json
+    try:
+        qc = json.loads((Path(model_dir) / "quantization_config.json").read_text())
+        ks = set()
+        for entry in (qc.get("tensor_storage") or {}).values():
+            if not isinstance(entry, dict) or entry.get("quant_format") != "exl3":
+                continue
+            for name, meta in (entry.get("stored_tensors") or {}).items():
+                if name.endswith(".trellis"):
+                    ks.add(int(meta["shape"][-1]) // 16)
+        return ks
+    except Exception:
+        return set()
+
+
 def _walk_root(root, items, deadline):
     """Depth-limited iterative walk; returns False when the time budget ran out.
 
@@ -250,11 +269,12 @@ def _first_nonempty(*vals):
     return ""
 
 
-def detect(model, engine):
+def _detect_impl(model, engine):
     """Match a recipe to an on-disk artifact: exact identity first, else same
-    model family filtered by format/quant."""
+    model family filtered by format/quant. Returns (detection, reason)."""
     if not model:
-        return None
+        return None, "no such model in the catalog"
+
     items = SCAN.get("items") or {"gguf": {}, "snapshots": {}}
     r = model["recipes"].get(engine, {})
     dl = r.get("download", {})
@@ -309,49 +329,77 @@ def detect(model, engine):
                         continue
                     actual_quant = read_quant_method(dp)
                     if want_quant and actual_quant and actual_quant != str(want_quant).lower():
-                        continue
+                        return None, (f"incompatible: recipe path {dp} holds {actual_quant} weights, "
+                                      f"this recipe pins {str(want_quant).lower()}")
                 cfg_f = dp / "config.json" if dp.is_dir() else None
                 c_val = read_ctx_from_config(cfg_f) if cfg_f and cfg_f.is_file() else r.get("ctx")
                 akind = "openvino" if engine == "openvino" else ("exl3" if engine == "exl3" else "vllm")
-                return wrap(dp.name, str(dp) if dp.is_file() else {"path": str(dp), "ctx": c_val, "kind": akind}, True)
+                return wrap(dp.name, str(dp) if dp.is_file() else {"path": str(dp), "ctx": c_val, "kind": akind}, True), ""
 
     if want and want in pool:
-        return wrap(want, pool[want], True)
+        return wrap(want, pool[want], True), ""
     prefer = [_norm(p) for p in _as_list(dl.get("prefer"))]
     exclude = [_norm(x) for x in _as_list(dl.get("exclude")) if _norm(x)]
     cands = []
+    near = []  # family artifacts that exist on disk but cannot serve this recipe
     for name, hit in pool.items():
+        nn = _norm(name)
+        family = bool(keys and any(k in nn for k in keys))
         if dl.get("kind") != "file" and isinstance(hit, dict):
             eng_kind = {"openvino": "openvino", "exl3": "exl3"}.get(engine, "vllm")
             if hit.get("kind") and hit.get("kind") != eng_kind:
+                if family:
+                    near.append(f"\"{name}\" is a {hit['kind']} artifact, this engine serves {eng_kind}")
                 continue
             # quant-pinned recipes never match an artifact whose recorded
             # quantization method differs (audit M2). An artifact that does
             # not record one falls through to the prefer/exclude filters.
             if want_quant and hit.get("quant_method") \
                     and hit["quant_method"] != str(want_quant).lower():
+                if family:
+                    near.append(f"\"{name}\" is {hit['quant_method']}, this recipe pins {str(want_quant).lower()}")
                 continue
-        nn = _norm(name)
         if name.startswith("mmproj"):
             continue  # vision sidecar is never the model itself
         # speculative-decoding draft sidecars (DFlash/MTP) are never the
         # serving artifact — a 1 GB draft must not satisfy a 20 GB model
         want_norm = _norm(want or _first_nonempty(*_as_list(dl.get("search"))) or "")
         if ("dflash" in nn or "draft" in nn) and "dflash" not in want_norm and "draft" not in want_norm:
+            if family:
+                near.append(f"\"{name}\" is a speculative-decoding draft sidecar, not the serving artifact")
             continue
         if prefer and not any(p in nn for p in prefer):
+            if family:
+                near.append(f"\"{name}\" is not one of the artifact formats this recipe serves")
             continue  # right model, wrong artifact format for this engine
         if any(x in nn for x in exclude):
-            continue  # sibling artifact of the same repo that another recipe owns
-        if keys and any(k in nn for k in keys):
+            if family:
+                near.append(f"\"{name}\" is a sibling artifact another recipe owns (recipe excludes it)")
+            continue
+        if family:
             score = sum(1 for p in prefer if p and p in nn) - len(nn) / 1000.0
             cands.append((score, name, hit))
     if cands:
         cands.sort(key=lambda t: (-t[0], t[1]))
         _, name, hit = cands[0]
         exact = (name == want) if want else (_norm(name) in ident)
-        return wrap(name, hit, exact)
-    return None
+        return wrap(name, hit, exact), ""
+    if near:
+        return None, "incompatible: " + "; ".join(dict.fromkeys(near))
+    return None, "not downloaded"
+
+
+def detect(model, engine):
+    """Match a recipe to an on-disk artifact (None when nothing matches)."""
+    return _detect_impl(model, engine)[0]
+
+
+def detect_status(model, engine):
+    """(detection, reason) for the library's local/download/incompatible state.
+    reason is "" when detected, "incompatible: …" when a family artifact
+    exists on disk but no variant satisfies the recipe, "not downloaded"
+    when nothing matching is on disk."""
+    return _detect_impl(model, engine)
 
 
 def resolve_ctx(model, engine, det):

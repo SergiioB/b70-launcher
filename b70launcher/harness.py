@@ -5,9 +5,10 @@ import re
 import shlex
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from . import catalog, paths, runtime
-from .locks import STATE_LOCK
+from .locks import LOCK, STATE_LOCK
 
 
 def sync_harness_configs(port=8000, model_name="", model_id="", engine="", ctx=32768):
@@ -92,20 +93,75 @@ def harness_line(cfg, built, write_sync=False):
     raise ValueError("Choose Pi, omp, Droid, Web UI or no client.")
 
 
+TERMINALS = ("kitty", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator", "xterm")
+_CLIENTS_CACHE = {"ts": 0.0, "data": {}}
+
+
+def _display_ok():
+    """A GUI is reachable (X11 or Wayland). Headless sessions cannot open
+    terminals or browsers even when every binary is installed."""
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def clients_available():
+    """Which target clients this machine can actually open right now.
+    Cached briefly: /api/state polls this. webui is an external app the
+    launcher does not manage — availability is a live port probe, cached."""
+    import socket as _socket
+    now = time.monotonic()
+    if now - _CLIENTS_CACHE["ts"] < 10:
+        return _CLIENTS_CACHE["data"]
+    term = None
+    for name in TERMINALS:
+        binary = shutil.which(name)
+        if binary:
+            term = name
+            break
+    webui = False
+    try:
+        with _socket.create_connection(("127.0.0.1", 3000), timeout=.3):
+            webui = True
+    except OSError:
+        pass
+    display = _display_ok()
+    data = {
+        "pi": {"installed": bool(shutil.which("pi")), "openable": display},
+        "omp": {"installed": bool(shutil.which("omp")), "openable": display},
+        "droid": {"installed": bool(shutil.which("droid")), "openable": display},
+        "webui": {"installed": webui, "openable": display,
+                  "url": "http://localhost:3000",
+                  "detail": "" if webui else "no server answered on localhost:3000"},
+        "none": {"installed": True, "openable": True},
+        "terminal": {"installed": bool(term), "name": term or ""},
+        "display": {"available": display,
+                    "reason": "" if display else "no DISPLAY/WAYLAND_DISPLAY in this session — "
+                                                 "copy the client command instead"},
+    }
+    _CLIENTS_CACHE.update(ts=now, data=data)
+    return data
+
+
 def open_harness(cfg, built):
+    """Open the target client for a READY server. Returns {line, opened,
+    client}: opened is True only when a client process was actually spawned —
+    server readiness (the caller's gate) and app-open success stay separate
+    facts, and failures raise ValueError with the exact reason."""
     if built.get("status") != "running":
         raise ValueError("Wait for this server to be ready before opening a client.")
     client = cfg.get("harness") or catalog.SETTINGS.get("open_with", "pi")
     line = harness_line(cfg, built)
     if client == "none":
-        return line
+        return {"line": line, "opened": False, "client": "none"}
+    if not _display_ok():
+        raise ValueError("No display available in this session (headless) — the server is ready; "
+                         "copy the client command and run it where you have a GUI.")
     if paths.IS_WIN:
         argv = catalog.SETTINGS["terminal_windows"] + [line]
     elif client == "webui":
         argv = ["xdg-open", "http://localhost:3000"]
     else:
         argv = None
-        for name in ("kitty", "gnome-terminal", "xfce4-terminal", "x-terminal-emulator", "xterm"):
+        for name in TERMINALS:
             binary = shutil.which(name)
             if not binary:
                 continue
@@ -121,5 +177,19 @@ def open_harness(cfg, built):
             break
         if argv is None:
             raise ValueError("No terminal found. Copy the client command and run it in a terminal.")
-    runtime.TRANSIENT_PROCS.append(subprocess.Popen(argv))
-    return line
+    proc = subprocess.Popen(argv)
+    runtime.TRANSIENT_PROCS.append(proc)
+    try:
+        # terminal emulators legitimately fork+exit 0; a nonzero immediate
+        # exit is a real open failure and must not be reported as success
+        rc = proc.wait(timeout=1.2)
+    except subprocess.TimeoutExpired:
+        rc = None
+    with LOCK:
+        entry = runtime.RUNNING.get(built.get("id", ""))
+        if entry is not None:
+            entry["client_open"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    if rc not in (None, 0):
+        raise ValueError(f"Client ({client}) exited immediately with code {rc} — "
+                         "copy the client command and run it in a terminal.")
+    return {"line": line, "opened": True, "client": client}

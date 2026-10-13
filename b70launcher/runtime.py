@@ -116,6 +116,11 @@ def launch(cfg, built):
              "model": built["model_name"], "model_name": built["model_name"],
              "served_name": built["served_name"], "engine": built["engine"], "kind": built["kind"],
              "cfg": dict(cfg), "gpus": list(built["gpus"]), "ctx": built["ctx"],
+             "quant": built.get("quant", ""), "variant": bool(built.get("variant")),
+             "found_name": built.get("found_name", ""), "custom": bool(built.get("custom")),
+             "recipe_ver": built.get("recipe_ver", ""), "ctx_source": built.get("ctx_source", ""),
+             "detected_path": built.get("detected_path"), "artifact_mib": built.get("artifact_mib"),
+             "client": cfg.get("harness") or catalog.SETTINGS.get("open_with", "pi"),
              "cname": built.get("cname", ""), "docker_sock": built.get("docker_sock", ""),
              "native": built["native"], "endpoint": built["endpoint"], "port": port,
              "cmd": built["cmd"], "log": str(log), "started": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -123,6 +128,10 @@ def launch(cfg, built):
              "status": "starting", "phase": "starting process", "exitcode": None,
              "proc": None, "adopted": False, "tokens_in": 0, "tokens_out": 0, "requests": 0,
              "test": {"state": "pending"}}
+    # Recipe identity is snapshotted above (quant/variant/found_name/recipe_ver/
+    # ctx_source/client): later catalog, scan or settings edits must never
+    # rewrite what an existing session is. Only served_name is refreshed, by
+    # the engine itself, when the endpoint first answers.
     with LOCK:
         old = RUNNING.get(rid)
         if old and old.get("status") in LIVE_STATES | {"stopping", "stop_failed"}:
@@ -178,8 +187,12 @@ def _start(entry, built):
 
 
 def _public(entry):
-    return {k: v for k, v in entry.items()
-            if k not in ("proc", "log_proc", "cfg") and not k.startswith(("_", "sess_"))}
+    out = {k: v for k, v in entry.items()
+           if k not in ("proc", "log_proc", "cfg") and not k.startswith(("_", "sess_"))}
+    # explicit readiness: the endpoint answered /v1/models with model ids.
+    # App-open success is tracked separately (client_open), never by "ready".
+    out["ready"] = out.get("status") == "running"
+    return out
 
 
 def servers_snapshot():
@@ -199,7 +212,14 @@ def servers_snapshot():
             continue
         proc = e.get("proc")
         rc = proc.poll() if proc else None
-        alive = _pid_alive(e.get("pid")) if e.get("native") and not proc else rc is None
+        if e.get("native") and not proc:
+            # Before Popen there is no pid yet: a "starting" entry is mid-launch
+            # (env setup, spawn) and must not be reaped as "process exited" —
+            # that flip both fakes a failure and re-opens the duplicate-start
+            # window (a second launch would see status "exited" and proceed).
+            alive = _pid_alive(e["pid"]) if e.get("pid") else e.get("status") == "starting"
+        else:
+            alive = rc is None
         if not e.get("native"):
             st = statuses.get(e.get("docker_sock", ""))
             container = st.get(e.get("cname")) if st is not None else None
@@ -258,6 +278,21 @@ def test_prompt(cfg):
     import re
     with LOCK:
         entry = RUNNING.get(cfg.get("id", ""))
+        if not entry and cfg.get("port") is not None:
+            # a bare port (CLI `b70 ask`, POST /api/test_prompt {"port": …})
+            # still resolves to this launcher's server when one owns the port
+            try:
+                entry = next((e for e in RUNNING.values()
+                              if e.get("port") == parse_port(cfg.get("port"))), None)
+            except ValueError:
+                entry = None
+    if entry and entry.get("status") != "running":
+        # honest gating: never dial an endpoint that has not answered
+        # /v1/models yet (or whose process already died)
+        return {"ok": False, "answer": "", "reasoning": "", "finish_reason": "",
+                "http_status": None, "elapsed_s": 0, "tok_s": None, "id": entry.get("id"),
+                "error": f"Server {entry.get('id')} is {entry.get('status')} "
+                         f"({entry.get('phase') or 'not ready'}); the endpoint is not ready yet."}
     port = parse_port(entry["port"] if entry else cfg.get("port", 8000))
     out = {"ok": False, "answer": "", "reasoning": "", "finish_reason": "", "http_status": None,
            "elapsed_s": 0, "tok_s": None, "error": ""}

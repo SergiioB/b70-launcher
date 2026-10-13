@@ -54,6 +54,7 @@ def prepare_custom(cfg):
         raise BuildError("custom model path is not under any configured model folder")
     if not p.exists():
         raise BuildError(f"artifact not found on disk: {raw}")
+    quant_method = None
     if p.is_file():
         kind = "gguf" if p.suffix.lower() == ".gguf" else None
     else:
@@ -63,27 +64,50 @@ def prepare_custom(cfg):
             kind = "openvino"
         else:
             kind = "vllm"
-            qc = p / "quantization_config.json"
-            if qc.is_file():
-                try:
-                    if json.loads(qc.read_text()).get("quant_method") == "exl3":
-                        kind = "exl3"
-                except (OSError, ValueError):
-                    pass
+        # the artifact's own quantization record decides the serving family
+        quant_method = scan.read_quant_method(p)
+        if kind == "vllm" and quant_method == "exl3":
+            kind = "exl3"
     if not engine:
         engine = KIND_ENGINE.get(kind or "", "vllm")
     if kind is None or KIND_ENGINE.get(kind) != engine:
-        raise BuildError(f"that artifact is {kind or 'of unknown format'}; pick the matching engine "
-                         f"({KIND_ENGINE.get(kind, 'llamacpp')})")
+        raise BuildError(f"that artifact is {kind or 'of unknown format'}"
+                         + (f" (quantization method on disk: {quant_method})" if quant_method else "")
+                         + f"; pick the matching engine ({KIND_ENGINE.get(kind, 'llamacpp')})")
+    # exl3 is the one custom family with a hard quant requirement: the generic
+    # template only serves EXL3 trellis weights, anything else must say exl3
+    if engine == "exl3" and quant_method and quant_method != "exl3":
+        raise BuildError(f"this artifact records quantization method {quant_method}; the EXL3 "
+                         "template only serves EXL3 trellis weights")
     cfg_path = p / "config.json"
+    disk_ctx = scan.read_ctx_from_config(cfg_path)
     recipe = dict(CUSTOM_TEMPLATES[engine])
-    recipe["ctx"] = scan.read_ctx_from_config(cfg_path) or recipe["ctx"]
+    recipe["ctx"] = disk_ctx or recipe["ctx"]
+    if disk_ctx:
+        recipe["ctx_note"] = "artifact config.json on disk"
+    if engine == "exl3":
+        # Stock exl3xpu serves K=4 and K=6 only. Bit widths outside that set
+        # (turboderp's SC quants) need the mixed-K image a catalog recipe pins.
+        odd = sorted(scan.read_exl3_bits(p) - {4, 6})
+        if odd:
+            mixed = next((r.get("image") for m in catalog.RECIPES.get("models", [])
+                          for r in (m.get("recipes") or {}).values()
+                          if r.get("kind") == "exl3" and "exl3xpu-mixedk" in str(r.get("image", ""))), None)
+            if not mixed:
+                raise BuildError(f"this EXL3 artifact uses {odd}-bit tensors; stock exl3xpu serves "
+                                 "only 4 and 6 bits and no mixed-K recipe image is in the catalog")
+            recipe["image"] = mixed
+            warns.append(f"custom EXL3 with {'/'.join(map(str, odd))}-bit tensors: using the mixed-K image")
     model = {"id": "custom", "name": p.name, "arch": f"{kind} · custom artifact",
              "recipes": {engine: recipe}}
     det = {"path": str(p), "mount_root": str(p.parent if p.is_file() else p),
-           "found_name": p.name, "variant": False,
-           "ctx": scan.read_ctx_from_config(cfg_path)}
-    warns.append(f"custom artifact: {p.name} — engine flags follow the generic {engine} template, not a verified recipe")
+           "found_name": p.name, "variant": False, "quant_method": quant_method,
+           "ctx": disk_ctx}
+    warns.append(f"custom artifact: {p.name} — engine flags follow the generic {engine} template, "
+                 "not a verified recipe")
+    if engine == "llamacpp":
+        warns.append("custom GGUF: quantization is read from the file when the engine loads it — "
+                     "the launcher does not verify it against a recipe")
     return model, engine, det, warns
 
 
@@ -102,6 +126,11 @@ def _kind_builder(kind):
 def build(cfg):
     warns = []
     try:
+        if cfg.get("custom_path") and cfg.get("model_id") not in (None, "", "__custom__"):
+            # never silently drop half the request: a custom artifact and a
+            # selected recipe are different launch targets
+            raise BuildError("custom model path and a selected recipe cannot be combined — "
+                             "clear the custom artifact or the recipe selection")
         if cfg.get("model_id") == "__custom__" or (cfg.get("custom_path") and not cfg.get("model_id")):
             model, engine, det, warns = prepare_custom(cfg)
         else:
@@ -126,8 +155,8 @@ def build(cfg):
                                 else sum(f.stat().st_size for f in p.rglob("*") if f.is_file())) / 1048576
             except Exception:
                 artifact_mib = None
+        dl = recipe.get("download", {}) or {}
         if det and det.get("variant"):
-            dl = recipe.get("download", {})
             warns.append(f"using your local \"{det.get('found_name')}\" — recipe default was "
                          f"{dl.get('name') or dl.get('search') or dl.get('dest') or 'the listed quant'}")
         if cfg.get("use_docker") is False and not recipe.get("kind", "").startswith("gguf"):
@@ -147,6 +176,10 @@ def build(cfg):
             "model_name": model["name"], "engine": engine, "kind": recipe.get("kind", ""),
             "rid": common.rid_for(cfg), "gpus": b.gpus,
             "ctx": b.ctx, "ctx_source": b.ctx_source,
+            "quant": dl.get("quant") or "", "variant": bool(det and det.get("variant")),
+            "found_name": (det or {}).get("found_name") or "",
+            "custom": bool(model.get("id") == "custom"),
+            "recipe_ver": catalog.local_recipe_ver(model["id"], engine),
             "detected": bool(det), "detected_path": (det or {}).get("path"),
             "native": bool(out.get("native")),
             "effective_binary": out.get("effective_binary") or recipe.get("image", ""),
