@@ -6,91 +6,948 @@
 <title>B70 Launcher</title>
 <link rel="icon" href="/assets/b70-launcher.svg" type="image/svg+xml">
 <style>
-:root{color-scheme:dark;--bg:#0b0e14;--surface:#12161c;--raised:#1b1f27;--border:#2e333b;--input-border:#626975;--text:#f0f2f5;--muted:#b2b8c1;--subtle:#9399a2;--accent:#2867e4;--link:#7cb4fc;--ok:#58cd78;--warn:#f9b73f;--err:#fa6863;--caption:.75rem;--small:.8125rem;--body:.875rem;--title:1rem;--heading:1.25rem}
-@supports(color:oklch(.5 0 0)){:root{--bg:oklch(.165 .012 260);--surface:oklch(.2 .014 260);--raised:oklch(.24 .016 260);--border:oklch(.32 .016 260);--input-border:oklch(.52 .02 260);--text:oklch(.96 .005 260);--muted:oklch(.78 .015 260);--subtle:oklch(.68 .015 260);--accent:oklch(.55 .2 262);--link:oklch(.76 .12 255);--ok:oklch(.76 .16 150);--warn:oklch(.82 .15 78);--err:oklch(.7 .18 25)}}
-*{box-sizing:border-box}html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}button,input,select,textarea{font:inherit;color:inherit}button,select,input,textarea{border:1px solid var(--input-border);border-radius:6px;background:var(--raised)}button{padding:8px 12px;min-height:40px;cursor:pointer;font-weight:500}button:hover{background:var(--border)}button:disabled{cursor:default;color:var(--subtle);opacity:.7}input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}input[type=checkbox]{min-height:0;accent-color:var(--link)}textarea{width:100%;min-height:100px}a{color:var(--link);text-underline-offset:3px}p{margin:0 0 12px;max-width:70ch}h1{font-size:var(--heading);line-height:1.3;margin:0 0 8px;text-wrap:balance}h2{font-size:var(--title);line-height:1.3;margin:0 0 16px}h3{font-size:var(--body);margin:0 0 8px}label{display:block;font-weight:500}summary{cursor:pointer;padding:12px 0;min-height:40px;font-weight:500}details{margin-block:16px}details[open]>summary{margin-block-end:8px}pre,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--small)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:16px;border-radius:10px;margin:12px 0;max-height:50vh;overflow:auto}code{overflow-wrap:anywhere}small,.hint{font-size:var(--small);color:var(--muted)}.meta{font-size:var(--caption);color:var(--subtle)}.numbers{font-variant-numeric:tabular-nums}.skip{position:absolute;inset-inline-start:16px;inset-block-start:-100px;padding:8px;background:var(--raised);z-index:10}.skip:focus{inset-block-start:8px}:focus-visible{outline:2px solid var(--link);outline-offset:3px}[hidden]{display:none!important}
-header{padding:24px 32px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap;max-width:1360px;margin:auto}.brand{display:flex;align-items:center;gap:12px}.brand img{width:36px;height:36px}.brand strong{font-size:var(--title)}.hardware{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chip{font-size:var(--small);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px}.chip summary{padding:0;min-height:0}.chip p{margin:8px 0 0}.shell{max-width:1360px;margin:0 auto;padding:0 32px 32px}.banner{padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-block-end:16px}.layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:24px;align-items:start}.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;min-width:0}.library{position:sticky;top:16px}.library-tools{display:flex;align-items:center;gap:12px;margin-block:12px}.library-tools label{font-weight:400}.search{width:100%}.model-list{display:grid;gap:4px;max-height:calc(100vh - 260px);overflow:auto;padding:4px}.model{display:block;text-align:start;width:100%;border:1px solid transparent;background:transparent;padding:12px;min-height:64px}.model:hover{background:var(--raised)}.model[aria-checked=true]{background:var(--raised);border-color:var(--input-border)}.model strong,.model span{display:block}.model strong{font-weight:500}.model span{font-size:var(--small);color:var(--muted);margin-block-start:4px}.empty{padding:16px 4px}.segments{display:flex;gap:8px;flex-wrap:wrap}.segment[aria-checked=true]{border-color:var(--link);background:var(--raised)}.field-label{margin-block:24px 8px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.field input,.field select{width:100%;margin-block:8px 4px}.field.full{grid-column:1/-1}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.primary-zone{position:sticky;bottom:0;background:var(--surface);padding-block:16px 4px;margin-block-start:24px;border-block-start:1px solid var(--border)}.primary{background:var(--accent);border-color:var(--accent);color:var(--text);min-width:220px;font-size:var(--title)}.primary:hover{background:var(--accent);filter:brightness(1.1)}.primary:disabled{filter:none}.error{color:var(--err);padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere}.warning{color:var(--warn)}.good{color:var(--ok)}.danger{color:var(--err)}.run-facts{margin-block:16px;color:var(--muted)}.run-facts span{display:inline-block;margin-inline-end:16px}.servers{margin-block-end:24px}.server{padding:16px 0;border-block-start:1px solid var(--border)}.server:first-of-type{border-block-start:0;padding-block-start:0}.server-title{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.server-title strong{font-size:var(--title);font-weight:500}.connection{display:flex;gap:8px;align-items:center;margin-block:8px;flex-wrap:wrap}.connection code{flex:1;min-width:180px}.status{font-size:var(--small);color:var(--muted)}.test-result{margin-block:12px}.downloads{margin-block-end:24px}.download-row{padding:12px 0;border-block-start:1px solid var(--border)}progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-block:12px}.confirmation{padding:16px;background:var(--raised);border:1px solid var(--input-border);border-radius:10px;margin-block:16px}.toast{position:fixed;inset-block-end:16px;inset-inline-end:16px;max-width:calc(100vw - 32px);background:var(--raised);padding:12px 16px;border:1px solid var(--border);border-radius:10px;z-index:5}.dialog{background:var(--surface);color:var(--text);border:1px solid var(--input-border);border-radius:14px;padding:24px;width:min(720px,calc(100vw - 32px));max-height:85vh;overflow:auto;overscroll-behavior:contain}.dialog::backdrop{background:rgb(0 0 0/.6)}.dialog-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-block-end:16px}.dialog-head h2{margin:0}.wrap{overflow-wrap:anywhere}.check{display:flex;align-items:center;gap:8px;font-weight:400}.divider{margin-block:16px;border-block-start:1px solid var(--border);padding-block-start:16px}
-@media(prefers-reduced-motion:no-preference){button{transition:background-color 140ms,color 140ms,transform 140ms}button:active{transform:scale(.96)}}
-@media(max-width:48rem){header{padding:16px}.shell{padding:0 16px 24px}.layout{grid-template-columns:1fr}.library{position:static}.model-list{max-height:220px}.primary{width:100%;min-width:0}.hardware{width:100%}.fields{grid-template-columns:1fr}.field.full{grid-column:auto}input,select,textarea{font-size:1rem}}
-@media(forced-colors:active){:focus-visible{outline:2px solid Highlight}.model[aria-checked=true],.segment[aria-checked=true]{border-color:Highlight}.primary{border:2px solid ButtonText}}
-.field .check{margin-block:32px 4px}.field .check input{width:auto;margin:0;flex:none}@media(max-width:48rem){.field .check{margin-block:8px 4px}}
+:root{color-scheme:dark;
+  --bg:#0b0e14;--surface:#12161c;--raised:#1b1f27;--border:#2e333b;--input-border:#626975;
+  --text:#f0f2f5;--muted:#b2b8c1;--subtle:#9399a2;--accent:#2867e4;--accent-soft:rgba(40,103,228,.16);
+  --link:#7cb4fc;--ok:#58cd78;--warn:#f9b73f;--err:#fa6863;
+  --eng-openvino:#61b3ff;--eng-vllm:#2fbfa8;--eng-llamacpp:#d99a4e;--eng-exl3:#a98bff;
+  --caption:.75rem;--small:.8125rem;--body:.875rem;--title:1rem;--heading:1.25rem;
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace}
+@supports(color:oklch(.5 0 0)){:root{
+  --bg:oklch(.165 .012 260);--surface:oklch(.2 .014 260);--raised:oklch(.24 .016 260);
+  --border:oklch(.32 .016 260);--input-border:oklch(.52 .02 260);
+  --text:oklch(.96 .005 260);--muted:oklch(.78 .015 260);--subtle:oklch(.68 .015 260);
+  --accent:oklch(.55 .2 262);--accent-soft:oklch(.55 .2 262/.16);
+  --link:oklch(.76 .12 255);--ok:oklch(.76 .16 150);--warn:oklch(.82 .15 78);--err:oklch(.7 .18 25);
+  --eng-openvino:oklch(.74 .12 250);--eng-vllm:oklch(.72 .11 170);--eng-llamacpp:oklch(.75 .11 70);--eng-exl3:oklch(.72 .12 300)}}
+*{box-sizing:border-box}
+html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+button,select,input,textarea{border:1px solid var(--input-border);border-radius:6px;background:var(--raised)}
+button{padding:8px 12px;min-height:40px;cursor:pointer;font-weight:500}
+button:hover{background:var(--border)}
+button:disabled{cursor:default;color:var(--subtle);opacity:.7}
+input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}
+input[type=checkbox]{min-height:0;accent-color:var(--link)}
+textarea{width:100%;min-height:72px}
+a{color:var(--link);text-underline-offset:3px}
+p{margin:0 0 12px;max-width:75ch}
+h1{font-size:var(--heading);line-height:1.3;margin:0 0 4px;text-wrap:balance;display:flex;align-items:center;gap:10px}
+h2{font-size:var(--title);line-height:1.3;margin:0 0 12px}
+h3{font-size:var(--body);margin:0 0 8px}
+label{display:block;font-weight:500}
+summary{cursor:pointer;padding:10px 0;min-height:40px;font-weight:500}
+details{margin-block:12px}
+details[open]>summary{margin-block-end:10px}
+pre,code{font-family:var(--mono);font-size:var(--small)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:14px;border-radius:10px;margin:10px 0;max-height:50vh;overflow:auto}
+code{overflow-wrap:anywhere}
+small,.hint{font-size:var(--small);color:var(--muted)}
+.meta{font-size:var(--caption);color:var(--subtle)}
+.numbers{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:var(--small)}
+.skip{position:absolute;inset-inline-start:16px;inset-block-start:-100px;padding:8px;background:var(--raised);z-index:10}
+.skip:focus{inset-block-start:8px}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:-1px}
+
+/* ---- header: brand, version + discreet update, hardware ---- */
+header{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  padding:12px 24px;border-block-end:1px solid var(--border);background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand img{width:28px;height:28px;flex:none}
+.brand strong{font-size:var(--body)}
+.versionline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.update-chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--caption);color:var(--warn);
+  border:1px solid var(--border);border-radius:99px;padding:2px 4px 2px 10px;background:var(--raised)}
+.update-chip button{border:0;background:none;min-height:24px;padding:2px 8px;font-size:var(--caption);color:var(--warn);text-decoration:underline}
+.update-chip .err-inline{color:var(--err);padding-inline:8px}
+.hardware{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+.chip{font-size:var(--caption);background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:4px 8px;display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
+.chip .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--subtle)}
+.chip.ok .dot{background:var(--ok)} .chip.busy .dot{background:var(--warn)} .chip.bad .dot{background:var(--err)}
+
+/* ---- shell layout: library | workspace ---- */
+.shell{max-width:1440px;margin:0 auto;padding:16px 24px 32px}
+.error{color:var(--err);padding:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.good{color:var(--ok)} .warning{color:var(--warn)} .danger{color:var(--err)}
+.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0}
+
+/* ---- library ---- */
+.library{position:sticky;top:12px;display:flex;flex-direction:column;max-height:calc(100vh - 24px)}
+.library h2{margin-block-end:8px}
+.search{width:100%}
+.library-tools{display:flex;align-items:center;gap:10px;margin-block:10px;flex-wrap:wrap}
+.check{display:flex;align-items:center;gap:6px;font-weight:400;font-size:var(--small);color:var(--muted);
+  border:1px solid var(--border);border-radius:6px;padding:4px 8px;min-height:32px}
+.check:has(input:checked){border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
+.recipe-list{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;flex:1 1 auto;padding:2px;margin-block-end:8px;scrollbar-width:thin;scrollbar-color:var(--input-border) transparent}
+.recipe-list::-webkit-scrollbar{width:8px}
+.recipe-list::-webkit-scrollbar-thumb{background:var(--input-border);border-radius:4px}
+.library-tools button{min-height:32px;padding:4px 10px;font-size:var(--small)}
+.recipe{display:flex;flex-direction:column;flex:none;text-align:start;width:100%;border:1px solid transparent;background:transparent;
+  border-radius:8px;padding:10px 10px 10px 14px;position:relative}
+.recipe:hover{background:var(--raised)}
+.recipe::before{content:"";position:absolute;inset-block:8px;inset-inline-start:0;width:3px;border-radius:2px;background:transparent}
+.recipe[aria-checked=true]{background:var(--raised);border-color:var(--accent)}
+.recipe[aria-checked=true]::before{background:var(--accent)}
+.recipe+.recipe.family{border-block-start:1px solid var(--border);border-start-start-radius:0;margin-block-start:6px}
+.r-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.r-logo{width:18px;height:18px;flex:none;border-radius:4px;background:var(--bg);object-fit:contain}
+.r-name{font-weight:600}
+.group-h{font-size:var(--caption);letter-spacing:.12em;text-transform:uppercase;color:var(--subtle);
+  padding:14px 10px 4px;margin-block-start:8px;font-weight:600;display:flex;align-items:center;gap:8px;flex:none}
+.group-h:first-child{margin-block-start:0}
+.group-h::after{content:"";flex:1;border-block-start:1px solid var(--border)}
+.group-h img{width:14px;height:14px;object-fit:contain}
+.eng-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--eng,var(--subtle))}
+.r-var .eng-dot{margin-inline-end:2px}
+.head-logo{width:30px;height:30px;flex:none;border-radius:6px;background:var(--bg);object-fit:contain}
+.recipe-variant .engine{display:inline-flex;align-items:center;gap:6px}
+.recipe-variant .engine img{width:16px;height:16px;object-fit:contain}
+.other-recipes button .eng-dot{display:inline-block;vertical-align:baseline;margin-inline-end:6px}
+.vbar{display:inline-block;width:38px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;flex:none;margin-inline:6px 4px}
+.vbar i{display:block;height:100%;background:var(--ok)}
+.chip.hot .vbar i{background:var(--warn)} .chip.bad .vbar i{background:var(--err)}
+.tag.c-violet{border-color:#8d6fe8;color:#b9a3ff}
+.tag.c-green{border-color:color-mix(in oklab,var(--ok) 50%,var(--border));color:var(--ok)}
+.tag.c-amber{border-color:color-mix(in oklab,var(--warn) 50%,var(--border));color:var(--warn)}
+.tag.c-blue{border-color:color-mix(in oklab,var(--link) 50%,var(--border));color:var(--link)}
+.tag.c-grey{border-color:var(--border);color:var(--subtle)}
+.tag{font-size:var(--caption);border:1px solid var(--border);border-radius:99px;padding:0 7px;color:var(--subtle);white-space:nowrap}
+.tag.rec{border-color:var(--accent);color:var(--link)}
+.tag.upd{border-color:var(--warn);color:var(--warn)}
+.tag.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--link)}
+.r-var{display:block;font-size:var(--small);color:var(--muted);margin-block-start:2px}
+.r-purpose{display:block;font-size:var(--small);color:var(--subtle);margin-block-start:4px;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.r-meta{display:block;font-size:var(--caption);color:var(--subtle);margin-block-start:4px}
+.r-state{display:inline-flex;align-items:center;gap:5px;font-size:var(--caption);margin-block-start:6px}
+.r-state .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.st-ok{color:var(--ok)} .st-ok .dot{background:var(--ok)}
+.st-dl{color:var(--warn)} .st-dl .dot{background:var(--warn)}
+.st-bad{color:var(--err)} .st-bad .dot{background:var(--err)}
+.st-hold{color:var(--warn)} .st-hold .dot{background:var(--warn)}
+.st-none{color:var(--subtle)} .st-none .dot{background:var(--subtle)}
+.library-foot{border-block-start:1px solid var(--border);padding-block-start:8px;margin-block-start:auto}
+.empty{padding:16px 4px}
+.download-row{padding:8px 0;border-block-start:1px solid var(--border);font-size:var(--small)}
+.download-row:first-child{border-block-start:0}
+progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-block:6px}
+/* ---- workspace ---- */
+#run{padding:20px 24px}
+.recipe-variant{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);margin-block-end:6px}
+.recipe-variant .engine{color:var(--text);font-weight:600}
+.purpose{color:var(--muted);max-width:80ch}
+.meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-block:10px 0}
+.fact{font-size:var(--small);color:var(--subtle);border:1px solid var(--border);border-radius:8px;
+  padding:3px 9px;background:var(--bg)}
+.fact b{color:var(--muted);font-weight:600}
+.other-recipes{margin-block:12px;font-size:var(--small);color:var(--subtle);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.other-recipes button{min-height:30px;padding:3px 10px;font-size:var(--small);color:var(--muted)}
+.other-recipes button:hover{color:var(--text)}
+
+/* availability banner */
+.avail{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-block:14px 0;background:var(--bg);flex-wrap:wrap}
+.avail .lead{display:inline-flex;align-items:center;gap:7px;font-weight:600;white-space:nowrap}
+.avail .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.avail.ok{border-color:var(--ok)}.avail.dl,.avail.hold{border-color:var(--warn)}.avail.bad{border-color:var(--err)}
+.avail.ok .dot{background:var(--ok)}.avail.dl .dot,.avail.hold .dot{background:var(--warn)}.avail.bad .dot{background:var(--err)}
+@supports(color:color-mix(in oklab,red,blue)){
+  .avail.ok{border-color:color-mix(in oklab,var(--ok) 45%,var(--border))}
+  .avail.dl,.avail.hold{border-color:color-mix(in oklab,var(--warn) 45%,var(--border))}
+  .avail.bad{border-color:color-mix(in oklab,var(--err) 45%,var(--border))}}
+.avail .detail{color:var(--muted);min-width:0;flex:1}
+.avail code{font-size:var(--caption)}
+.avail .actions{display:flex;gap:6px;flex-wrap:wrap}
+.avail .actions button{min-height:30px;padding:3px 10px;font-size:var(--caption)}
+.note{font-size:var(--small);color:var(--subtle);margin-block-start:6px;max-width:90ch}
+
+/* session panel — visually distinct from configuration */
+.session{border:1px solid var(--input-border);border-inline-start:4px solid var(--accent);border-radius:10px;
+  background:var(--raised);padding:14px 16px;margin-block:16px 0}
+.session.starting{border-inline-start-color:var(--warn)}
+.session.running{border-inline-start-color:var(--ok)}
+.session.exited{border-inline-start-color:var(--err)}
+.session-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-block-end:8px}
+.session-head h2{margin:0;font-size:var(--body)}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:var(--small);font-weight:600;
+  border:1px solid var(--border);border-radius:99px;padding:2px 10px;background:var(--bg)}
+.status-pill .dot{width:8px;height:8px;border-radius:50%}
+.status-pill.running{color:var(--ok)} .status-pill.running .dot{background:var(--ok)}
+.status-pill.starting{color:var(--warn)} .status-pill.starting .dot{background:var(--warn);animation:pulse 1.2s infinite}
+.status-pill.exited{color:var(--err)} .status-pill.exited .dot{background:var(--err)}
+@keyframes pulse{50%{opacity:.35}}
+.session-head .spacer{flex:1}
+.session-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 20px;margin-block:4px}
+.kv{display:flex;gap:8px;align-items:baseline;min-width:0}
+.kv dt{color:var(--subtle);font-size:var(--caption);flex:none}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.kv .mini{border:0;background:none;min-height:24px;padding:0 2px;font-size:var(--caption);color:var(--link);
+  text-decoration:underline;cursor:pointer}
+.session-actions{display:flex;gap:8px;flex-wrap:wrap;margin-block:12px 4px}
+.test-line{font-size:var(--small);color:var(--muted)}
+.client-line{font-size:var(--small);color:var(--muted)}
+.session .error{padding:6px 0 0}
+
+/* other sessions strip */
+.other-sessions{margin-block:12px 0;border:1px dashed var(--border);border-radius:10px;padding:10px 12px}
+.other-sessions h2{margin:0 0 6px;font-size:var(--small);color:var(--subtle);font-weight:600}
+.os-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:var(--small);padding:4px 0}
+.os-row .status-pill{font-size:var(--caption)}
+.os-row button{min-height:30px;padding:3px 10px;font-size:var(--caption)}
+
+/* configuration */
+.field-label{font-size:var(--caption);letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);
+  font-weight:600;margin:22px 0 8px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
+.field input,.field select{width:100%;margin-block:6px 2px}
+.field.full{grid-column:1/-1}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:6px}
+.presets button{min-height:26px;padding:2px 9px;font-size:var(--caption);color:var(--muted)}
+.ctx-note{font-size:var(--small);color:var(--subtle);margin-block-start:6px;max-width:90ch}
+.subfield{display:flex;align-items:center;gap:10px;margin-block:26px 4px}
+.subfield input{width:auto;margin:0;min-height:0}
+.advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+.advanced-grid .field.full{grid-column:1/-1}
+
+/* cookbook details */
+dl.spec{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:6px 16px;margin:0}
+dl.spec dt{color:var(--subtle);font-size:var(--small)}
+dl.spec dd{margin:0;overflow-wrap:anywhere;font-size:var(--small)}
+dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:4px}
+
+/* download confirmation */
+.confirmation{padding:14px;background:var(--raised);border:1px solid var(--input-border);border-radius:10px;margin-block:14px}
+
+/* primary zone — sticky, never covers content */
+.primary-zone{position:sticky;bottom:0;background:var(--surface);padding-block:14px 2px;margin-block-start:20px;
+  border-block-start:1px solid var(--border);box-shadow:0 -10px 18px rgba(0,0,0,.35)}
+.primary-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.primary{background:var(--accent);border-color:var(--accent);color:#fff;min-width:200px;font-size:var(--title)}
+.primary:hover{background:var(--accent);filter:brightness(1.12)}
+.primary:disabled{filter:none}
+#launch-status{margin-block-start:6px}
+
+/* toast + dialog */
+.toast{position:fixed;inset-block-end:16px;inset-inline-end:16px;max-width:calc(100vw - 32px);
+  background:var(--raised);padding:12px 16px;border:1px solid var(--border);border-radius:10px;z-index:5}
+.dialog{background:var(--surface);color:var(--text);border:1px solid var(--input-border);border-radius:14px;
+  padding:22px;width:min(760px,calc(100vw - 32px));max-height:85vh;overflow:auto;overscroll-behavior:contain}
+.dialog::backdrop{background:rgb(0 0 0/.6)}
+.dialog-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-block-end:14px}
+.dialog-head h2{margin:0}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.divider{margin-block:14px;border-block-start:1px solid var(--border);padding-block-start:14px}
+.wrap{overflow-wrap:anywhere}
+
+@media(prefers-reduced-motion:no-preference){
+  button{transition:background-color 140ms,color 140ms,border-color 140ms}
+  button:active{transform:scale(.97)}
+}
+@media(max-width:64rem){
+  .layout{grid-template-columns:1fr}
+  .library{position:static;max-height:none}
+  .recipe-list{max-height:300px}
+}
+@media(max-width:48rem){
+  header{padding:10px 14px}
+  .shell{padding:12px 14px 24px}
+  #run{padding:16px}
+  .fields,.advanced-grid{grid-template-columns:1fr}
+  .field.full{grid-column:auto}
+  .primary{width:100%;min-width:0}
+  .hardware{width:100%;justify-content:flex-start}
+  dl.spec{grid-template-columns:1fr;gap:2px 0}
+  dl.spec dd{margin-block-end:8px}
+  input,select,textarea{font-size:1rem}
+}
+@media(forced-colors:active){
+  :focus-visible{outline:2px solid Highlight}
+  .recipe[aria-checked=true]{border-color:Highlight}
+  .primary{border:2px solid ButtonText}
+}
 </style>
 </head>
 <body>
-<a class="skip" href="#run">Skip to run panel</a>
-<header><div class="brand"><img src="/assets/b70-launcher.svg" alt=""><div><strong>B70 Launcher</strong><div class="meta" id="version">Connecting</div></div></div><div id="hardware" class="hardware numbers" aria-label="Hardware status"></div></header>
+<a class="skip" href="#run">Skip to recipe workspace</a>
+<header>
+  <div class="brand">
+    <img src="/assets/b70-launcher.svg" alt="">
+    <div>
+      <strong>B70 Launcher</strong>
+      <div class="versionline">
+        <span class="meta numbers" id="version">Connecting</span>
+        <span class="update-chip" id="update-chip" hidden></span>
+      </div>
+    </div>
+  </div>
+  <div id="hardware" class="hardware numbers" aria-label="Hardware status"></div>
+</header>
 <main class="shell" id="main">
 <div class="error" id="connection-error" role="alert" hidden></div>
-<div class="banner" id="update-banner" hidden></div>
-<section class="panel servers" id="servers-panel" aria-labelledby="servers-heading" hidden><h2 id="servers-heading">Servers</h2><div id="servers"></div><div id="server-error" class="error" role="alert" hidden></div></section>
-<section class="panel downloads" id="downloads-panel" aria-labelledby="downloads-heading" hidden><h2 id="downloads-heading">Downloads</h2><div id="downloads"></div></section>
 <div class="layout">
-<aside class="panel library" aria-labelledby="library-heading"><h2 id="library-heading">Models</h2><label class="hint" for="search">Search models</label><input class="search" id="search" type="search" placeholder="Qwen, EXL3, vision" autocomplete="off"><div class="library-tools"><label class="check"><input type="checkbox" id="on-disk">On disk</label><button id="folders" type="button">Model folders</button></div><div id="model-list" class="model-list" role="radiogroup" aria-label="Choose model"></div><div id="empty" class="empty" hidden><p id="empty-text"></p><button id="clear-search" type="button">Clear search</button></div><p class="meta" id="scan-status" role="status"></p></aside>
-<section class="panel" id="run" tabindex="-1" aria-labelledby="model-name">
-<h1 id="model-name">Choose a model</h1><p class="hint" id="model-description">Connecting to your local launcher.</p>
-<div class="field-label" id="engine-label">Engine</div><div id="engines" class="segments" role="radiogroup" aria-labelledby="engine-label"></div>
-<div id="run-facts" class="run-facts numbers"></div>
-<details id="advanced"><summary>Advanced</summary><div class="fields"><div class="field"><label for="context">Context tokens</label><input id="context" type="number" min="128" step="1"><p class="hint" id="context-hint"></p></div><div class="field"><label for="port">Server port</label><input id="port" type="number" min="1" max="65535" value="8000"></div><div class="field"><label for="kv">KV cache precision</label><select id="kv"></select><p class="hint">Memory used to retain previous tokens.</p></div><div class="field"><label for="gpu">GPUs</label><select id="gpu"></select><p class="hint" id="gpu-hint">Only free, accessible cards can launch.</p></div><div class="field"><label for="client">Default client</label><select id="client"><option value="pi">Pi</option><option value="omp">omp</option><option value="droid">Droid</option><option value="none">No client</option></select></div><div class="field"><label class="check"><input type="checkbox" id="sync-clients">Sync client configuration</label><p class="hint">Update existing Pi, omp and Droid configs with the ready model and its context limit.</p></div></div><p id="hardware-details" class="hint wrap"></p>
-<details id="details"><summary>Recipe details</summary><p id="recipe-notes" class="hint wrap"></p><p id="recipe-perf" class="hint wrap"></p><p class="meta wrap" id="recipe-image"></p><p class="hint wrap" id="plan-warnings"></p><button id="preview" type="button">Preview command</button><button id="recipe-update" type="button" hidden>Apply recipe update</button></details></details>
-<div id="download-confirm" class="confirmation" hidden><h3>Confirm download</h3><p id="download-plan" class="numbers wrap"></p><p id="download-space" class="hint numbers"></p><div class="actions"><button id="confirm-download" type="button">Download files</button><button id="cancel-confirm" type="button">Cancel</button><button id="change-folder" type="button">Change folder</button></div></div>
-<div class="primary-zone"><button id="primary" type="button" class="primary" disabled>Connecting</button><div id="launch-status" class="hint numbers"></div><div id="action-error" class="error" role="alert" hidden></div></div>
-</section></div>
+
+  <aside class="panel library" aria-labelledby="library-heading">
+    <h2 id="library-heading">Recipe Library</h2>
+    <label class="hint" for="search">Search recipes</label>
+    <input class="search" id="search" type="search" placeholder="Model, quantization or engine" autocomplete="off">
+    <div class="library-tools">
+      <label class="check"><input type="checkbox" id="on-disk">On disk</label>
+      <button id="folders" type="button">Model folders</button>
+    </div>
+    <div id="recipe-list" class="recipe-list" role="radiogroup" aria-label="Choose recipe"></div>
+    <div id="empty" class="empty" hidden>
+      <p id="empty-text" class="hint"></p>
+      <button id="clear-search" type="button">Clear search</button>
+    </div>
+    <div id="downloads" class="library-foot" hidden>
+      <h3>Downloads</h3>
+      <div id="download-rows"></div>
+    </div>
+    <p class="meta" id="scan-status" role="status"></p>
+  </aside>
+
+  <section class="panel" id="run" tabindex="-1" aria-labelledby="recipe-name">
+    <h1 id="recipe-name">Choose a recipe</h1>
+    <div class="recipe-variant" id="recipe-variant"></div>
+    <p class="purpose" id="recipe-purpose">Connecting to your local launcher.</p>
+    <div class="meta-row numbers" id="recipe-meta"></div>
+    <div class="other-recipes" id="other-recipes"></div>
+    <div id="availability"></div>
+    <div id="other-sessions" class="other-sessions" hidden></div>
+    <section id="session" class="session" hidden aria-labelledby="session-heading"></section>
+
+    <div class="field-label" id="config-heading">Configuration</div>
+    <div class="fields">
+      <div class="field full">
+        <label for="context">Context tokens</label>
+        <input id="context" type="number" min="512" step="1">
+        <div class="presets" id="ctx-presets"></div>
+        <p class="ctx-note" id="context-hint"></p>
+      </div>
+      <div class="field">
+        <label for="gpu">GPUs</label>
+        <select id="gpu"></select>
+        <p class="hint" id="gpu-hint"></p>
+      </div>
+      <div class="field">
+        <label for="port">Server port</label>
+        <input id="port" type="number" min="1" max="65535" value="8000">
+        <p class="hint">The engine listens here; clients use the endpoint below it.</p>
+      </div>
+      <div class="field full">
+        <label for="client">Target application</label>
+        <select id="client"></select>
+        <p class="hint" id="client-hint"></p>
+      </div>
+    </div>
+
+    <details id="advanced">
+      <summary>Advanced</summary>
+      <div class="advanced-grid">
+        <div class="field">
+          <label for="kv">KV cache precision</label>
+          <select id="kv"></select>
+          <p class="hint">Memory used to retain previous tokens.</p>
+        </div>
+        <div class="field">
+          <label for="slots">Parallel slots</label>
+          <input id="slots" type="number" min="1" max="128" step="1" value="1">
+          <p class="hint">Concurrent request slots (adds memory per slot).</p>
+        </div>
+        <div class="field full">
+          <label class="subfield"><input type="checkbox" id="mtp" checked>Speculative draft (MTP/DFlash), when the recipe has one</label>
+        </div>
+        <div class="field full">
+          <label for="extra">Extra engine flags</label>
+          <input id="extra" type="text" placeholder="--flag value" autocomplete="off">
+          <p class="hint">Appended verbatim to the engine command.</p>
+        </div>
+        <div class="field full">
+          <label for="extra-env">Environment variables</label>
+          <textarea id="extra-env" placeholder="KEY=VAL, one per line"></textarea>
+          <p class="hint">Startup-hook variables (LD_*, PATH, HOME…) are rejected by the backend.</p>
+        </div>
+      </div>
+    </details>
+
+    <details id="cookbook">
+      <summary>Recipe details</summary>
+      <div id="cookbook-body"></div>
+    </details>
+
+    <div id="download-confirm" class="confirmation" hidden>
+      <h3>Confirm download</h3>
+      <p id="download-plan" class="numbers wrap"></p>
+      <p id="download-space" class="hint numbers"></p>
+      <div class="actions">
+        <button id="confirm-download" type="button">Download files</button>
+        <button id="cancel-confirm" type="button">Cancel</button>
+        <button id="change-folder" type="button">Change folder</button>
+      </div>
+    </div>
+
+    <div class="primary-zone">
+      <div class="primary-row">
+        <button id="primary" type="button" class="primary" disabled>Connecting</button>
+        <button id="preview" type="button">Preview command</button>
+      </div>
+      <div id="launch-status" class="hint numbers" role="status"></div>
+      <div id="action-error" class="error" role="alert" hidden></div>
+    </div>
+  </section>
+</div>
 </main>
 <div class="toast" id="toast" role="status" hidden></div>
-<dialog id="dialog" class="dialog" aria-labelledby="dialog-title"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" type="button">Close</button></div><div id="dialog-content"></div><div id="dialog-error" class="error" role="alert" hidden></div></dialog>
+<dialog id="dialog" class="dialog" aria-labelledby="dialog-title">
+  <div class="dialog-head">
+    <h2 id="dialog-title"></h2>
+    <button id="close-dialog" type="button">Close</button>
+  </div>
+  <div id="dialog-content"></div>
+  <div id="dialog-error" class="error" role="alert" hidden></div>
+</dialog>
 <script>
 'use strict';
 const TOKEN='__API_TOKEN__';
 const $=id=>document.getElementById(id);
-const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const S={state:null,scan:null,model:null,engine:null,servers:[],downloads:{},plan:null,downloadPlan:null,request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false};
-const live=e=>e.status==='running'||e.status==='starting';
-function bytes(n){if(n==null)return 'unknown';let x=Number(n);for(const u of ['B','KiB','MiB','GiB','TiB']){if(x<1024||u==='TiB')return `${x.toFixed(u==='B'?0:1)} ${u}`;x/=1024;}}
-function elapsed(n){return n<60?`${Math.round(n)}s`:`${Math.floor(n/60)}m ${Math.round(n%60)}s`;}
-async function api(path,body){const options={headers:{'X-Launcher-Token':TOKEN}};if(body!==undefined){options.method='POST';options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}const response=await fetch(path,options);const data=await response.json();if(!response.ok)throw new Error(data.error||`Launcher answered HTTP ${response.status}`);return data;}
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const S={state:null,scan:null,model:null,engine:null,servers:[],downloads:{},plan:null,downloadPlan:null,
+  request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false,
+  sig:{},gpuDraft:{},openFail:{}};
+const LIVE=['starting','running'];
+const live=e=>LIVE.includes(e.status);
+function bytes(n){if(n==null)return '';let x=Number(n);for(const u of['B','KiB','MiB','GiB','TiB']){if(x<1024||u==='TiB')return`${x.toFixed(u==='B'?0:1)} ${u}`;x/=1024;}}
+const mib=m=>m==null?'':bytes(m*1048576);
+function elapsed(n){n=Math.max(0,Math.round(n));return n<60?`${n}s`:`${Math.floor(n/60)}m ${n%60}s`;}
+const fmt=n=>Number(n).toLocaleString('en-US');
+async function api(path,body){const options={headers:{'X-Launcher-Token':TOKEN}};
+  if(body!==undefined){options.method='POST';options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}
+  const response=await fetch(path,options);const data=await response.json();
+  if(!response.ok)throw new Error(data.error||`Launcher answered HTTP ${response.status}`);return data;}
 function error(id,text){$(id).textContent=text||'';$(id).hidden=!text;}
-function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').hidden=true,4000);}
-function model(){return S.state?.recipes.models.find(m=>m.id===S.model);}
-function recipe(){return model()?.recipes[S.engine];}
-function match(){return S.scan?.matches[S.model]?.[S.engine];}
-function cfg(){const g=$('gpu').value;return {model_id:S.model,engine:S.engine,port:Number($('port').value),ctx:Number($('context').value),kv:$('kv').value,gpus:g?g.split(',').map(Number):[],harness:$('client').value,no_test:false};}
-function selectedServer(){const port=Number($('port').value);return S.servers.find(e=>e.model_id===S.model&&e.engine===S.engine&&e.port===port&&live(e));}
-function deviceList(){return S.state?.preflight.devices||[];}
-function defaultGpus(r){if(r.gpus?.length)return r.gpus;if(r.tp===2)return [0,1];return S.state?.preflight.default.gpus||[0];}
-function choose(id,engine){S.model=id;const m=model();if(!m)return;S.engine=engine&&m.recipes[engine]?engine:m.recommended_engine&&m.recipes[m.recommended_engine]?m.recommended_engine:Object.keys(m.recipes)[0];S.selection++;S.plan=null;S.downloadPlan=null;$('download-confirm').hidden=true;error('action-error','');$('context').value=recipe().ctx_safe||recipe().ctx||32768;$('context').max=recipe().ctx_max||2147483647;renderSelection();refreshPlan();}
-function filteredModels(){const q=$('search').value.trim().toLowerCase();return (S.state?.recipes.models||[]).filter(m=>(!q||`${m.name} ${m.arch} ${m.blurb} ${m.chips?.join(' ')}`.toLowerCase().includes(q))&&(!$('on-disk').checked||Object.values(S.scan?.matches[m.id]||{}).some(x=>x.detected))).sort((a,b)=>{const disk=m=>Object.values(S.scan?.matches[m.id]||{}).some(x=>x.detected);return Number(disk(b))-Number(disk(a))||Number(Boolean(b.badge))-Number(Boolean(a.badge))||a.name.localeCompare(b.name);});}
-function renderLibrary(){const list=filteredModels();$('model-list').innerHTML=list.map(m=>{const found=Object.values(S.scan?.matches[m.id]||{}).some(x=>x.detected);return `<button class="model" type="button" role="radio" aria-checked="${m.id===S.model}" tabindex="${m.id===S.model||!list.some(x=>x.id===S.model)&&m===list[0]?0:-1}" data-model="${esc(m.id)}"><strong>${esc(m.name)}</strong><span>${esc(m.arch)} · ${found?'On disk':'Not on disk'}</span></button>`;}).join('');$('empty').hidden=Boolean(list.length);$('empty-text').textContent=$('search').value?`No models match “${$('search').value}”.`:'No matching models are on disk. Add a model folder or show the full catalog.';$('scan-status').textContent=S.scan?.state==='scanning'?'Scanning model folders':`${list.length} models · ${S.scan?.roots?.length||0} model folders`;}
-function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;$('model-name').textContent=m.name;$('model-description').textContent=m.blurb||m.arch;$('engines').innerHTML=Object.keys(m.recipes).map(eng=>{const label=S.state.recipes.engines.find(e=>e.id===eng)?.label||eng;return `<button type="button" class="segment" role="radio" aria-checked="${eng===S.engine}" tabindex="${eng===S.engine?0:-1}" data-engine="${esc(eng)}">${esc(label)}</button>`;}).join('');const options=r.kv_options||(r.kind.startsWith('gguf')?['q8_0/q4_1','q8_0','q5_0/q4_1','f16']:r.kind==='ovms'?['auto']:['fp8']);$('kv').innerHTML=options.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');$('context-hint').textContent=r.ctx_note||'Configured context is not a completed long-context check.';$('recipe-notes').textContent=r.recipe_note||m.recommendation||'';$('recipe-perf').textContent=r.perf||'No retained performance measurement for this recipe.';$('recipe-image').textContent=r.image?`Pinned image: ${r.image}`:'Native binary';const notice=S.state.recipe_notices?.[`${S.model}:${S.engine}`];$('recipe-update').hidden=!notice||!notice.can_apply;renderGpus();renderAction();}
-function renderGpus(){const old=$('gpu').value;const r=recipe();if(!r)return;const devices=deviceList();const values=devices.map((d,i)=>({value:String(i),label:`GPU ${i} · ${d.label||'Intel GPU'}${d.busy?' · in use':''}`,disabled:!d.b70||!d.accessible||Boolean(d.busy)}));if(devices.length>=2)values.push({value:'0,1',label:'GPUs 0 and 1',disabled:devices.slice(0,2).some(d=>!d.b70||!d.accessible||d.busy)});const none=values.every(v=>v.disabled);$('gpu').innerHTML=(none?'<option value="" selected>No free GPU</option>':'')+values.map(d=>`<option value="${d.value}" ${d.disabled?'disabled':''}>${esc(d.label)}</option>`).join('');if(none)return;const wanted=old&&values.some(v=>v.value===old&&!v.disabled)?old:defaultGpus(r).join(',');$('gpu').value=wanted;if(!$('gpu').value)$('gpu').selectedIndex=values.findIndex(v=>!v.disabled);}
-function renderHardware(power=[]){const devices=deviceList();$('hardware').innerHTML=devices.map((d,i)=>{const p=power.find(x=>x.pci===d.pci)||{};const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);return `<span class="chip">GPU ${i} · ${d.busy?'In use':d.accessible?'Memory available':'Check access'}${used!=null?` · ${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB`:''}</span>`;}).join('')+`<span class="meta">Download disk: ${S.scan?.free_gb==null?'unknown':S.scan.free_gb+' GiB free'}</span>`;$('hardware-details').innerHTML=devices.map((d,i)=>{const p=power.find(x=>x.pci===d.pci)||{};return `GPU ${i} · ${esc(d.label||d.pci)} · ${d.busy?esc(d.busy_by):'No non-desktop GPU client observed; memory headroom alone does not prove model fit.'} · Cap ${esc(p.cap_w??d.power_cap_w??'unknown')} W · Temperature ${esc(p.temp_c??'unknown')} °C`;}).join('<br>');}
-function renderAction(){const r=recipe();const button=$('primary');button.disabled=S.request;let text='Connecting',status='';S.action='';if(!r){button.disabled=true;}else{const current=selectedServer();const dl=S.downloads[`${S.model}-${S.engine}`];const selected=$('gpu').value?$('gpu').value.split(',').map(Number):[];const category=S.plan?.native?'native':r.kind==='exl3'?'exl3':'docker';const blockers=S.state?.preflight.blockers_by_kind?.[category]||[];if(r.operator_hold){text='Launch held';status=r.operator_hold;button.disabled=true;}else if(current?.status==='starting'){text='Loading model';status=`${current.phase||'Starting'} · ${elapsed((Date.now()/1000)-(current.started_at||Date.now()/1000))}`;button.disabled=true;}else if(current?.status==='running'){text=$('client').value==='none'?'Copy endpoint':'Open in '+$('client').selectedOptions[0].textContent;S.action='open';status='The server row above owns the connection details.';}else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s`:'Checking repository files';button.disabled=true;}else if(!match()?.detected){if(r.download?.repo){text='Review download';S.action='download';status='Confirm the destination and required space before transferring.';}else{text='Choose model file';S.action='browse';}}else if(blockers.length){text='Review setup';status=blockers.join(' ');S.action='setup';}else if(!selected.length||selected.some(g=>deviceList()[g]?.busy)){text='No free GPU';status='Every card is in use. Wait for its workload to finish or stop a server above.';button.disabled=true;}else if(S.plan?.error){text='Launch blocked';status=S.plan.error;button.disabled=true;}else{text=`Launch on GPU ${selected.join(' + ')}`;S.action='launch';}}
-button.textContent=S.request?'Working':text;$('launch-status').textContent=status;const found=match();$('run-facts').innerHTML=r?`<span>${found?.detected?'Model on disk':'Model not found'}</span><span>${Number($('context').value).toLocaleString()} context tokens</span><span>${esc($('gpu').value?'GPU '+$('gpu').value:'No GPU selected')}</span>`:'';}
-function renderServers(){const rows=S.servers.filter(e=>e.status!=='stopped');$('servers-panel').hidden=!rows.length;$('servers').innerHTML=rows.map(e=>{const ready=e.status==='running';const t=e.test||{};const label=ready?'Ready':e.status==='starting'?e.phase||'Starting':e.status==='exited'?`Exited${e.exitcode==null?'':' ('+e.exitcode+')'}`:e.status;return `<article class="server" data-server="${esc(e.id)}"><div class="server-title"><strong>${esc(e.model_name||e.model)} <span class="meta">${esc(e.engine)} · :${e.port}</span></strong><span class="status ${ready?'good':e.status==='exited'?'danger':''}">${esc(label)}</span></div><div class="connection"><code>${esc(e.endpoint)}</code><button type="button" data-server-action="copy-endpoint">Copy endpoint</button></div><div class="connection"><code>Model: ${esc(e.served_name||e.model_name||e.model)}</code><button type="button" data-server-action="copy-model">Copy model</button></div><p class="test-result hint ${t.state==='passed'?'good':t.state==='failed'?'danger':''}">${t.state==='passed'?`Test answered in ${t.elapsed_s}s${t.tok_s==null?'':` · ${t.tok_s} wall tok/s`}`:t.state==='running'?'Testing answer':t.state==='failed'?esc(t.error||'Test failed'):'Not tested yet'}</p>${e.error?`<p class="error">${esc(e.error)}</p>`:''}<div class="actions"><button type="button" data-server-action="open" ${ready?'':'disabled'}>Open client</button><button type="button" data-server-action="test" ${ready?'':'disabled'}>Test</button><button type="button" data-server-action="logs">Logs</button><button type="button" class="danger" data-server-action="stop">${e.status==='starting'?'Cancel launch':'Stop'}</button></div></article>`;}).join('');}
-function renderDownloads(){const rows=Object.values(S.downloads).filter(e=>!['done','cancelled'].includes(e.state));$('downloads-panel').hidden=!rows.length;$('downloads').innerHTML=rows.map(e=>`<div class="download-row"><strong>${esc(e.model)} · ${esc(e.engine)}</strong><p class="hint numbers">${esc(e.state)} · ${bytes(e.done)} / ${bytes(e.total)}${e.speed?` · ${bytes(e.speed)}/s`:''}</p><progress max="100" value="${e.pct||0}"></progress>${e.error?`<p class="error">${esc(e.error)}</p>`:''}<button type="button" data-download="${esc(e.id)}" ${['queued','resolving','downloading'].includes(e.state)?'':'disabled'}>Cancel download</button></div>`).join('');}
-async function refreshPlan(){if(!S.model)return;const seq=S.selection;try{const plan=await api('/api/build',cfg());if(seq!==S.selection)return;S.plan=plan;$('plan-warnings').textContent=[...(plan.warnings||[]),plan.error||''].filter(Boolean).join('\n');if(plan.effective_binary)$('recipe-image').textContent=`Effective runtime: ${plan.effective_binary}`;renderAction();}catch(e){if(seq===S.selection)error('action-error',e.message);}}
-async function refreshScan(){S.scan=await api('/api/scan');renderLibrary();renderHardware();renderAction();}
-async function poll(){if(S.polled)return;S.polled=true;try{const state=await api('/api/state');S.state=state;S.servers=state.running||[];S.downloads=await api('/api/downloads');$('version').textContent=`Version ${state.version}`;document.title=`B70 Launcher ${state.version}`;error('connection-error','');if(!S.model){await refreshScan();const first=filteredModels().find(m=>Object.values(S.scan.matches[m.id]||{}).some(x=>x.detected))||state.recipes.models.find(m=>m.id===state.preflight.default.model_id)||state.recipes.models[0];$('client').value=state.settings.open_with||'pi';$('sync-clients').checked=state.settings.sync_clients!==false;if(first)choose(first.id);}else if(S.scan?.ts!==state.scan.ts){await refreshScan();}renderServers();renderDownloads();renderGpus();renderAction();const power=await api('/api/power');renderHardware(power.power||[]);const update=state.update;const notices=Object.keys(state.recipe_notices||{});$('update-banner').hidden=!update?.has_update&&!notices.length;const inst=update?.install||{};$('update-banner').innerHTML=update?.has_update?(inst.state==='done'?`Launcher ${esc(inst.version)} is installed. <button type="button" data-update="restart">Restart now</button>`:inst.state==='running'?`Installing launcher ${esc(update.latest_version)}. Running servers keep running.`:`Launcher ${esc(update.latest_version)} is available. <button type="button" data-update="install">Install update</button>${inst.state==='failed'?` <span class="error">${esc(inst.error)}</span>`:''}`):notices.length?`${notices.length} recipe updates available. Open Recipe details for the selected model.`:'';}catch(e){error('connection-error',`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}finally{S.polled=false;}}
-function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.trigger=document.activeElement;$('dialog-title').textContent=title;$('dialog-content').innerHTML=html;error('dialog-error','');if(!$('dialog').open)$('dialog').showModal();}
+function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toast.timer);
+  toast.timer=setTimeout(()=>$('toast').hidden=true,4000);}
+const model=()=>S.state?.recipes.models.find(m=>m.id===S.model);
+const recipe=()=>model()?.recipes[S.engine];
+const match=()=>S.scan?.matches[S.model]?.[S.engine];
+const clients=()=>S.state?.clients||{};
+const deviceList=()=>S.state?.preflight.devices||[];
+const engineLabel=id=>S.state?.recipes.engines.find(e=>e.id===id)?.label||id;
+const ENGINE_SHORT={openvino:'OpenVINO',vllm:'vLLM',llamacpp:'llama.cpp',exl3:'EXL3'};
+const engineShort=id=>ENGINE_SHORT[id]||engineLabel(id);
+const LOGO={qwen:'qwen.svg',nvidia:'nvidia.svg',mistral:'mistral.svg',intel:'intel.svg'};
+const logoFor=m=>LOGO[m.brand]||'model-generic.svg';
+const ENG_ICON={openvino:'eng-ovms.svg',vllm:'eng-vllm.svg',llamacpp:'eng-llamacpp.svg',exl3:'eng-exl3.svg'};
+const engIcon=id=>ENG_ICON[id]||'eng-generic.svg';
+const engColor=id=>`var(--eng-${id},var(--subtle))`;
+const BRAND_LABEL={qwen:'Qwen',nvidia:'NVIDIA',mistral:'Mistral',generic:'Other models'};
+const TAG_COLOR={violet:'c-violet',green:'c-green',amber:'c-amber',blue:'c-blue',grey:'c-grey'};
+const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['webui','Web UI'],['none','No app (endpoint only)']];
+const clientLabel=id=>CLIENTS.find(c=>c[0]===id)?.[1]||id;
+const shortQuant=q=>String(q||'').split(' (')[0].split(' — ')[0].trim();
+const firstSentence=t=>String(t||'').split(/(?<=\.)\s+/)[0]||'';
+const shortReason=reason=>{const r=String(reason||'').replace('incompatible: ','');return r.length>72?r.slice(0,72).replace(/\s\S*$/,'')+'…':r;};
+const gpuCount=r=>(r.gpus?.length||r.tp===2)?(r.gpus?.length||2):1;
+const validatedCtx=r=>r.ctx_safe||null;
+const defaultGpus=r=>{if(r.gpus?.length)return r.gpus;if(r.tp===2)return[0,1];return S.state?.preflight.default.gpus||[0];};
+const recipeKey=()=>`${S.model}:${S.engine}`;
+function cfg(){const g=$('gpu').value;return{model_id:S.model,engine:S.engine,port:Number($('port').value),
+  ctx:Number($('context').value),kv:$('kv').value,gpus:g?g.split(',').map(Number):[],
+  slots:Number($('slots').value)||1,mtp:$('mtp').checked,extra:$('extra').value,
+  extra_env:$('extra-env').value,harness:$('client').value,no_test:false};}
+function sessionFor(modelId,engine,port){const rows=S.servers.filter(e=>e.model_id===modelId&&e.engine===engine&&e.status!=='stopped');
+  return rows.find(e=>e.port===port&&live(e))||rows.find(e=>live(e))||rows[0]||null;}
+const currentSession=()=>S.model?sessionFor(S.model,S.engine,Number($('port').value)):null;
+
+/* ---------- selection ---------- */
+function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
+  S.engine=engine&&m.recipes[engine]?engine:m.recommended_engine&&m.recipes[m.recommended_engine]?m.recommended_engine:Object.keys(m.recipes)[0];
+  S.selection++;S.plan=null;S.downloadPlan=null;$('download-confirm').hidden=true;error('action-error','');
+  const r=recipe();
+  $('context').value=validatedCtx(r)||r.ctx||32768;
+  $('context').max=r.ctx_max||262144;
+  renderSelection();refreshPlan();
+  if(port){$('port').value=port;}
+}
+
+/* ---------- library ---------- */
+function recipeCards(){const q=$('search').value.trim().toLowerCase();
+  const out=[];
+  for(const m of S.state?.recipes.models||[]){
+    const engines=Object.keys(m.recipes).sort((a,b)=>((b===m.recommended_engine)-(a===m.recommended_engine)));
+    for(const eng of engines){const r=m.recipes[eng];const mt=S.scan?.matches[m.id]?.[eng]||{};
+      if(q&&!`${m.name} ${m.arch} ${m.blurb} ${m.chips?.join(' ')} ${engineShort(eng)} ${r.download?.quant||''}`.toLowerCase().includes(q))continue;
+      if($('on-disk').checked&&!mt.detected)continue;
+      out.push({m,engine:eng,r,mt,notice:S.state?.recipe_notices?.[`${m.id}:${eng}`]});}}
+  const brands=[];const by={};
+  for(const c of out){const b=c.m.brand||'generic';if(!by[b]){by[b]=[];brands.push(b);}by[b].push(c);}
+  return brands.flatMap(b=>by[b]);}
+function availability(mt,r){if(mt.detected)return['ok','On disk'];
+  if(r.operator_hold)return['hold','Held'];
+  const reason=mt.reason||'';
+  if(reason.startsWith('incompatible'))return['bad','Incompatible'];
+  if(r.download?.repo)return['dl','Download required'];
+  return['none','Not on disk'];}
+function renderLibrary(){const cards=recipeCards();
+  const sig=JSON.stringify([cards.map(c=>[c.m.id,c.engine,c.m.brand,c.mt.detected,c.mt.reason,Boolean(c.notice),c.m.recommended_engine===c.engine,
+    c.m.id===S.model&&c.engine===S.engine]),S.scan?.state]);
+  if(sig===S.sig.library&&$('recipe-list').childElementCount)return;
+  S.sig.library=sig;
+  let prevModel=null,prevBrand=null;const html=[];
+  for(const c of cards){
+    const brand=c.m.brand||'generic';
+    if(brand!==prevBrand){prevBrand=brand;prevModel=null;
+      html.push(`<div class="group-h" aria-hidden="true"><img src="/assets/${logoFor(c.m)}" alt="">${esc(BRAND_LABEL[brand]||brand)}</div>`);}
+    const[cls,label]=availability(c.mt,c.r);
+    const tags=[];
+    if(c.m.recommended_engine===c.engine)tags.push('<span class="tag rec" title="This model’s recommended engine in the cookbook catalog">Cookbook pick</span>');
+    if(c.notice?.is_new)tags.push('<span class="tag">New</span>');
+    if(c.notice&&!c.notice.is_new)tags.push('<span class="tag upd" title="A newer recipe revision is published">Update</span>');
+    if(c.m.id===S.model&&c.engine===S.engine)tags.push('<span class="tag sel">Selected</span>');
+    const meta=[validatedCtx(c.r)?`${fmt(validatedCtx(c.r))} validated ctx`:'',gpuCount(c.r)>1?`${gpuCount(c.r)} GPUs`:'',
+      c.mt.size_mib?mib(c.mt.size_mib):''].filter(Boolean).join(' · ');
+    const title=`${engineLabel(c.engine)} · ${c.r.download?.quant||c.r.kind}`;
+    html.push(`<button class="recipe${c.m.id===prevModel?' family':''}" type="button" role="radio"
+      aria-checked="${c.m.id===S.model&&c.engine===S.engine}" title="${esc(title)}"
+      tabindex="${c.m.id===S.model&&c.engine===S.engine||(!cards.some(x=>x.m.id===S.model&&x.engine===S.engine)&&c===cards[0])?0:-1}"
+      data-model="${esc(c.m.id)}" data-engine="${esc(c.engine)}">
+      <span class="r-top"><img class="r-logo" src="/assets/${logoFor(c.m)}" alt=""><span class="r-name">${esc(c.m.name)}</span>${tags.join('')}</span>
+      <span class="r-var"><span class="eng-dot" style="background:${engColor(c.engine)}"></span>${esc(engineShort(c.engine))} · ${esc(shortQuant(c.r.download?.quant)||c.r.kind)}</span>
+      ${firstSentence(c.m.blurb||c.m.arch)?`<span class="r-purpose">${esc(firstSentence(c.m.blurb||c.m.arch))}</span>`:''}
+      ${meta?`<span class="r-meta">${esc(meta)}</span>`:''}
+      <span class="r-state st-${cls}"${cls==='bad'&&c.mt.reason?` title="${esc(c.mt.reason)}"`:''}><span class="dot"></span>${label}${cls==='bad'&&c.mt.reason?` — ${esc(shortReason(c.mt.reason))}`:''}</span>
+    </button>`);
+    prevModel=c.m.id;}
+  $('recipe-list').innerHTML=html.join('');
+  $('empty').hidden=Boolean(cards.length);
+  $('empty-text').textContent=$('search').value?`No recipes match “${$('search').value}”.`
+    :$('on-disk').checked?'No matching recipes are on disk. Add a model folder or clear the filter.':'';
+  $('scan-status').textContent=S.scan?.state==='scanning'?'Scanning model folders…'
+    :`${cards.length} recipe${cards.length===1?'':'s'} · ${(S.scan?.roots||[]).length} model folders`;}
+
+/* ---------- workspace ---------- */
+function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
+  const h1=$('recipe-name');h1.textContent='';
+  const img=document.createElement('img');
+  img.src=`/assets/${logoFor(m)}`;img.alt='';img.className='head-logo';
+  h1.append(img,document.createTextNode(m.name));
+  const notice=S.state?.recipe_notices?.[`${S.model}:${S.engine}`];
+  $('recipe-variant').innerHTML=
+    `<span class="engine" style="--eng:${engColor(S.engine)}"><img src="/assets/${engIcon(S.engine)}" alt="">${esc(engineLabel(S.engine))}</span>`+
+    (r.download?.quant?`<span>·</span><span>${esc(r.download.quant)}</span>`:'')+
+    (m.recommended_engine===S.engine?'<span class="tag rec" title="This model’s recommended engine in the cookbook catalog">Cookbook pick</span>':'')+
+    (notice?`<span class="tag upd" title="A newer recipe revision is published">Update ${esc(notice.remote_ver)}</span>`+
+      (notice.can_apply?'<button id="recipe-update" type="button" class="mini" style="min-height:26px;padding:1px 9px;font-size:var(--caption)">Apply update</button>':''):'');
+  $('recipe-purpose').textContent=m.blurb||m.arch||r.download?.quant&&`Weights: ${r.download.quant}`||'';
+  $('recipe-meta').innerHTML=[
+    validatedCtx(r)?`<span class="fact"><b>Validated ctx</b> ${fmt(validatedCtx(r))}</span>`:'',
+    r.ctx?`<span class="fact"><b>Recipe ctx</b> ${fmt(r.ctx)}</span>`:'',
+    r.ctx_max?`<span class="fact"><b>Ceiling</b> ${fmt(r.ctx_max)}</span>`:'',
+    `<span class="fact"><b>GPUs</b> ${gpuCount(r)}</span>`,
+    r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:'',
+    m.arch?`<span class="fact">${esc(m.arch)}</span>`:''
+  ].filter(Boolean).join('');
+  const others=Object.keys(m.recipes).filter(e=>e!==S.engine);
+  $('other-recipes').innerHTML=others.length?'Also as: '+others.map(e=>
+    `<button type="button" data-switch-engine="${esc(e)}" aria-label="Switch to the ${esc(engineLabel(e))} recipe for ${esc(m.name)}"><span class="eng-dot" style="background:${engColor(e)}"></span>${esc(engineShort(e))} · ${esc(shortQuant(m.recipes[e].download?.quant)||m.recipes[e].kind)}</button>`).join(''):'';
+  renderContext();renderKv();renderGpus();renderClients();renderAvailability();renderCookbook();}
+
+function renderContext(){const r=recipe(),mt=match();
+  const parts=[];
+  if(validatedCtx(r))parts.push(`validated ${fmt(validatedCtx(r))} (checked by the cookbook)`);
+  if(r.ctx)parts.push(`recipe default ${fmt(r.ctx)}`);
+  if(r.ctx_max)parts.push(`ceiling ${fmt(r.ctx_max)} — larger values are clamped`);
+  if(mt?.ctx_native)parts.push(`native config.json ${fmt(mt.ctx_native)}`);
+  $('context-hint').textContent=(parts.join(' · ')||'Context metadata not documented for this recipe.')+
+    ' Larger contexts are not a guarantee: validated values are the tested ones.';
+  const presets=[];const add=(v,label,title)=>{if(v&&v!==Number($('context').value))presets.push({v,label,title});};
+  add(validatedCtx(r),'Validated','Cookbook-checked context');
+  add(r.ctx,'Recipe','Recipe-configured default');
+  add(r.ctx_max,'Ceiling','Maximum the recipe allows (clamped)');
+  $('ctx-presets').innerHTML=presets.map((p,i)=>`<button type="button" data-ctx="${p.v}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');}
+
+function renderKv(){const r=recipe();
+  const options=r.kv_options||(r.kind?.startsWith('gguf')?['q8_0/q4_1','q8_0','q5_0/q4_1','f16']:r.kind==='ovms'?['auto']:['fp8']);
+  const preferred=r.kv&&options.includes(r.kv)?r.kv:options[0];
+  $('kv').innerHTML=options.map(k=>`<option value="${esc(k)}"${k===preferred?' selected':''}>${esc(k)}</option>`).join('');}
+
+function renderGpus(){const r=recipe();if(!r)return;const devices=deviceList();
+  const sig=JSON.stringify([devices.map(d=>[d.label,d.busy,d.busy_by,d.accessible,d.b70]),recipeKey()]);
+  const values=devices.map((d,i)=>({value:String(i),label:`GPU ${i}${d.label?' · '+d.label.replace(' · ',' '):''}${d.busy?` — in use (${d.busy_by||'unknown'})`:!d.accessible?' — check access':''}`,
+    disabled:!d.b70||!d.accessible||Boolean(d.busy)}));
+  if(devices.length>=2)values.push({value:'0,1',label:'GPUs 0 and 1 (tensor split)',disabled:values.slice(0,2).some(v=>v.disabled)});
+  const none=values.every(v=>v.disabled);
+  if(none){$('gpu').innerHTML='<option value="" selected>No free GPU</option>';$('gpu-hint').textContent='Every card is in use or inaccessible. Stop a session or check GPU access.';return;}
+  const draft=S.gpuDraft[recipeKey()];
+  const wanted=draft&&values.some(v=>v.value===draft&&!v.disabled)?draft:defaultGpus(r).join(',');
+  if(sig!==S.sig.gpus){S.sig.gpus=sig;
+    $('gpu').innerHTML=values.map(v=>`<option value="${v.value}"${v.disabled?' disabled':''}>${esc(v.label)}</option>`).join('');}
+  $('gpu').value=wanted;
+  if(!$('gpu').value)$('gpu').value=values.find(v=>!v.disabled)?.value||'';
+  $('gpu-hint').textContent=gpuCount(r)>1&&$('gpu').value!=='0,1'
+    ?'This recipe is sized for both cards; a single card may not fit.':'Only free, accessible cards can launch.';}
+
+function renderClients(){const c=clients();const prev=$('client').value;
+  $('client').innerHTML=CLIENTS.map(([id,label])=>{
+    const st=c[id];let suffix='';
+    if(st){if(!st.installed)suffix=id==='webui'?' — not running':' — not installed';
+      else if(!st.openable)suffix=' — no display';}
+    return`<option value="${id}">${esc(label)}${suffix}</option>`;}).join('');
+  if(prev&&[...$('client').options].some(o=>o.value===prev))$('client').value=prev;
+  const d=c.display;
+  $('client-hint').textContent='Launch starts the server. When it is ready, the button above opens this application wired to the endpoint.'+
+    (d&&!d.available&&d.reason?` ${d.reason}.`:'');}
+
+function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
+  const box=$('availability');const rows=[];
+  const[cls,label]=availability(mt,r);
+  if(cls==='ok'){
+    rows.push(`<div class="avail ok"><span class="lead"><span class="dot"></span>On disk</span>
+      <span class="detail">${esc(mt.found_name||mt.path?.split('/').pop()||'artifact')}${mt.size_mib?` · ${mib(mt.size_mib)}`:''}<br>
+      <code title="${esc(mt.path)}">${esc(mt.path)}</code></span>
+      <span class="actions"><button type="button" data-copy="${esc(mt.path)}">Copy path</button></span></div>`);}
+  else if(cls==='bad'){
+    rows.push(`<div class="avail bad"><span class="lead"><span class="dot"></span>Incompatible</span>
+      <span class="detail">${esc(mt.reason||'No compatible artifact found.')}
+      <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
+  else if(cls==='dl'){
+    const size=shortQuant(r.download.quant)||r.download.repo;
+    rows.push(`<div class="avail dl"><span class="lead"><span class="dot"></span>Download required</span>
+      <span class="detail">From <code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · download disk has ${S.scan?.free_gb==null?'unknown':S.scan.free_gb+' GiB'} free.</span></div>`);}
+  else if(cls==='hold'){
+    rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
+      <span class="detail">${esc(r.operator_hold)}</span></div>`);}
+  else{
+    rows.push(`<div class="avail"><span class="lead"><span class="dot"></span>Not on disk</span>
+      <span class="detail">No verified download exists for this recipe. Add the artifact’s folder, then rescan.
+      <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
+  if(r.operator_hold&&cls!=='hold'){
+    rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
+      <span class="detail">${esc(r.operator_hold)}</span></div>`);}
+  if(cls==='ok'&&mt.path&&r.download?.quant&&S.plan?.variant){
+    rows.push(`<p class="note">Using your local artifact “${esc(S.plan.found_name)}” — the recipe default was ${esc(shortQuant(r.download.quant))}. The launch uses your file.</p>`);}
+  box.innerHTML=rows.join('');}
+
+function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return;
+  const dl=r.download||{};
+  const dlPairs=[['Repository',dl.repo],['Revision',dl.revision],['Search',dl.search],['Match family',dl.match],
+    ['Prefer',Array.isArray(dl.prefer)?dl.prefer.join(', '):dl.prefer],['Excludes',Array.isArray(dl.exclude)?dl.exclude.join(', '):dl.exclude],
+    ['Verify files',Array.isArray(dl.verify)?dl.verify.join(', '):dl.verify],['Extra files',dl.extra_files],['Destination',dl.dest]];
+  const reqPairs=[['Weights',dl.name||r.gguf||r.model_path||r.source_model],['Quantization',dl.quant],
+    ['Size on disk',mt?.size_mib?mib(mt.size_mib):null],['GPUs',`${gpuCount(r)}${r.tp===2?' (tensor parallel)':''}`],
+    ['Power hint',r.power?`~${r.power} W (advisory; the launcher never changes power)`:null],
+    ['Runtime',S.plan?.effective_binary||r.image||'native binary'],['Engine',engineLabel(S.engine)]];
+  const valPairs=[['Validated context',validatedCtx(r)?fmt(validatedCtx(r)):null],
+    ['Recipe context',r.ctx?fmt(r.ctx):null],['Context ceiling',r.ctx_max?fmt(r.ctx_max):null],
+    ['Context note',r.ctx_note],['KV options',Array.isArray(r.kv_options)?r.kv_options.join(', '):null],
+    ['KV default',r.kv],['Fixed flags',Array.isArray(r.fixed_flags)?r.fixed_flags.join(' '):r.fixed_flags],
+    ['Speculative draft',r.draft_model?(r.spec_tokens?`${r.spec_tokens} tokens`:'yes'):null],
+    ['Reasoning parser',r.reasoning_parser],['Tool parser',r.tool_parser],
+    ['Serve config',r.serve_config],['Cache interval multiplier',r.cim_long_ctx],
+    ['Tensor split',r.tensor_split],['Split mode',r.split_mode],['Offloaded tensors',r.offload_tensors]];
+  const techPairs=[['Recipe revision',r.recipe_ver||r.ver],['Image',r.image],['Docker socket',r.docker_sock],
+    ['Inner port',r.inner_port],['Model path',r.model_path],['Source model',r.source_model],
+    ['Search name',r.search_name],['Kind',r.kind],['Dtype',r.dtype],['Quantization config',r.quantization],
+    ...dlPairs.filter(p=>p[1]!==dl.repo||!r.image)];
+  const spec=pairs=>`<dl class="spec">${pairs.filter(p=>p[1]!=null&&p[1]!=='').map(([k,v])=>
+    `<dt>${esc(k)}</dt><dd class="${/path|image|repo|socket|config|flags|Runtime|Source/i.test(k)?'mono':''}">${esc(v)}</dd>`).join('')}</dl>`;
+  const tags=(m.tags||[]).map(t=>`<span class="tag ${TAG_COLOR[t.c]||'c-grey'}"${t.c?` title="cookbook tag (${t.c})"`:''}>${esc(t.t)}</span>`).join('');
+  $('cookbook-body').innerHTML=`
+    <h3>Overview</h3>${spec([['Purpose',m.blurb],['Architecture',m.arch],['Recommendation',m.recommendation]])}${tags?`<div class="tags">${tags}</div>`:''}
+    <h3 style="margin-block-start:16px">Requirements</h3>${spec(reqPairs)}
+    <h3 style="margin-block-start:16px">Validated configuration</h3>${spec(valPairs)}
+    <h3 style="margin-block-start:16px">Benchmarks</h3>
+    <p class="hint">As recorded in the cookbook catalog; measured under specific hardware and settings.</p>
+    ${spec([['Result',r.perf],['Conditions',r.perf_note]])}
+    <h3 style="margin-block-start:16px">Limitations</h3>${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded for this recipe.</p>'}
+    <h3 style="margin-block-start:16px">Technical notes</h3>${spec(techPairs)}
+    <p class="hint wrap" id="plan-warnings"></p>`;
+  if(S.plan)$('plan-warnings').textContent=[...(S.plan.warnings||[]),S.plan.error||''].filter(Boolean).join('\n');}
+
+/* ---------- sessions ---------- */
+function sessionStatus(e){if(e.status==='running')return['running','Ready','Serving; the endpoint answered /v1/models'];
+  if(e.status==='starting')return['starting',e.phase||'Starting','Loading; the endpoint is not accepting requests yet'];
+  if(e.status==='exited')return['exited',`Exited${e.exitcode==null?'':' ('+e.exitcode+')'}`,'The engine process ended'];
+  return['',e.status||'',''];}
+function renderSession(){const e=currentSession();const box=$('session');
+  if(!e){box.hidden=true;S.sig.session='';renderOtherSessions();return;}
+  const sig=JSON.stringify([e.id,e.status,e.phase,e.ready_at,e.client_open,e.test?.state,e.error,e.exitcode,e.tok_s,e.endpoint,S.openFail[e.id]||'']);
+  const[cls,label,desc]=sessionStatus(e);
+  const t=e.test||{};
+  const up=e.ready_at?elapsed((Date.now()/1000)-e.ready_at):elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000));
+  const client=e.client?clientLabel(e.client):'';
+  const openState=e.client_open?`<span class="good">Opened ${esc(e.client_open)}</span>`
+    :S.openFail[e.id]?`<span class="danger">Server is ready, but opening ${esc(client||'the app')} failed:</span> <span class="wrap">${esc(S.openFail[e.id])}</span>`
+    :cls==='running'&&e.client&&e.client!=='none'?`Not opened yet — use “Open ${esc(client)}”`
+    :cls==='running'?'Endpoint only (no app selected)':'';
+  box.hidden=false;
+  if(sig!==S.sig.session){S.sig.session=sig;
+    box.className=`session ${cls}`;
+    box.innerHTML=`
+      <div class="session-head">
+        <h2 id="session-heading">Session</h2>
+        <span class="status-pill ${cls}" title="${esc(desc)}"><span class="dot"></span>${esc(label)}</span>
+        <span class="meta numbers">${cls==='running'?`loaded in ${e.load_s??'?'}s · up ${up}`:`up ${up}`}</span>
+        <span class="spacer"></span>
+        <button type="button" class="danger" id="session-stop">${e.status==='starting'?'Cancel launch':'Stop session'}</button>
+      </div>
+      <div class="session-grid numbers">
+        <div class="kv"><dt>Endpoint</dt><dd><code>${esc(e.endpoint)}</code>
+          <button class="mini" type="button" data-copy="${esc(e.endpoint)}">Copy</button></dd></div>
+        <div class="kv"><dt>Served model</dt><dd><code>${esc(e.served_name||e.model_name||e.model)}</code>
+          <button class="mini" type="button" data-copy="${esc(e.served_name||e.model_name||e.model)}">Copy</button></dd></div>
+        <div class="kv"><dt>Port</dt><dd>${e.port}</dd></div>
+        <div class="kv"><dt>GPUs</dt><dd>${(e.gpus||[]).map(g=>'GPU '+g).join(' + ')}</dd></div>
+        <div class="kv"><dt>Context</dt><dd>${fmt(e.ctx)}${e.ctx_source?` <span class="meta">(${esc(e.ctx_source)})</span>`:''}</dd></div>
+        ${e.quant?`<div class="kv"><dt>Quantization</dt><dd>${esc(e.quant)}${e.variant?' <span class="meta">(local variant)</span>':''}</dd></div>`:''}
+        ${e.tok_s?`<div class="kv"><dt>Throughput</dt><dd>${e.tok_s} tok/s</dd></div>`:''}
+      </div>
+      <div class="session-actions">
+        <button type="button" id="session-open" ${e.status==='running'?'':'disabled'}>${e.client==='none'?'Copy endpoint':`Open ${esc(client||'client')}`}</button>
+        <button type="button" id="session-test" ${e.status==='running'?'':'disabled'} title="Sends one prompt and checks the answer">Test prompt</button>
+        <button type="button" id="session-logs">Logs</button>
+      </div>
+      <p class="client-line">${openState}</p>
+      <p class="test-line ${t.state==='passed'?'good':t.state==='failed'?'danger':''}">${
+        t.state==='passed'?`Test answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s`:''} — <button class="mini" type="button" id="view-answer">view answer</button>`
+        :t.state==='running'?'Testing answer…'
+        :t.state==='failed'?`Test failed: ${esc(t.error||'no answer')}`
+        :cls==='running'?'Not tested yet':'Test runs once the endpoint is ready'}</p>
+      ${e.error?`<p class="error">${esc(e.error)}</p>`:''}`;}
+  renderOtherSessions();}
+function renderOtherSessions(){const rows=S.servers.filter(e=>e.status!=='stopped'&&!(e.model_id===S.model&&e.engine===S.engine));
+  const box=$('other-sessions');
+  if(!rows.length){box.hidden=true;box.innerHTML='';S.sig.others='';return;}
+  const sig=JSON.stringify(rows.map(e=>[e.id,e.status,e.phase,e.port]));
+  box.hidden=false;
+  if(sig!==S.sig.others){S.sig.others=sig;
+    box.innerHTML=`<h2>Other running session${rows.length>1?'s':''}</h2>`+rows.map(e=>{
+      const[cls,label]=sessionStatus(e);
+      return`<div class="os-row"><span class="status-pill ${cls}"><span class="dot"></span>${esc(label)}</span>
+        <strong>${esc(e.model_name||e.model)}</strong><span class="meta">${esc(engineShort(e.engine))} · :${e.port}</span>
+        <button type="button" data-switch-session="${esc(e.id)}">Switch to recipe</button>
+        <button type="button" data-copy="${esc(e.endpoint)}">Copy endpoint</button></div>`;}).join('');}}
+
+/* ---------- downloads ---------- */
+function renderDownloads(){const rows=Object.values(S.downloads).filter(e=>!['done','cancelled'].includes(e.state));
+  $('downloads').hidden=!rows.length;
+  $('download-rows').innerHTML=rows.map(e=>`<div class="download-row">
+    <strong>${esc(e.model)} · ${esc(engineShort(e.engine))}</strong>
+    <p class="meta numbers">${esc(e.state)} · ${bytes(e.done)} / ${bytes(e.total)}${e.speed?` · ${bytes(e.speed)}/s`:''}</p>
+    <progress max="100" value="${e.pct||0}"></progress>
+    ${e.error?`<p class="error">${esc(e.error)}</p>`:''}
+    <button type="button" data-download="${esc(e.id)}" ${['queued','resolving','downloading'].includes(e.state)?'':'disabled'}>Cancel</button>
+  </div>`).join('');}
+
+/* ---------- hardware ---------- */
+function renderHardware(power=[]){const devices=deviceList();
+  $('hardware').innerHTML=devices.map((d,i)=>{const p=power.find(x=>x.pci===d.pci)||{};
+    const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
+    const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
+    const cls=d.busy?'busy':d.accessible?'ok':'bad';
+    const hot=used!=null&&total?used/total>0.8:false;
+    const state=d.busy?`in use${d.busy_by?' — '+d.busy_by:''}`:d.accessible?'free':'check access';
+    const telemetry=[p.watts!=null?`${Math.round(p.watts)} W`:'',p.temp_c!=null?`${Math.round(p.temp_c)} °C`:''].filter(Boolean).join(' · ');
+    const vbar=used!=null&&total?`<span class="vbar"><i style="width:${Math.min(100,Math.round(used/total*100))}%"></i></span>`:'';
+    return`<span class="chip ${cls}${hot?' hot':''}" title="GPU ${i} · ${esc(d.label||d.pci)} · ${esc(state)}${telemetry?` · ${telemetry}`:''} · cap ${esc(p.cap_w??d.power_cap_w??'?')} W${p.util_pct!=null?` · clock ${Math.round(p.util_pct)}%`:''}${used!=null?` · ${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB VRAM`:''}">
+      <span class="dot"></span>GPU ${i}${telemetry?` · <b>${telemetry}</b>`:''} ${vbar}${used!=null?`${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB`:` · ${esc(state)}`}</span>`;}).join('')
+    +`<span class="chip" title="Free space on the model download disk">Disk ${S.scan?.free_gb==null?'?':S.scan.free_gb} GiB free</span>`;}
+
+/* ---------- primary action ---------- */
+function renderAction(){const r=recipe();const button=$('primary');
+  button.disabled=S.request;let text='Connecting',status='';S.action='';
+  if(!r){button.disabled=true;}
+  else{const e=currentSession();const dl=S.downloads[`${S.model}-${S.engine}`];
+    const selected=$('gpu').value?$('gpu').value.split(',').map(Number):[];
+    const category=S.plan?.native?'native':r.kind==='exl3'?'exl3':'docker';
+    const blockers=S.state?.preflight.blockers_by_kind?.[category]||[];
+    const mt=match();
+    if(e?.status==='starting'){text='Loading model';status=`${e.phase||'Starting'} · ${elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000))} — the session panel has details`;button.disabled=true;}
+    else if(e?.status==='running'){text=$('client').value==='none'?'Copy endpoint':`Open ${clientLabel($('client').value)}`;S.action='open';
+      status=`Server is ready on ${e.endpoint} — this opens ${clientLabel($('client').value)} wired to it.`;}
+    else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';button.disabled=true;
+      status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s — cancel from the library footer`:'Checking repository files';}
+    else if(r.operator_hold){text='Launch held';status=r.operator_hold;button.disabled=true;}
+    else if(mt?.reason?.startsWith('incompatible')){text='Incompatible';status=mt.reason;button.disabled=true;}
+    else if(!mt?.detected){if(r.download?.repo){text='Review download';S.action='download';
+      status=`Confirm destination and free space — ${S.scan?.free_gb==null?'unknown':S.scan.free_gb+' GiB'} free on the download disk.`;}
+      else{text='Choose model file';S.action='browse';status='No verified download for this recipe — add its folder in Model folders.';}}
+    else if(blockers.length){text='Review setup';status=blockers.join(' ');S.action='setup';}
+    else if(!selected.length||selected.some(g=>deviceList()[g]?.busy)){text='No free GPU';button.disabled=true;
+      status='Every card is in use. Stop a session or wait for its workload to finish.';}
+    else if(S.plan?.error){text='Launch blocked';status=S.plan.error;button.disabled=true;}
+    else{text='Launch recipe';S.action='launch';
+      status=`On GPU ${selected.join(' + ')} · ctx ${fmt($('context').value)} tokens · :${$('port').value}${S.plan?.served_name?` · serves ${S.plan.served_name}`:''}`;}}
+  button.textContent=S.request?'Working…':text;
+  $('launch-status').textContent=status;
+  renderSession();}
+
+async function refreshPlan(){if(!S.model)return;const seq=S.selection;
+  try{const plan=await api('/api/build',cfg());if(seq!==S.selection)return;S.plan=plan;
+    const w=$('plan-warnings');if(w)w.textContent=[...(plan.warnings||[]),plan.error||''].filter(Boolean).join('\n');
+    renderAvailability();renderAction();}
+  catch(e){if(seq===S.selection)error('action-error',e.message);}}
+async function refreshScan(){S.scan=await api('/api/scan');S.sig.library='';renderLibrary();renderHardware();renderAction();}
+async function poll(){if(S.polled)return;S.polled=true;
+  try{const state=await api('/api/state');S.state=state;S.servers=state.running||[];
+    S.downloads=await api('/api/downloads');
+    $('version').textContent=`v${state.version}`;document.title=`B70 Launcher ${state.version}`;
+    error('connection-error','');
+    if(!S.model){await refreshScan();
+      const first=recipeCards().find(c=>c.mt.detected)||state.recipes.models.find(m=>m.id===state.preflight.default.model_id)&&{m:state.recipes.models.find(m=>m.id===state.preflight.default.model_id),engine:state.preflight.default.engine,r:state.recipes.models.find(m=>m.id===state.preflight.default.model_id).recipes[state.preflight.default.engine]}||null;
+      if(first){choose(first.m.id,first.engine);$('client').value=state.settings.open_with||'pi';}}
+    else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
+    renderLibrary();renderDownloads();renderClients();renderGpus();renderAction();
+    const power=await api('/api/power');renderHardware(power.power||[]);
+    renderUpdate(state.update);}
+  catch(e){error('connection-error',`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
+  finally{S.polled=false;}}
+function renderUpdate(update){const chip=$('update-chip');const inst=update?.install||{};
+  if(!update?.has_update){chip.hidden=true;return;}
+  chip.hidden=false;
+  if(inst.state==='done'){chip.innerHTML=`Launcher ${esc(inst.version)} installed. <button type="button" data-update="restart">Restart now</button>`;}
+  else if(inst.state==='running'){chip.innerHTML=`Installing launcher ${esc(update.latest_version)}… running servers keep running.`;}
+  else{chip.innerHTML=`${esc(update.latest_version)} available. <button type="button" data-update="install">Install update</button>`+
+    (inst.state==='failed'?` <span class="err-inline">${esc(inst.error)}</span>`:'');}}
+
+/* ---------- dialogs, copy, logs ---------- */
+function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.trigger=document.activeElement;
+  $('dialog-title').textContent=title;$('dialog-content').innerHTML=html;error('dialog-error','');
+  if(!$('dialog').open)$('dialog').showModal();}
 function closeDialog(){clearInterval(S.logTimer);S.logTimer=null;$('dialog').close();S.trigger?.focus();}
-async function copy(text){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Copied');return;}catch(e){/* WebKit may require the fallback inside the user gesture. */}}const input=document.createElement('textarea');input.value=text;input.setAttribute('aria-label','Copy text');document.body.append(input);input.select();const ok=document.execCommand('copy');input.remove();if(!ok)throw new Error('Copy unavailable. Select the displayed text and copy it.');toast('Copied');}
-async function primaryAction(){if(S.request)return;error('action-error','');try{S.request=true;renderAction();if(S.action==='launch'){await api('/api/settings',{open_with:$('client').value,sync_clients:$('sync-clients').checked});const result=await api('/api/launch',cfg());if(result.error)throw new Error(result.error);toast('Launch started');await poll();}else if(S.action==='download'){const seq=S.selection;const plan=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:false});if(seq!==S.selection)return;S.downloadPlan=plan;$('download-plan').textContent=`Download ${bytes(plan.size_bytes)} to ${plan.dest_dir||'an unavailable destination'}`;$('download-space').textContent=`${bytes(plan.free_bytes)} free. ${plan.error||'Includes the model and declared sidecar files.'}`;$('confirm-download').disabled=!plan.enough;$('confirm-download').textContent=`Download ${bytes(plan.size_bytes)}`;$('download-confirm').hidden=false;}else if(S.action==='open'){const entry=selectedServer();if($('client').value==='none')await copy(entry.endpoint);else await api('/api/harness',{id:entry.id,harness:$('client').value});}else if(S.action==='setup'){openDialog('Check launch setup',`<p>${esc($('launch-status').textContent)}</p><p class="hint">The launcher does not change GPU drivers, access groups or power settings.</p><pre>docker info\nls -l /dev/dri</pre><a href="https://github.com/SergiioB/b70-launcher#requirements" target="_blank" rel="noopener">Read setup requirements</a>`);}else if(S.action==='browse'){showFolders();}}catch(e){error('action-error',e.message);}finally{S.request=false;renderAction();}}
-function showFolders(download=false){const roots=S.state.settings.scan_dirs||[];openDialog('Model folders',`<p class="hint">The scanner always includes your download folder. Add existing folders that contain your models.</p><label for="folder-input">Model folders, one absolute path per line</label><textarea id="folder-input">${esc(roots.join('\n'))}</textarea><label for="download-folder">Download folder</label><input id="download-folder" class="search" value="${esc(S.state.settings.models_dir||'~/models')}"><div class="actions divider"><button id="save-folders" type="button">Save folders</button><button id="browse-files" type="button">Browse detected files</button></div>`);if(download)$('download-folder').focus();$('save-folders').onclick=async()=>{try{await api('/api/settings',{scan_dirs:$('folder-input').value.split('\n').map(x=>x.trim()).filter(Boolean),models_dir:$('download-folder').value});closeDialog();S.downloadPlan=null;$('download-confirm').hidden=true;await poll();toast('Model folders saved');}catch(e){error('dialog-error',e.message);}};$('browse-files').onclick=()=>{openDialog('Detected model files',(S.scan?.catalog||[]).map(f=>`<p><strong>${esc(f.name)}</strong><br><code>${esc(f.path)}</code></p>`).join('')||'<p>No files found. Add their folder, then wait for the scan.</p>');};}
-async function showLogs(entry){S.logOffset=null;openDialog(`${entry.model_name||entry.model} logs`,'<pre id="log-text" tabindex="0"></pre>');const update=async()=>{if(!$('dialog').open)return;try{const result=await api(`/api/logs?id=${encodeURIComponent(entry.id)}${S.logOffset==null?'':'&offset='+S.logOffset}`);S.logOffset=result.offset;$('log-text').textContent+=(result.lines||[]).join('\n')+((result.lines||[]).length?'\n':'');}catch(e){error('dialog-error',e.message);clearInterval(S.logTimer);}};await update();S.logTimer=setInterval(update,1500);}
+async function copy(text){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Copied');return;}
+  catch(e){/* WebKit may require the fallback inside the user gesture. */}}
+  const input=document.createElement('textarea');input.value=text;input.setAttribute('aria-label','Copy text');
+  document.body.append(input);input.select();const ok=document.execCommand('copy');input.remove();
+  if(!ok)throw new Error('Copy unavailable. Select the displayed text and copy it.');toast('Copied');}
+function showFolders(download=false){const roots=S.state.settings.scan_dirs||[];
+  openDialog('Model folders',`<p class="hint">The scanner always includes your download folder. Add existing folders that contain your models.</p>
+    <label for="folder-input">Model folders, one absolute path per line</label>
+    <textarea id="folder-input">${esc(roots.join('\n'))}</textarea>
+    <label for="download-folder">Download folder</label>
+    <input id="download-folder" class="search" value="${esc(S.state.settings.models_dir||'~/models')}">
+    <div class="actions divider"><button id="save-folders" type="button">Save folders</button>
+    <button id="browse-files" type="button">Browse detected files</button></div>`);
+  if(download)$('download-folder').focus();
+  $('save-folders').onclick=async()=>{try{await api('/api/settings',{scan_dirs:$('folder-input').value.split('\n').map(x=>x.trim()).filter(Boolean),models_dir:$('download-folder').value});
+    closeDialog();S.downloadPlan=null;$('download-confirm').hidden=true;await refreshScan();await poll();toast('Model folders saved');}
+    catch(e){error('dialog-error',e.message);}};
+  $('browse-files').onclick=()=>{openDialog('Detected model files',(S.scan?.catalog||[]).map(f=>
+    `<p><strong>${esc(f.name)}</strong><br><code>${esc(f.path)}</code></p>`).join('')||'<p>No files found. Add their folder, then wait for the scan.</p>');};}
+async function showLogs(entry){S.logOffset=null;
+  openDialog(`${entry.model_name||entry.model} logs`,'<pre id="log-text" tabindex="0" aria-label="Engine log"></pre>');
+  const update=async()=>{if(!$('dialog').open)return;
+    try{const result=await api(`/api/logs?id=${encodeURIComponent(entry.id)}${S.logOffset==null?'':'&offset='+S.logOffset}`);
+      S.logOffset=result.offset;$('log-text').textContent+=(result.lines||[]).join('\n')+((result.lines||[]).length?'\n':'');}
+    catch(e){error('dialog-error',e.message);clearInterval(S.logTimer);}};
+  await update();S.logTimer=setInterval(update,1500);}
+async function viewAnswer(entry){const t=entry.test||{};
+  openDialog('Server answer',`<p class="${t.state==='passed'?'good':'error'}">${esc(t.state==='passed'?`Answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s`:''}`:t.error||'Test failed')}</p>
+    ${t.reasoning?`<h3>Reasoning</h3><pre>${esc(t.reasoning)}</pre>`:''}
+    <h3>Answer</h3><pre>${esc(t.answer)}</pre>`);}
+
+/* ---------- primary action flow ---------- */
+async function primaryAction(){if(S.request)return;error('action-error','');
+  try{S.request=true;renderAction();
+    if(S.action==='launch'){
+      await api('/api/settings',{open_with:$('client').value});
+      const result=await api('/api/launch',cfg());
+      if(result.error)throw new Error(result.error);
+      toast('Launch started');await poll();}
+    else if(S.action==='download'){const seq=S.selection;
+      const plan=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:false});
+      if(seq!==S.selection)return;S.downloadPlan=plan;
+      $('download-plan').textContent=`Download ${bytes(plan.size_bytes)} to ${plan.dest_dir||'an unavailable destination'}`;
+      $('download-space').textContent=`${bytes(plan.free_bytes)} free. ${plan.error||'Includes the model and declared sidecar files.'}`;
+      $('confirm-download').disabled=!plan.enough;
+      $('confirm-download').textContent=`Download ${bytes(plan.size_bytes)}`;
+      $('download-confirm').hidden=false;}
+    else if(S.action==='open'){const e=currentSession();if(!e)return;
+      if($('client').value==='none'){await copy(e.endpoint);return;}
+      try{const result=await api('/api/harness',{id:e.id,harness:$('client').value});
+        delete S.openFail[e.id];toast(result.opened?`Opened ${clientLabel(result.client)}`:'Endpoint copied');await poll();}
+      catch(openError){S.openFail[e.id]=openError.message;await poll();
+        error('action-error',`The server is ready on ${e.endpoint}, but opening ${clientLabel($('client').value)} failed: ${openError.message}`);}}
+    else if(S.action==='setup'){openDialog('Check launch setup',`<p>${esc($('launch-status').textContent)}</p>
+      <p class="hint">The launcher does not change GPU drivers, access groups or power settings.</p>
+      <pre>docker info\nls -l /dev/dri</pre>
+      <a href="https://github.com/SergiioB/b70-launcher#requirements" target="_blank" rel="noopener">Read setup requirements</a>`);}
+    else if(S.action==='browse'){showFolders();}}
+  catch(e){error('action-error',e.message);}
+  finally{S.request=false;renderAction();}}
+
+/* ---------- events ---------- */
 $('primary').addEventListener('click',primaryAction);
-$('update-banner').addEventListener('click',async e=>{const b=e.target.closest('[data-update]');if(!b)return;b.disabled=true;try{await api(`/api/update/${b.dataset.update}`,{});if(b.dataset.update==='restart')$('update-banner').textContent='Restarting. The launcher window reopens in a few seconds.';else poll();}catch(err){b.disabled=false;$('update-banner').insertAdjacentHTML('beforeend',` <span class="error">${esc(err.message)}</span>`);}});
-$('model-list').addEventListener('click',e=>{const button=e.target.closest('[data-model]');if(button)choose(button.dataset.model);});
-$('model-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;const buttons=[...$('model-list').querySelectorAll('button')];const i=buttons.indexOf(document.activeElement);const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;e.preventDefault();const id=buttons[next]?.dataset.model;if(id){choose(id);$('model-list').querySelector(`[data-model="${CSS.escape(id)}"]`)?.focus();}});
-$('engines').addEventListener('click',e=>{const button=e.target.closest('[data-engine]');if(button)choose(S.model,button.dataset.engine);});
-$('engines').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;const engines=Object.keys(model().recipes);let i=engines.indexOf(S.engine);i=e.key==='Home'?0:e.key==='End'?engines.length-1:(i+(e.key==='ArrowRight'?1:-1)+engines.length)%engines.length;e.preventDefault();choose(S.model,engines[i]);$('engines').querySelector(`[data-engine="${CSS.escape(engines[i])}"]`)?.focus();});
-$('search').addEventListener('input',renderLibrary);$('on-disk').addEventListener('change',renderLibrary);$('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;renderLibrary();$('search').focus();};$('folders').onclick=()=>showFolders();$('change-folder').onclick=()=>showFolders(true);$('close-dialog').onclick=closeDialog;$('dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
-$('cancel-confirm').onclick=()=>{$('download-confirm').hidden=true;S.downloadPlan=null;};$('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;try{const result=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:true});if(result.error)throw new Error(result.error);$('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started');}catch(e){error('action-error',e.message);}};
-$('downloads').addEventListener('click',async e=>{const button=e.target.closest('[data-download]');if(!button)return;try{await api('/api/download/cancel',{id:button.dataset.download});await poll();}catch(ex){error('action-error',ex.message);}});
-$('servers').addEventListener('click',async e=>{const button=e.target.closest('[data-server-action]');if(!button)return;const id=button.closest('[data-server]').dataset.server;const entry=S.servers.find(x=>x.id===id);if(!entry)return;error('server-error','');try{const action=button.dataset.serverAction;if(action==='copy-endpoint')await copy(entry.endpoint);else if(action==='copy-model')await copy(entry.served_name||entry.model_name||entry.model);else if(action==='logs')await showLogs(entry);else if(action==='open')await api('/api/harness',{id,harness:$('client').value});else if(action==='stop'){if(confirm(`Stop ${entry.model_name||entry.model} on :${entry.port}?`)){await api('/api/stop',{id});await poll();}}else if(action==='test'){button.disabled=true;const result=await api('/api/test_prompt',{id});openDialog('Server answer',`<p class="${result.ok?'good':'error'}">${esc(result.ok?`Answered in ${result.elapsed_s}s`:result.error)}</p><pre>${esc(result.answer)}</pre>`);}}catch(ex){error('server-error',ex.message);}finally{button.disabled=false;}});
-$('preview').onclick=async()=>{await refreshPlan();if(!S.plan)return;openDialog('Launch command',`<p class="hint">Preview only. Nothing starts.</p><pre id="command-text">${esc(S.plan.cmd||S.plan.error||'')}</pre><button id="copy-command" type="button">Copy command</button><p class="hint wrap">${esc((S.plan.warnings||[]).join('\n'))}</p>`);$('copy-command').onclick=()=>copy(S.plan.cmd||'').catch(e=>error('dialog-error',e.message));};
-$('recipe-update').onclick=async()=>{try{const result=await api('/api/recipes/update',{model_id:S.model,engine:S.engine});if(result.error)throw new Error(result.error);await poll();choose(S.model,S.engine);toast('Recipe updated');}catch(e){error('action-error',e.message);}};
-for(const id of ['context','port','kv','gpu'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});$('client').addEventListener('change',renderAction);
-for(const id of ['advanced','details']){try{$(id).open=localStorage.getItem('b70-'+id)==='open';}catch(e){}$(id).addEventListener('toggle',()=>{try{localStorage.setItem('b70-'+id,$(id).open?'open':'closed');}catch(e){}});}
-document.addEventListener('keydown',e=>{if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;const editing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);if(e.key==='/'&&!editing&&!$('dialog').open){e.preventDefault();$('search').focus();}if(e.key==='Enter'&&!editing&&!$('dialog').open&&document.activeElement===$('run'))primaryAction();});
+$('preview').onclick=async()=>{await refreshPlan();if(!S.plan)return;
+  openDialog('Launch command',`<p class="hint">Preview only — nothing starts. This is the exact command a launch runs.</p>
+    <pre id="command-text">${esc(S.plan.cmd||S.plan.error||'')}</pre>
+    <button id="copy-command" type="button">Copy command</button>
+    <p class="hint wrap">${esc((S.plan.warnings||[]).join('\n'))}</p>`);
+  $('copy-command').onclick=()=>copy(S.plan.cmd||'').catch(e=>error('dialog-error',e.message));};
+document.addEventListener('click',async e=>{
+  const cp=e.target.closest('[data-copy]');if(cp){copy(cp.dataset.copy).catch(ex=>toast(ex.message));return;}
+  const sw=e.target.closest('[data-switch-engine]');if(sw){choose(S.model,sw.dataset.switchEngine);return;}
+  const ss=e.target.closest('[data-switch-session]');if(ss){
+    const entry=S.servers.find(x=>x.id===ss.dataset.switchSession);
+    if(entry){choose(entry.model_id,entry.engine);$('port').value=entry.port;}return;}
+  const cx=e.target.closest('[data-ctx]');if(cx){$('context').value=cx.dataset.ctx;onConfigChange();return;}
+  const ub=e.target.closest('[data-update]');if(ub){ub.disabled=true;
+    try{await api(`/api/update/${ub.dataset.update}`,{});poll();}
+    catch(err){ub.disabled=false;renderUpdate(S.state?.update);
+      const chip=$('update-chip');chip.insertAdjacentHTML('beforeend',` <span class="err-inline">${esc(err.message)}</span>`);}return;}
+  if(e.target.closest('#open-folders')){showFolders();return;}
+  const stop=e.target.closest('#session-stop');if(stop){const entry=currentSession();
+    if(entry&&confirm(`Stop ${entry.model_name||entry.model} on :${entry.port}?`)){
+      try{await api('/api/stop',{id:entry.id});await poll();}catch(ex){toast(ex.message);}}return;}
+  const open=e.target.closest('#session-open');if(open){const entry=currentSession();
+    if(entry){try{const result=await api('/api/harness',{id:entry.id,harness:$('client').value});
+      delete S.openFail[entry.id];toast(result.opened?`Opened ${clientLabel(result.client)}`:'Endpoint copied');await poll();}
+      catch(ex){S.openFail[entry.id]=ex.message;await poll();}}return;}
+  const test=e.target.closest('#session-test');if(test){const entry=currentSession();if(!entry)return;
+    test.disabled=true;try{const result=await api('/api/test_prompt',{id:entry.id});await viewAnswer({...entry,test:result});await poll();}
+    catch(ex){toast(ex.message);}finally{test.disabled=false;}return;}
+  const va=e.target.closest('#view-answer');if(va){viewAnswer(currentSession());return;}
+  const logs=e.target.closest('#session-logs');if(logs){const entry=currentSession();if(entry)showLogs(entry);return;}
+  const ru=e.target.closest('#recipe-update');if(ru){ru.disabled=true;
+    try{await api('/api/recipes/update',{model_id:S.model,engine:S.engine});await poll();choose(S.model,S.engine);toast('Recipe updated');}
+    catch(ex){ru.disabled=false;error('action-error',ex.message);}return;}});
+$('recipe-list').addEventListener('click',e=>{const b=e.target.closest('[data-model]');if(b)choose(b.dataset.model,b.dataset.engine);});
+$('recipe-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
+  const buttons=[...$('recipe-list').querySelectorAll('button')];const i=buttons.indexOf(document.activeElement);
+  const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
+  e.preventDefault();const b=buttons[next];if(b){choose(b.dataset.model,b.dataset.engine);b.focus();}});
+$('search').addEventListener('input',()=>{S.sig.library='';renderLibrary();});
+$('on-disk').addEventListener('change',()=>{S.sig.library='';renderLibrary();});
+$('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;S.sig.library='';renderLibrary();$('search').focus();};
+$('folders').onclick=()=>showFolders();
+$('close-dialog').onclick=closeDialog;
+$('dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
+$('cancel-confirm').onclick=()=>{$('download-confirm').hidden=true;S.downloadPlan=null;};
+$('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;
+  try{const result=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:true});
+    if(result.error)throw new Error(result.error);
+    $('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started');}
+  catch(e){error('action-error',e.message);}};
+$('download-rows').addEventListener('click',async e=>{const b=e.target.closest('[data-download]');if(!b)return;
+  try{await api('/api/download/cancel',{id:b.dataset.download});await poll();}catch(ex){toast(ex.message);}});
+function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderAction();refreshPlan();}
+for(const id of['context','port','kv','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+$('gpu').addEventListener('change',()=>onConfigChange());
+$('client').addEventListener('change',renderAction);
+for(const id of['advanced','cookbook']){try{$(id).open=localStorage.getItem('b70-'+id)==='open';}catch(e){}
+  $(id).addEventListener('toggle',()=>{try{localStorage.setItem('b70-'+id,$(id).open?'open':'closed');}catch(e){}});}
+document.addEventListener('keydown',e=>{if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
+  const editing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+  if(e.key==='/'&&!editing&&!$('dialog').open){e.preventDefault();$('search').focus();}
+  if(e.key==='Enter'&&!editing&&!$('dialog').open&&document.activeElement===$('run'))primaryAction();});
 poll();setInterval(poll,2500);
 </script>
 </body>
