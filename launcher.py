@@ -55,7 +55,7 @@ from pathlib import Path
 
 import appwindow
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 UPDATE_URL = os.environ.get("B70_UPDATE_URL", "https://xecores.com/downloads/version.json")
 UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"}

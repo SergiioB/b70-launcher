@@ -47,7 +47,7 @@ Full launcher state; called by the UI on load and every ~3.5 s refresh.
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see /api/launch"],
   "is_win": false,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "update":  {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "..."},
   "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
   "recipes_remote": {"catalog_ver": "YYYY-MM-DD", "checked": true},
@@ -188,7 +188,8 @@ the recipe/settings `llama_bin` exists and `use_docker` is not set), log file
 `download.revision`, validated as `[A-Za-z0-9._-]+`). `kind=file` fetches
 `name` + `extra_files` into `models_dir`; `kind=snapshot` fetches the whole
 repo into `ovms_repo` (openvino) or `models_dir` (others) under the repo
-basename. Files stream via `.part` with Range resume (4 attempts); existing
+basename, or under `download.dest` when the recipe names one. Files stream via
+`.part` with Range resume (4 attempts); existing
 files are reused only when sizes match — mismatched/extra files abort with an
 error rather than overwrite. Completion triggers a rescan.
 
