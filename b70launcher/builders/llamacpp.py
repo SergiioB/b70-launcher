@@ -68,16 +68,16 @@ def build_llamacpp(b):
         })
         # oneAPI runtime libs (libsvml, libdnnl, libsycl, …): a fresh user
         # won't have `source setvars.sh` in their shell env, and the SYCL
-        # build fails to load without them. Prepend every oneAPI */latest/lib
-        # dir we can find so the native binary just works.
-        oneapi_dirs = [p for p in
-                       sorted(glob.glob("/opt/intel/oneapi/*/latest/lib"))
+        # build fails to load without them. The build folder comes first:
+        # llama.cpp ships libllama*.so next to the binary and its RUNPATH is
+        # absolute, so it breaks when the build folder moves.
+        oneapi_dirs = [p for p in sorted(glob.glob("/opt/intel/oneapi/*/latest/lib"))
                        if Path(p).is_dir()]
-        if oneapi_dirs:
-            ldp = b.env.get("LD_LIBRARY_PATH") or os.environ.get("LD_LIBRARY_PATH") or ""
-            b.env["LD_LIBRARY_PATH"] = os.pathsep.join(oneapi_dirs + ([ldp] if ldp else []))
-        else:
+        if not oneapi_dirs:
             warns.append("Native llama.cpp: oneAPI libs not found under /opt/intel/oneapi — run inside `source /opt/intel/oneapi/setvars.sh` shell if the binary fails to start.")
+        ldp = b.env.get("LD_LIBRARY_PATH") or os.environ.get("LD_LIBRARY_PATH") or ""
+        b.env["LD_LIBRARY_PATH"] = os.pathsep.join(
+            [str(Path(llama_bin).parent)] + oneapi_dirs + ([ldp] if ldp else []))
         if b.kind == "gguf-tiered":
             b.env["LLAMA_ATTN_ROT_DISABLE"] = "1"
         host = "127.0.0.1"  # native: never expose an unauthenticated server to the LAN
