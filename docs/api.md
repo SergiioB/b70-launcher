@@ -80,7 +80,7 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "recipes":  "merged catalog: recipes.json + recipes-remote.json overlay + recipe_overrides",
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see POST /api/launch"],
-  "version":  "0.6.3",
+  "version":  "0.6.4",
   "is_win":   false,
   "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
 "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},

@@ -792,7 +792,7 @@
      "ver": "2026-10-07"
     }
    },
-   "brand": "generic",
+   "brand": "meta",
    "chips": [
     "LLM",
     "Instruct"

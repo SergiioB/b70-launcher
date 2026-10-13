@@ -42,7 +42,17 @@ def main():
                     request = urllib.request.Request(url + '/api/window', b'{}', {'X-Launcher-Token': token, 'Content-Type': 'application/json'})
                     with urllib.request.urlopen(request, timeout=2) as response:
                         target = json.loads(response.read())['url']
-                    webbrowser.open(target)
+                    child = None
+                    if not args.browser and os.environ.get('B70_LAUNCHER_WINDOW', 'auto') != 'browser':
+                        import appwindow
+                        child = appwindow.open_app_window(paths.HERE / 'webwindow.py', target, args.port,
+                                                          f'B70 Launcher {data["version"]}')
+                    if child is None:
+                        webbrowser.open(target)
+                    else:
+                        # Keep the window's parent alive. Closing this extra window
+                        # must not stop the already-running daemon or its engines.
+                        child.wait()
                 print(f'Launcher already running at {url}; existing instance left unchanged.')
                 return
             request = urllib.request.Request(url + '/api/shutdown', b'{}', {'X-Launcher-Token': token, 'Content-Type': 'application/json'})

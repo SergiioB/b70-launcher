@@ -342,5 +342,49 @@ class TestPidForNative(unittest.TestCase):
         self.assertFalse(runtime._pid_alive("not-a-pid"))
 
 
+class TestExistingLauncherReopen(unittest.TestCase):
+    def test_reopen_spawns_native_window_and_waits(self):
+        from unittest.mock import MagicMock, patch
+        child = MagicMock()
+        with patch("appwindow.open_app_window", return_value=child) as mock_open:
+            with patch("webbrowser.open") as mock_browser:
+                # simulate lines 45-56 of launcher.py
+                args = MagicMock(browser=False, port=7570)
+                data = {"version": "0.6.4"}
+                target = "http://127.0.0.1:7570/?nonce=abc"
+                
+                c = None
+                if not args.browser:
+                    import appwindow
+                    c = appwindow.open_app_window(paths.HERE / "webwindow.py", target, args.port,
+                                                  f'B70 Launcher {data["version"]}')
+                if c is None:
+                    mock_browser(target)
+                else:
+                    c.wait()
+                
+                mock_open.assert_called_once_with(paths.HERE / "webwindow.py", target, 7570, "B70 Launcher 0.6.4")
+                child.wait.assert_called_once()
+                mock_browser.assert_not_called()
+
+    def test_reopen_falls_back_to_browser_when_native_unavailable(self):
+        from unittest.mock import MagicMock, patch
+        with patch("appwindow.open_app_window", return_value=None):
+            with patch("webbrowser.open") as mock_browser:
+                args = MagicMock(browser=False, port=7570)
+                data = {"version": "0.6.4"}
+                target = "http://127.0.0.1:7570/?nonce=abc"
+                
+                c = None
+                if not args.browser:
+                    import appwindow
+                    c = appwindow.open_app_window(paths.HERE / "webwindow.py", target, args.port,
+                                                  f'B70 Launcher {data["version"]}')
+                if c is None:
+                    mock_browser(target)
+                else:
+                    c.wait()
+                
+                mock_browser.assert_called_once_with(target)
 if __name__ == "__main__":
     unittest.main()

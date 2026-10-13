@@ -7,19 +7,17 @@
 <link rel="icon" href="/assets/b70-launcher.svg" type="image/svg+xml">
 <style>
 :root{color-scheme:dark;
-  --bg:#0b0e14;--surface:#12161c;--raised:#1b1f27;--border:#2e333b;--input-border:#626975;
-  --text:#f0f2f5;--muted:#b2b8c1;--subtle:#9399a2;--accent:#2867e4;--accent-soft:rgba(40,103,228,.16);
-  --link:#7cb4fc;--ok:#58cd78;--warn:#f9b73f;--err:#fa6863;
-  --eng-openvino:#61b3ff;--eng-vllm:#2fbfa8;--eng-llamacpp:#d99a4e;--eng-exl3:#a98bff;
+  --bg:#0e1117;--surface:#151921;--raised:#1d222c;--border:#2b313d;--input-border:#4d5666;
+  --text:#f0f2f5;--muted:#b0b6c2;--subtle:#838b98;--accent:#2b6fe5;--accent-soft:rgba(43,111,229,.14);
+  --link:#6fa7f8;--ok:#4eb86d;--warn:#f0ad35;--err:#f05e58;
   --caption:.75rem;--small:.8125rem;--body:.875rem;--title:1rem;--heading:1.25rem;
   --mono:ui-monospace,SFMono-Regular,Consolas,monospace}
 @supports(color:oklch(.5 0 0)){:root{
-  --bg:oklch(.165 .012 260);--surface:oklch(.2 .014 260);--raised:oklch(.24 .016 260);
-  --border:oklch(.32 .016 260);--input-border:oklch(.52 .02 260);
-  --text:oklch(.96 .005 260);--muted:oklch(.78 .015 260);--subtle:oklch(.68 .015 260);
-  --accent:oklch(.55 .2 262);--accent-soft:oklch(.55 .2 262/.16);
-  --link:oklch(.76 .12 255);--ok:oklch(.76 .16 150);--warn:oklch(.82 .15 78);--err:oklch(.7 .18 25);
-  --eng-openvino:oklch(.74 .12 250);--eng-vllm:oklch(.72 .11 170);--eng-llamacpp:oklch(.75 .11 70);--eng-exl3:oklch(.72 .12 300)}}
+  --bg:oklch(.16 .008 260);--surface:oklch(.19 .01 260);--raised:oklch(.23 .012 260);
+  --border:oklch(.30 .012 260);--input-border:oklch(.44 .014 260);
+  --text:oklch(.95 .005 260);--muted:oklch(.74 .01 260);--subtle:oklch(.60 .01 260);
+  --accent:oklch(.56 .18 255);--accent-soft:oklch(.56 .18 255/.14);--link:oklch(.72 .12 255);
+  --ok:oklch(.74 .16 148);--warn:oklch(.78 .14 75);--err:oklch(.68 .18 25)}}
 *{box-sizing:border-box}
 html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}
@@ -49,7 +47,7 @@ small,.hint{font-size:var(--small);color:var(--muted)}
 .mono{font-family:var(--mono);font-size:var(--small)}
 .skip{position:absolute;inset-inline-start:16px;inset-block-start:-100px;padding:8px;background:var(--raised);z-index:10}
 .skip:focus{inset-block-start:8px}
-:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:-1px}
 
@@ -90,43 +88,34 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .recipe-list::-webkit-scrollbar-thumb{background:var(--input-border);border-radius:4px}
 .library-tools button{min-height:32px;padding:4px 10px;font-size:var(--small)}
 .recipe{display:flex;flex-direction:column;flex:none;text-align:start;width:100%;border:1px solid transparent;background:transparent;
-  border-radius:8px;padding:10px 10px 10px 14px;position:relative}
+  border-radius:8px;padding:9px 10px 9px 14px;position:relative;gap:2px}
 .recipe:hover{background:var(--raised)}
 .recipe::before{content:"";position:absolute;inset-block:8px;inset-inline-start:0;width:3px;border-radius:2px;background:transparent}
 .recipe[aria-checked=true]{background:var(--raised);border-color:var(--accent)}
 .recipe[aria-checked=true]::before{background:var(--accent)}
-.recipe+.recipe.family{border-block-start:1px solid var(--border);border-start-start-radius:0;margin-block-start:6px}
+.recipe+.recipe.family{border-block-start:1px solid var(--border);border-start-start-radius:0;margin-block-start:4px}
 .r-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.r-logo{width:18px;height:18px;flex:none;border-radius:4px;background:var(--bg);object-fit:contain}
+.r-logo{width:16px;height:16px;flex:none;border-radius:3px;object-fit:contain}
 .r-name{font-weight:600}
-.group-h{font-size:var(--caption);letter-spacing:.12em;text-transform:uppercase;color:var(--subtle);
-  padding:14px 10px 4px;margin-block-start:8px;font-weight:600;display:flex;align-items:center;gap:8px;flex:none}
+.group-h{font-size:var(--caption);letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);
+  padding:12px 10px 4px;margin-block-start:8px;font-weight:600;display:flex;align-items:center;gap:8px;flex:none}
 .group-h:first-child{margin-block-start:0}
 .group-h::after{content:"";flex:1;border-block-start:1px solid var(--border)}
-.group-h img{width:14px;height:14px;object-fit:contain}
-.eng-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--eng,var(--subtle))}
-.r-var .eng-dot{margin-inline-end:2px}
-.head-logo{width:30px;height:30px;flex:none;border-radius:6px;background:var(--bg);object-fit:contain}
+.group-h img{width:14px;height:14px;object-fit:contain;opacity:.8}
+.head-logo{width:26px;height:26px;flex:none;border-radius:4px;object-fit:contain}
 .recipe-variant .engine{display:inline-flex;align-items:center;gap:6px}
 .recipe-variant .engine img{width:16px;height:16px;object-fit:contain}
-.other-recipes button .eng-dot{display:inline-block;vertical-align:baseline;margin-inline-end:6px}
+.other-recipes button img{width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-inline-end:4px}
 .vbar{display:inline-block;width:38px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;flex:none;margin-inline:6px 4px}
 .vbar i{display:block;height:100%;background:var(--ok)}
 .chip.hot .vbar i{background:var(--warn)} .chip.bad .vbar i{background:var(--err)}
-.tag.c-violet{border-color:#8d6fe8;color:#b9a3ff}
-.tag.c-green{border-color:color-mix(in oklab,var(--ok) 50%,var(--border));color:var(--ok)}
-.tag.c-amber{border-color:color-mix(in oklab,var(--warn) 50%,var(--border));color:var(--warn)}
-.tag.c-blue{border-color:color-mix(in oklab,var(--link) 50%,var(--border));color:var(--link)}
-.tag.c-grey{border-color:var(--border);color:var(--subtle)}
-.tag{font-size:var(--caption);border:1px solid var(--border);border-radius:99px;padding:0 7px;color:var(--subtle);white-space:nowrap}
-.tag.rec{border-color:var(--accent);color:var(--link)}
+.tag{font-size:var(--caption);border:1px solid var(--border);border-radius:99px;padding:1px 7px;color:var(--muted);background:var(--bg);white-space:nowrap;line-height:1.4}
+.tag.rec{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
 .tag.upd{border-color:var(--warn);color:var(--warn)}
-.tag.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--link)}
-.r-var{display:block;font-size:var(--small);color:var(--muted);margin-block-start:2px}
-.r-purpose{display:block;font-size:var(--small);color:var(--subtle);margin-block-start:4px;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
-.r-meta{display:block;font-size:var(--caption);color:var(--subtle);margin-block-start:4px}
-.r-state{display:inline-flex;align-items:center;gap:5px;font-size:var(--caption);margin-block-start:6px}
+.tag.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+.r-var{display:block;font-size:var(--small);color:var(--muted)}
+.r-meta{display:block;font-size:var(--caption);color:var(--subtle)}
+.r-state{display:inline-flex;align-items:center;gap:5px;font-size:var(--caption);margin-block-start:2px}
 .r-state .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .st-ok{color:var(--ok)} .st-ok .dot{background:var(--ok)}
 .st-dl{color:var(--warn)} .st-dl .dot{background:var(--warn)}
@@ -248,13 +237,13 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 .wrap{overflow-wrap:anywhere}
 
 @media(prefers-reduced-motion:no-preference){
-  button{transition:background-color 140ms,color 140ms,border-color 140ms}
-  button:active{transform:scale(.97)}
+  button{transition-property:background-color,color,border-color,transform;transition-duration:120ms}
+  button:active{transform:scale(.96)}
 }
 @media(max-width:64rem){
   .layout{grid-template-columns:1fr}
   .library{position:static;max-height:none}
-  .recipe-list{max-height:300px}
+  .recipe-list{max-height:360px}
 }
 @media(max-width:48rem){
   header{padding:10px 14px}
@@ -267,6 +256,7 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
   dl.spec{grid-template-columns:1fr;gap:2px 0}
   dl.spec dd{margin-block-end:8px}
   input,select,textarea{font-size:1rem}
+  .recipe{min-height:44px}
 }
 @media(forced-colors:active){
   :focus-visible{outline:2px solid Highlight}
@@ -340,12 +330,11 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
       <div class="field">
         <label for="port">Server port</label>
         <input id="port" type="number" min="1" max="65535" value="8000">
-        <p class="hint">The engine listens here; clients use the endpoint below it.</p>
       </div>
       <div class="field full">
         <label for="client">Target application</label>
         <select id="client"></select>
-        <p class="hint" id="client-hint"></p>
+        <p class="hint" id="client-hint" hidden></p>
       </div>
     </div>
 
@@ -355,25 +344,22 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
         <div class="field">
           <label for="kv">KV cache precision</label>
           <select id="kv"></select>
-          <p class="hint">Memory used to retain previous tokens.</p>
         </div>
         <div class="field">
           <label for="slots">Parallel slots</label>
           <input id="slots" type="number" min="1" max="128" step="1" value="1">
-          <p class="hint">Concurrent request slots (adds memory per slot).</p>
         </div>
         <div class="field full">
-          <label class="subfield"><input type="checkbox" id="mtp" checked>Speculative draft (MTP/DFlash), when the recipe has one</label>
+          <label class="subfield"><input type="checkbox" id="mtp" checked>Speculative draft (MTP/DFlash), when available</label>
         </div>
         <div class="field full">
           <label for="extra">Extra engine flags</label>
           <input id="extra" type="text" placeholder="--flag value" autocomplete="off">
-          <p class="hint">Appended verbatim to the engine command.</p>
         </div>
         <div class="field full">
           <label for="extra-env">Environment variables</label>
           <textarea id="extra-env" placeholder="KEY=VAL, one per line"></textarea>
-          <p class="hint">Startup-hook variables (LD_*, PATH, HOME…) are rejected by the backend.</p>
+          <p class="hint">KEY=VAL, one per line.</p>
         </div>
       </div>
     </details>
@@ -443,13 +429,28 @@ const deviceList=()=>S.state?.preflight.devices||[];
 const engineLabel=id=>S.state?.recipes.engines.find(e=>e.id===id)?.label||id;
 const ENGINE_SHORT={openvino:'OpenVINO',vllm:'vLLM',llamacpp:'llama.cpp',exl3:'EXL3'};
 const engineShort=id=>ENGINE_SHORT[id]||engineLabel(id);
-const LOGO={qwen:'qwen.svg',nvidia:'nvidia.svg',mistral:'mistral.svg',intel:'intel.svg'};
-const logoFor=m=>LOGO[m.brand]||'model-generic.svg';
+const PROVIDERS={
+  qwen:{id:'qwen',label:'Qwen / Alibaba',logo:'qwen.svg',order:1},
+  nvidia:{id:'nvidia',label:'NVIDIA',logo:'nvidia.svg',order:2},
+  meta:{id:'meta',label:'Meta',logo:'llama.svg',order:3},
+  mistral:{id:'mistral',label:'Mistral',logo:'mistral.svg',order:4},
+  community:{id:'community',label:'Community',logo:'model-generic.svg',order:5}
+};
+function getProvider(m){
+  if(!m)return PROVIDERS.community;
+  const brand=(m.brand||'').toLowerCase();
+  const id=(m.id||'').toLowerCase();
+  const name=(m.name||'').toLowerCase();
+  if(brand==='qwen'||id.startsWith('qwen')||id==='thinkingcap-27b'||name.startsWith('qwen'))return PROVIDERS.qwen;
+  if(brand==='nvidia'||id.startsWith('nemotron')||name.startsWith('nemotron'))return PROVIDERS.nvidia;
+  if(brand==='meta'||id.startsWith('muse')||id.startsWith('llama')||name.startsWith('muse')||name.startsWith('llama'))return PROVIDERS.meta;
+  if(brand==='mistral'||id.startsWith('mistral')||name.startsWith('mistral'))return PROVIDERS.mistral;
+  return PROVIDERS.community;
+}
+const logoFor=m=>getProvider(m).logo;
 const ENG_ICON={openvino:'eng-ovms.svg',vllm:'eng-vllm.svg',llamacpp:'eng-llamacpp.svg',exl3:'eng-exl3.svg'};
 const engIcon=id=>ENG_ICON[id]||'eng-generic.svg';
-const engColor=id=>`var(--eng-${id},var(--subtle))`;
-const BRAND_LABEL={qwen:'Qwen',nvidia:'NVIDIA',mistral:'Mistral',generic:'Other models'};
-const TAG_COLOR={violet:'c-violet',green:'c-green',amber:'c-amber',blue:'c-blue',grey:'c-grey'};
+const engColor=id=>'var(--subtle)';
 const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['webui','Web UI'],['none','No app (endpoint only)']];
 const clientLabel=id=>CLIENTS.find(c=>c[0]===id)?.[1]||id;
 const shortQuant=q=>String(q||'').split(' (')[0].split(' — ')[0].trim();
@@ -482,14 +483,18 @@ function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
 function recipeCards(){const q=$('search').value.trim().toLowerCase();
   const out=[];
   for(const m of S.state?.recipes.models||[]){
+    const prov=getProvider(m);
     const engines=Object.keys(m.recipes).sort((a,b)=>((b===m.recommended_engine)-(a===m.recommended_engine)));
     for(const eng of engines){const r=m.recipes[eng];const mt=S.scan?.matches[m.id]?.[eng]||{};
-      if(q&&!`${m.name} ${m.arch} ${m.blurb} ${m.chips?.join(' ')} ${engineShort(eng)} ${r.download?.quant||''}`.toLowerCase().includes(q))continue;
+      const haystack=`${prov.label} ${prov.id} ${m.name} ${m.arch||''} ${m.chips?.join(' ')||''} ${engineShort(eng)} ${r.download?.quant||''} ${r.kind||''}`.toLowerCase();
+      if(q&&!haystack.includes(q))continue;
       if($('on-disk').checked&&!mt.detected)continue;
-      out.push({m,engine:eng,r,mt,notice:S.state?.recipe_notices?.[`${m.id}:${eng}`]});}}
-  const brands=[];const by={};
-  for(const c of out){const b=c.m.brand||'generic';if(!by[b]){by[b]=[];brands.push(b);}by[b].push(c);}
-  return brands.flatMap(b=>by[b]);}
+      out.push({m,engine:eng,r,mt,prov,notice:S.state?.recipe_notices?.[`${m.id}:${eng}`]});}}
+  out.sort((a,b)=>{
+    if(a.prov.order!==b.prov.order)return a.prov.order-b.prov.order;
+    if(a.m.id!==b.m.id)return a.m.name.localeCompare(b.m.name);
+    return 0;});
+  return out;}
 function availability(mt,r){if(mt.detected)return['ok','On disk'];
   if(r.operator_hold)return['hold','Held'];
   const reason=mt.reason||'';
@@ -497,31 +502,28 @@ function availability(mt,r){if(mt.detected)return['ok','On disk'];
   if(r.download?.repo)return['dl','Download required'];
   return['none','Not on disk'];}
 function renderLibrary(){const cards=recipeCards();
-  const sig=JSON.stringify([cards.map(c=>[c.m.id,c.engine,c.m.brand,c.mt.detected,c.mt.reason,Boolean(c.notice),c.m.recommended_engine===c.engine,
+  const sig=JSON.stringify([cards.map(c=>[c.m.id,c.engine,c.prov.id,c.mt.detected,c.mt.reason,Boolean(c.notice),c.m.recommended_engine===c.engine,
     c.m.id===S.model&&c.engine===S.engine]),S.scan?.state]);
   if(sig===S.sig.library&&$('recipe-list').childElementCount)return;
   S.sig.library=sig;
-  let prevModel=null,prevBrand=null;const html=[];
+  let prevModel=null,prevProv=null;const html=[];
   for(const c of cards){
-    const brand=c.m.brand||'generic';
-    if(brand!==prevBrand){prevBrand=brand;prevModel=null;
-      html.push(`<div class="group-h" aria-hidden="true"><img src="/assets/${logoFor(c.m)}" alt="">${esc(BRAND_LABEL[brand]||brand)}</div>`);}
+    if(c.prov.id!==prevProv){prevProv=c.prov.id;prevModel=null;
+      html.push(`<div class="group-h" role="presentation"><img src="/assets/${c.prov.logo}" alt="" aria-hidden="true">${esc(c.prov.label)}</div>`);}
     const[cls,label]=availability(c.mt,c.r);
     const tags=[];
-    if(c.m.recommended_engine===c.engine)tags.push('<span class="tag rec" title="This model’s recommended engine in the cookbook catalog">Cookbook pick</span>');
+    if(c.m.recommended_engine===c.engine)tags.push('<span class="tag rec" title="Recommended engine in cookbook">Cookbook pick</span>');
     if(c.notice?.is_new)tags.push('<span class="tag">New</span>');
-    if(c.notice&&!c.notice.is_new)tags.push('<span class="tag upd" title="A newer recipe revision is published">Update</span>');
-    if(c.m.id===S.model&&c.engine===S.engine)tags.push('<span class="tag sel">Selected</span>');
-    const meta=[validatedCtx(c.r)?`${fmt(validatedCtx(c.r))} validated ctx`:'',gpuCount(c.r)>1?`${gpuCount(c.r)} GPUs`:'',
+    if(c.notice&&!c.notice.is_new)tags.push('<span class="tag upd" title="Newer recipe revision available">Update</span>');
+    const meta=[validatedCtx(c.r)?`${fmt(validatedCtx(c.r))} ctx`:'',gpuCount(c.r)>1?`${gpuCount(c.r)} GPUs`:'',
       c.mt.size_mib?mib(c.mt.size_mib):''].filter(Boolean).join(' · ');
     const title=`${engineLabel(c.engine)} · ${c.r.download?.quant||c.r.kind}`;
     html.push(`<button class="recipe${c.m.id===prevModel?' family':''}" type="button" role="radio"
       aria-checked="${c.m.id===S.model&&c.engine===S.engine}" title="${esc(title)}"
       tabindex="${c.m.id===S.model&&c.engine===S.engine||(!cards.some(x=>x.m.id===S.model&&x.engine===S.engine)&&c===cards[0])?0:-1}"
       data-model="${esc(c.m.id)}" data-engine="${esc(c.engine)}">
-      <span class="r-top"><img class="r-logo" src="/assets/${logoFor(c.m)}" alt=""><span class="r-name">${esc(c.m.name)}</span>${tags.join('')}</span>
-      <span class="r-var"><span class="eng-dot" style="background:${engColor(c.engine)}"></span>${esc(engineShort(c.engine))} · ${esc(shortQuant(c.r.download?.quant)||c.r.kind)}</span>
-      ${firstSentence(c.m.blurb||c.m.arch)?`<span class="r-purpose">${esc(firstSentence(c.m.blurb||c.m.arch))}</span>`:''}
+      <span class="r-top"><img class="r-logo" src="/assets/${c.prov.logo}" alt=""><span class="r-name">${esc(c.m.name)}</span>${tags.join('')}</span>
+      <span class="r-var">${esc(engineShort(c.engine))} · ${esc(shortQuant(c.r.download?.quant)||c.r.kind)}</span>
       ${meta?`<span class="r-meta">${esc(meta)}</span>`:''}
       <span class="r-state st-${cls}"${cls==='bad'&&c.mt.reason?` title="${esc(c.mt.reason)}"`:''}><span class="dot"></span>${label}${cls==='bad'&&c.mt.reason?` — ${esc(shortReason(c.mt.reason))}`:''}</span>
     </button>`);
@@ -529,50 +531,50 @@ function renderLibrary(){const cards=recipeCards();
   $('recipe-list').innerHTML=html.join('');
   $('empty').hidden=Boolean(cards.length);
   $('empty-text').textContent=$('search').value?`No recipes match “${$('search').value}”.`
-    :$('on-disk').checked?'No matching recipes are on disk. Add a model folder or clear the filter.':'';
-  $('scan-status').textContent=S.scan?.state==='scanning'?'Scanning model folders…'
-    :`${cards.length} recipe${cards.length===1?'':'s'} · ${(S.scan?.roots||[]).length} model folders`;}
+    :$('on-disk').checked?'No matching recipes on disk.':'';
+  $('scan-status').textContent=S.scan?.state==='scanning'?'Scanning folders…'
+    :`${cards.length} recipe${cards.length===1?'':'s'} · ${(S.scan?.roots||[]).length} folders`;}
 
 /* ---------- workspace ---------- */
 function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
+  const prov=getProvider(m);
   const h1=$('recipe-name');h1.textContent='';
   const img=document.createElement('img');
-  img.src=`/assets/${logoFor(m)}`;img.alt='';img.className='head-logo';
+  img.src=`/assets/${prov.logo}`;img.alt='';img.className='head-logo';
   h1.append(img,document.createTextNode(m.name));
   const notice=S.state?.recipe_notices?.[`${S.model}:${S.engine}`];
   $('recipe-variant').innerHTML=
-    `<span class="engine" style="--eng:${engColor(S.engine)}"><img src="/assets/${engIcon(S.engine)}" alt="">${esc(engineLabel(S.engine))}</span>`+
+    `<span class="engine"><img src="/assets/${engIcon(S.engine)}" alt="">${esc(engineLabel(S.engine))}</span>`+
     (r.download?.quant?`<span>·</span><span>${esc(r.download.quant)}</span>`:'')+
-    (m.recommended_engine===S.engine?'<span class="tag rec" title="This model’s recommended engine in the cookbook catalog">Cookbook pick</span>':'')+
-    (notice?`<span class="tag upd" title="A newer recipe revision is published">Update ${esc(notice.remote_ver)}</span>`+
-      (notice.can_apply?'<button id="recipe-update" type="button" class="mini" style="min-height:26px;padding:1px 9px;font-size:var(--caption)">Apply update</button>':''):'');
-  $('recipe-purpose').textContent=m.blurb||m.arch||r.download?.quant&&`Weights: ${r.download.quant}`||'';
+    (m.recommended_engine===S.engine?'<span class="tag rec" title="Recommended engine in cookbook">Cookbook pick</span>':'')+
+    (notice?`<span class="tag upd" title="Newer recipe revision available">Update ${esc(notice.remote_ver)}</span>`+
+      (notice.can_apply?'<button id="recipe-update" type="button" class="mini">Apply update</button>':''):'');
+  $('recipe-purpose').textContent=m.arch||m.subtitle||'';
   $('recipe-meta').innerHTML=[
     validatedCtx(r)?`<span class="fact"><b>Validated ctx</b> ${fmt(validatedCtx(r))}</span>`:'',
     r.ctx?`<span class="fact"><b>Recipe ctx</b> ${fmt(r.ctx)}</span>`:'',
     r.ctx_max?`<span class="fact"><b>Ceiling</b> ${fmt(r.ctx_max)}</span>`:'',
     `<span class="fact"><b>GPUs</b> ${gpuCount(r)}</span>`,
     r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:'',
-    m.arch?`<span class="fact">${esc(m.arch)}</span>`:''
+    `<span class="fact"><b>Provider</b> ${esc(prov.label)}</span>`
   ].filter(Boolean).join('');
   const others=Object.keys(m.recipes).filter(e=>e!==S.engine);
-  $('other-recipes').innerHTML=others.length?'Also as: '+others.map(e=>
-    `<button type="button" data-switch-engine="${esc(e)}" aria-label="Switch to the ${esc(engineLabel(e))} recipe for ${esc(m.name)}"><span class="eng-dot" style="background:${engColor(e)}"></span>${esc(engineShort(e))} · ${esc(shortQuant(m.recipes[e].download?.quant)||m.recipes[e].kind)}</button>`).join(''):'';
+  $('other-recipes').innerHTML=others.length?'Other engines: '+others.map(e=>
+    `<button type="button" data-switch-engine="${esc(e)}" aria-label="Switch to ${esc(engineLabel(e))} for ${esc(m.name)}"><img src="/assets/${engIcon(e)}" alt="" style="width:14px;height:14px;margin-inline-end:4px;vertical-align:middle">${esc(engineShort(e))} · ${esc(shortQuant(m.recipes[e].download?.quant)||m.recipes[e].kind)}</button>`).join(''):'';
   renderContext();renderKv();renderGpus();renderClients();renderAvailability();renderCookbook();}
 
 function renderContext(){const r=recipe(),mt=match();
   const parts=[];
-  if(validatedCtx(r))parts.push(`validated ${fmt(validatedCtx(r))} (checked by the cookbook)`);
-  if(r.ctx)parts.push(`recipe default ${fmt(r.ctx)}`);
-  if(r.ctx_max)parts.push(`ceiling ${fmt(r.ctx_max)} — larger values are clamped`);
-  if(mt?.ctx_native)parts.push(`native config.json ${fmt(mt.ctx_native)}`);
-  $('context-hint').textContent=(parts.join(' · ')||'Context metadata not documented for this recipe.')+
-    ' Larger contexts are not a guarantee: validated values are the tested ones.';
+  if(validatedCtx(r))parts.push(`Validated ${fmt(validatedCtx(r))}`);
+  if(r.ctx&&r.ctx!==validatedCtx(r))parts.push(`Default ${fmt(r.ctx)}`);
+  if(r.ctx_max)parts.push(`Ceiling ${fmt(r.ctx_max)}`);
+  if(mt?.ctx_native&&mt.ctx_native!==validatedCtx(r)&&mt.ctx_native!==r.ctx)parts.push(`Native ${fmt(mt.ctx_native)}`);
+  $('context-hint').textContent=parts.join(' · ');
   const presets=[];const add=(v,label,title)=>{if(v&&v!==Number($('context').value))presets.push({v,label,title});};
   add(validatedCtx(r),'Validated','Cookbook-checked context');
-  add(r.ctx,'Recipe','Recipe-configured default');
-  add(r.ctx_max,'Ceiling','Maximum the recipe allows (clamped)');
-  $('ctx-presets').innerHTML=presets.map((p,i)=>`<button type="button" data-ctx="${p.v}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');}
+  add(r.ctx,'Default','Recipe-configured default');
+  add(r.ctx_max,'Ceiling','Maximum allowed context');
+  $('ctx-presets').innerHTML=presets.map(p=>`<button type="button" data-ctx="${p.v}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');}
 
 function renderKv(){const r=recipe();
   const options=r.kv_options||(r.kind?.startsWith('gguf')?['q8_0/q4_1','q8_0','q5_0/q4_1','f16']:r.kind==='ovms'?['auto']:['fp8']);
@@ -603,8 +605,9 @@ function renderClients(){const c=clients();const prev=$('client').value;
     return`<option value="${id}">${esc(label)}${suffix}</option>`;}).join('');
   if(prev&&[...$('client').options].some(o=>o.value===prev))$('client').value=prev;
   const d=c.display;
-  $('client-hint').textContent='Launch starts the server. When it is ready, the button above opens this application wired to the endpoint.'+
-    (d&&!d.available&&d.reason?` ${d.reason}.`:'');}
+  const msg=d&&!d.available&&d.reason?`Display unavailable: ${d.reason}.`:'';
+  $('client-hint').textContent=msg;
+  $('client-hint').hidden=!msg;}
 
 function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
   const box=$('availability');const rows=[];
@@ -619,31 +622,31 @@ function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
       <span class="detail">${esc(mt.reason||'No compatible artifact found.')}
       <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
   else if(cls==='dl'){
-    const size=shortQuant(r.download.quant)||r.download.repo;
     rows.push(`<div class="avail dl"><span class="lead"><span class="dot"></span>Download required</span>
-      <span class="detail">From <code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · download disk has ${S.scan?.free_gb==null?'unknown':S.scan.free_gb+' GiB'} free.</span></div>`);}
+      <span class="detail"><code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk</span></div>`);}
   else if(cls==='hold'){
     rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
       <span class="detail">${esc(r.operator_hold)}</span></div>`);}
   else{
     rows.push(`<div class="avail"><span class="lead"><span class="dot"></span>Not on disk</span>
-      <span class="detail">No verified download exists for this recipe. Add the artifact’s folder, then rescan.
+      <span class="detail">No verified download for this recipe.
       <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
   if(r.operator_hold&&cls!=='hold'){
     rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
       <span class="detail">${esc(r.operator_hold)}</span></div>`);}
   if(cls==='ok'&&mt.path&&r.download?.quant&&S.plan?.variant){
-    rows.push(`<p class="note">Using your local artifact “${esc(S.plan.found_name)}” — the recipe default was ${esc(shortQuant(r.download.quant))}. The launch uses your file.</p>`);}
+    rows.push(`<p class="note">Local artifact: “${esc(S.plan.found_name)}” (recipe default: ${esc(shortQuant(r.download.quant))}).</p>`);}
   box.innerHTML=rows.join('');}
 
 function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return;
+  const prov=getProvider(m);
   const dl=r.download||{};
   const dlPairs=[['Repository',dl.repo],['Revision',dl.revision],['Search',dl.search],['Match family',dl.match],
     ['Prefer',Array.isArray(dl.prefer)?dl.prefer.join(', '):dl.prefer],['Excludes',Array.isArray(dl.exclude)?dl.exclude.join(', '):dl.exclude],
     ['Verify files',Array.isArray(dl.verify)?dl.verify.join(', '):dl.verify],['Extra files',dl.extra_files],['Destination',dl.dest]];
   const reqPairs=[['Weights',dl.name||r.gguf||r.model_path||r.source_model],['Quantization',dl.quant],
     ['Size on disk',mt?.size_mib?mib(mt.size_mib):null],['GPUs',`${gpuCount(r)}${r.tp===2?' (tensor parallel)':''}`],
-    ['Power hint',r.power?`~${r.power} W (advisory; the launcher never changes power)`:null],
+    ['Power hint',r.power?`~${r.power} W (advisory)`:null],
     ['Runtime',S.plan?.effective_binary||r.image||'native binary'],['Engine',engineLabel(S.engine)]];
   const valPairs=[['Validated context',validatedCtx(r)?fmt(validatedCtx(r)):null],
     ['Recipe context',r.ctx?fmt(r.ctx):null],['Context ceiling',r.ctx_max?fmt(r.ctx_max):null],
@@ -659,15 +662,15 @@ function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return
     ...dlPairs.filter(p=>p[1]!==dl.repo||!r.image)];
   const spec=pairs=>`<dl class="spec">${pairs.filter(p=>p[1]!=null&&p[1]!=='').map(([k,v])=>
     `<dt>${esc(k)}</dt><dd class="${/path|image|repo|socket|config|flags|Runtime|Source/i.test(k)?'mono':''}">${esc(v)}</dd>`).join('')}</dl>`;
-  const tags=(m.tags||[]).map(t=>`<span class="tag ${TAG_COLOR[t.c]||'c-grey'}"${t.c?` title="cookbook tag (${t.c})"`:''}>${esc(t.t)}</span>`).join('');
+  const tags=(m.tags||[]).map(t=>`<span class="tag">${esc(t.t)}</span>`).join('');
   $('cookbook-body').innerHTML=`
-    <h3>Overview</h3>${spec([['Purpose',m.blurb],['Architecture',m.arch],['Recommendation',m.recommendation]])}${tags?`<div class="tags">${tags}</div>`:''}
+    <h3>Overview</h3>${spec([['Provider',prov.label],['Purpose',m.blurb],['Architecture',m.arch],['Recommendation',m.recommendation]])}${tags?`<div class="tags">${tags}</div>`:''}
     <h3 style="margin-block-start:16px">Requirements</h3>${spec(reqPairs)}
     <h3 style="margin-block-start:16px">Validated configuration</h3>${spec(valPairs)}
     <h3 style="margin-block-start:16px">Benchmarks</h3>
-    <p class="hint">As recorded in the cookbook catalog; measured under specific hardware and settings.</p>
+    <p class="hint">Recorded in cookbook catalog under measured hardware and settings.</p>
     ${spec([['Result',r.perf],['Conditions',r.perf_note]])}
-    <h3 style="margin-block-start:16px">Limitations</h3>${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded for this recipe.</p>'}
+    <h3 style="margin-block-start:16px">Limitations</h3>${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded.</p>'}
     <h3 style="margin-block-start:16px">Technical notes</h3>${spec(techPairs)}
     <p class="hint wrap" id="plan-warnings"></p>`;
   if(S.plan)$('plan-warnings').textContent=[...(S.plan.warnings||[]),S.plan.error||''].filter(Boolean).join('\n');}
@@ -770,22 +773,22 @@ function renderAction(){const r=recipe();const button=$('primary');
     const category=S.plan?.native?'native':r.kind==='exl3'?'exl3':'docker';
     const blockers=S.state?.preflight.blockers_by_kind?.[category]||[];
     const mt=match();
-    if(e?.status==='starting'){text='Loading model';status=`${e.phase||'Starting'} · ${elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000))} — the session panel has details`;button.disabled=true;}
+    if(e?.status==='starting'){text='Loading model';status=`${e.phase||'Starting'} · ${elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000))}`;button.disabled=true;}
     else if(e?.status==='running'){text=$('client').value==='none'?'Copy endpoint':`Open ${clientLabel($('client').value)}`;S.action='open';
-      status=`Server is ready on ${e.endpoint} — this opens ${clientLabel($('client').value)} wired to it.`;}
+      status=`Ready on ${e.endpoint}`;button.disabled=false;}
     else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';button.disabled=true;
-      status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s — cancel from the library footer`:'Checking repository files';}
+      status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s`:'Checking files';}
     else if(r.operator_hold){text='Launch held';status=r.operator_hold;button.disabled=true;}
     else if(mt?.reason?.startsWith('incompatible')){text='Incompatible';status=mt.reason;button.disabled=true;}
     else if(!mt?.detected){if(r.download?.repo){text='Review download';S.action='download';
-      status=`Confirm destination and free space — ${S.scan?.free_gb==null?'unknown':S.scan.free_gb+' GiB'} free on the download disk.`;}
-      else{text='Choose model file';S.action='browse';status='No verified download for this recipe — add its folder in Model folders.';}}
+      status=`Download required · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk`;}
+      else{text='Choose model file';S.action='browse';status='No verified download for this recipe';}}
     else if(blockers.length){text='Review setup';status=blockers.join(' ');S.action='setup';}
     else if(!selected.length||selected.some(g=>deviceList()[g]?.busy)){text='No free GPU';button.disabled=true;
-      status='Every card is in use. Stop a session or wait for its workload to finish.';}
+      status='Selected card is in use';}
     else if(S.plan?.error){text='Launch blocked';status=S.plan.error;button.disabled=true;}
     else{text='Launch recipe';S.action='launch';
-      status=`On GPU ${selected.join(' + ')} · ctx ${fmt($('context').value)} tokens · :${$('port').value}${S.plan?.served_name?` · serves ${S.plan.served_name}`:''}`;}}
+      status=`GPU ${selected.join(' + ')} · ${fmt($('context').value)} ctx · port ${$('port').value}`;}}
   button.textContent=S.request?'Working…':text;
   $('launch-status').textContent=status;
   renderSession();}
