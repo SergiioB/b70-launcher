@@ -56,10 +56,14 @@ def ensure_exl3_stack(sock):
                 time.sleep(1)
                 if child.poll() is not None:
                     raise RuntimeError('containerd startup failed; inspect exl3-stack.log.')
+            # overlay2 with the containerd snapshotter off: the image store
+            # lives in data-root, so moving data-root moves the images with it.
             daemon = subprocess.Popen(['sudo', '-n', 'dockerd', '--data-root=' + root + '-docker',
                                        '--exec-root=/run/b70-exl3-docker', '--host=unix://' + sock,
                                        '--pidfile=/run/b70-exl3-docker.pid', '--bridge=' + bridge,
                                        '--ip-forward=false', '--ip-masq=false', '--group=docker',
+                                       '--storage-driver=overlay2',
+                                       '--feature', 'containerd-snapshotter=false',
                                        '--containerd=' + state + '/containerd.sock'],
                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         deadline = time.monotonic() + 40
