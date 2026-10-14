@@ -28,6 +28,12 @@ button:hover{background:var(--border)}
 button:disabled{cursor:default;color:var(--subtle);opacity:.7}
 input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}
 input[type=checkbox]{min-height:0;accent-color:var(--link)}
+/* WebKitGTK draws native GTK selects and spinners that ignore the dark theme; draw our own. */
+select{appearance:none;-webkit-appearance:none;padding-inline-end:34px;cursor:pointer;
+  background:var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%23a3aab6' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 12px center/10px 10px}
+select option{background:var(--surface);color:var(--text)}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 textarea{width:100%;min-height:72px}
 a{color:var(--link);text-underline-offset:3px}
 p{margin:0 0 12px;max-width:75ch}
@@ -83,45 +89,40 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .check{display:flex;align-items:center;gap:6px;font-weight:400;font-size:var(--small);color:var(--muted);
   border:1px solid var(--border);border-radius:6px;padding:4px 8px;min-height:32px}
 .check:has(input:checked){border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
-.recipe-list{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;flex:1 1 auto;padding:2px;margin-block-end:8px;scrollbar-width:thin;scrollbar-color:var(--input-border) transparent}
+.recipe-list{display:flex;flex-direction:column;gap:14px;overflow-y:auto;min-height:0;flex:1 1 auto;padding:2px;margin-block-end:8px;scrollbar-width:thin;scrollbar-color:var(--input-border) transparent}
 .recipe-list::-webkit-scrollbar{width:8px}
 .recipe-list::-webkit-scrollbar-thumb{background:var(--input-border);border-radius:4px}
 .library-tools button{min-height:32px;padding:4px 10px;font-size:var(--small)}
-.recipe{display:flex;flex-direction:column;flex:none;text-align:start;width:100%;border:1px solid transparent;background:transparent;
-  border-radius:8px;padding:9px 10px 9px 14px;position:relative;gap:2px}
-.recipe:hover{background:var(--raised)}
-.recipe::before{content:"";position:absolute;inset-block:8px;inset-inline-start:0;width:3px;border-radius:2px;background:transparent}
-.recipe[aria-checked=true]{background:var(--raised);border-color:var(--accent)}
-.recipe[aria-checked=true]::before{background:var(--accent)}
-.recipe+.recipe.family{border-block-start:1px solid var(--border);border-start-start-radius:0;margin-block-start:4px}
-.r-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.r-logo{width:16px;height:16px;flex:none;border-radius:3px;object-fit:contain}
-.r-name{font-weight:600}
-.group-h{font-size:var(--caption);letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);
-  padding:12px 10px 4px;margin-block-start:8px;font-weight:600;display:flex;align-items:center;gap:8px;flex:none}
-.group-h:first-child{margin-block-start:0}
-.group-h::after{content:"";flex:1;border-block-start:1px solid var(--border)}
-.group-h img{width:14px;height:14px;object-fit:contain;opacity:.8}
+.company{display:flex;flex-direction:column;gap:4px;flex:none}
+.company-h{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;min-height:32px;padding:4px 8px;
+  font-size:var(--caption);letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);font-weight:600;text-align:start;border-radius:6px}
+.company-h:hover{background:none;color:var(--text)}
+.company-h img{width:14px;height:14px;object-fit:contain;opacity:.85}
+.company-h .count{margin-inline-start:auto;letter-spacing:0;font-weight:500}
+.chev{width:10px;height:10px;flex:none;stroke:currentColor;stroke-width:1.6;fill:none}
+.company-h[aria-expanded=false] .chev{transform:rotate(-90deg)}
+.company-list{display:flex;flex-direction:column;gap:10px}
+.family{display:flex;flex-direction:column;gap:2px}
+.family-h{font-size:var(--caption);color:var(--muted);font-weight:600;padding:2px 10px}
+.model{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;align-items:center;text-align:start;width:100%;
+  border:1px solid transparent;background:transparent;border-radius:8px;padding:7px 10px 7px 14px;min-height:0;font-weight:400;position:relative}
+.model:hover{background:var(--raised)}
+.model::before{content:"";position:absolute;inset-block:8px;inset-inline-start:0;width:3px;border-radius:2px;background:transparent}
+.model[aria-checked=true]{background:var(--raised);border-color:var(--border)}
+.model[aria-checked=true]::before{background:var(--accent)}
+.m-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m-sub{grid-column:1/-1;font-size:var(--caption);color:var(--subtle);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:var(--caption);color:var(--subtle);white-space:nowrap}
+.state .dot{width:7px;height:7px;border-radius:50%;flex:none;border:1px solid var(--subtle);background:transparent}
+.st-ok .dot,.st-run .dot{border-color:var(--ok);background:var(--ok)}
+.st-run{color:var(--ok)}
+.st-hold .dot{border-color:var(--warn)}
 .head-logo{width:26px;height:26px;flex:none;border-radius:4px;object-fit:contain}
-.recipe-variant .engine{display:inline-flex;align-items:center;gap:6px}
-.recipe-variant .engine img{width:16px;height:16px;object-fit:contain}
-.other-recipes button img{width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-inline-end:4px}
 .vbar{display:inline-block;width:38px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;flex:none;margin-inline:6px 4px}
 .vbar i{display:block;height:100%;background:var(--ok)}
 .chip.hot .vbar i{background:var(--warn)} .chip.bad .vbar i{background:var(--err)}
 .tag{font-size:var(--caption);border:1px solid var(--border);border-radius:99px;padding:1px 7px;color:var(--muted);background:var(--bg);white-space:nowrap;line-height:1.4}
-.tag.rec{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
 .tag.upd{border-color:var(--warn);color:var(--warn)}
-.tag.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
-.r-var{display:block;font-size:var(--small);color:var(--muted)}
-.r-meta{display:block;font-size:var(--caption);color:var(--subtle)}
-.r-state{display:inline-flex;align-items:center;gap:5px;font-size:var(--caption);margin-block-start:2px}
-.r-state .dot{width:7px;height:7px;border-radius:50%;flex:none}
-.st-ok{color:var(--ok)} .st-ok .dot{background:var(--ok)}
-.st-dl{color:var(--warn)} .st-dl .dot{background:var(--warn)}
-.st-bad{color:var(--err)} .st-bad .dot{background:var(--err)}
-.st-hold{color:var(--warn)} .st-hold .dot{background:var(--warn)}
-.st-none{color:var(--subtle)} .st-none .dot{background:var(--subtle)}
 .library-foot{border-block-start:1px solid var(--border);padding-block-start:8px;margin-block-start:auto}
 .empty{padding:16px 4px}
 .download-row{padding:8px 0;border-block-start:1px solid var(--border);font-size:var(--small)}
@@ -129,16 +130,21 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-block:6px}
 /* ---- workspace ---- */
 #run{padding:20px 24px}
-.recipe-variant{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);margin-block-end:6px}
-.recipe-variant .engine{color:var(--text);font-weight:600}
+.kicker{display:flex;align-items:center;gap:8px;font-size:var(--caption);letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);font-weight:600;margin-block-end:4px}
+.recipe-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-block:8px 0}
 .purpose{color:var(--muted);max-width:80ch}
 .meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-block:10px 0}
 .fact{font-size:var(--small);color:var(--subtle);border:1px solid var(--border);border-radius:8px;
   padding:3px 9px;background:var(--bg)}
 .fact b{color:var(--muted);font-weight:600}
-.other-recipes{margin-block:12px;font-size:var(--small);color:var(--subtle);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.other-recipes button{min-height:30px;padding:3px 10px;font-size:var(--small);color:var(--muted)}
-.other-recipes button:hover{color:var(--text)}
+.engine-switch{display:flex;flex-wrap:wrap;gap:6px;margin-block:14px 0}
+.engine-switch button{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:6px 12px;border-radius:8px;
+  color:var(--muted);background:var(--bg);border-color:var(--border)}
+.engine-switch button:hover{color:var(--text);background:var(--raised)}
+.engine-switch button img{width:16px;height:16px;object-fit:contain}
+.engine-switch .q{font-size:var(--caption);color:var(--subtle);font-weight:400}
+.engine-switch .rec{font-size:var(--caption);color:var(--link);font-weight:500}
+.engine-switch button[aria-checked=true]{color:var(--text);border-color:var(--accent);background:var(--accent-soft)}
 
 /* availability banner */
 .avail{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;
@@ -198,7 +204,8 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
 .field input,.field select{width:100%;margin-block:6px 2px}
 .field.full{grid-column:1/-1}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:6px}
-.presets button{min-height:26px;padding:2px 9px;font-size:var(--caption);color:var(--muted)}
+.presets button{min-height:28px;padding:2px 10px;font-size:var(--caption);color:var(--muted)}
+.presets button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:var(--accent-soft)}
 .ctx-note{font-size:var(--small);color:var(--subtle);margin-block-start:6px;max-width:90ch}
 .subfield{display:flex;align-items:center;gap:10px;margin-block:26px 4px}
 .subfield input{width:auto;margin:0;min-height:0}
@@ -235,6 +242,9 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .divider{margin-block:14px;border-block-start:1px solid var(--border);padding-block-start:14px}
 .wrap{overflow-wrap:anywhere}
+.lines{white-space:pre-line}
+.warn-list{margin:0;padding-inline-start:18px;font-size:var(--small);color:var(--muted);display:flex;flex-direction:column;gap:6px;max-width:80ch}
+#command-text{white-space:pre;overflow-wrap:normal;overflow-x:auto}
 
 @media(prefers-reduced-motion:no-preference){
   button{transition-property:background-color,color,border-color,transform;transition-duration:120ms}
@@ -285,14 +295,14 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 <div class="layout">
 
   <aside class="panel library" aria-labelledby="library-heading">
-    <h2 id="library-heading">Recipe Library</h2>
-    <label class="hint" for="search">Search recipes</label>
-    <input class="search" id="search" type="search" placeholder="Model, quantization or engine" autocomplete="off">
+    <h2 id="library-heading">Models</h2>
+    <label class="hint" for="search">Search models</label>
+    <input class="search" id="search" type="search" placeholder="Name, company, engine or quant" autocomplete="off">
     <div class="library-tools">
       <label class="check"><input type="checkbox" id="on-disk">On disk</label>
       <button id="folders" type="button">Model folders</button>
     </div>
-    <div id="recipe-list" class="recipe-list" role="radiogroup" aria-label="Choose recipe"></div>
+    <div id="recipe-list" class="recipe-list" aria-label="Models by company and family"></div>
     <div id="empty" class="empty" hidden>
       <p id="empty-text" class="hint"></p>
       <button id="clear-search" type="button">Clear search</button>
@@ -305,11 +315,12 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
   </aside>
 
   <section class="panel" id="run" tabindex="-1" aria-labelledby="recipe-name">
-    <h1 id="recipe-name">Choose a recipe</h1>
-    <div class="recipe-variant" id="recipe-variant"></div>
+    <div class="kicker" id="recipe-kicker"></div>
+    <h1 id="recipe-name">Choose a model</h1>
     <p class="purpose" id="recipe-purpose">Connecting to your local launcher.</p>
+    <div class="engine-switch" id="engine-switch" role="radiogroup" aria-label="Engine"></div>
+    <div class="recipe-notice" id="recipe-notice" hidden></div>
     <div class="meta-row numbers" id="recipe-meta"></div>
-    <div class="other-recipes" id="other-recipes"></div>
     <div id="availability"></div>
     <div id="other-sessions" class="other-sessions" hidden></div>
     <section id="session" class="session" hidden aria-labelledby="session-heading"></section>
@@ -407,7 +418,7 @@ const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S={state:null,scan:null,model:null,engine:null,servers:[],downloads:{},plan:null,downloadPlan:null,
   request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false,
-  sig:{},gpuDraft:{},openFail:{}};
+  sig:{},gpuDraft:{},openFail:{},lastEngine:{},collapsed:loadCollapsed()};
 const LIVE=['starting','running'];
 const live=e=>LIVE.includes(e.status);
 function bytes(n){if(n==null)return '';let x=Number(n);for(const u of['B','KiB','MiB','GiB','TiB']){if(x<1024||u==='TiB')return`${x.toFixed(u==='B'?0:1)} ${u}`;x/=1024;}}
@@ -430,11 +441,11 @@ const engineLabel=id=>S.state?.recipes.engines.find(e=>e.id===id)?.label||id;
 const ENGINE_SHORT={openvino:'OpenVINO',vllm:'vLLM',llamacpp:'llama.cpp',exl3:'EXL3'};
 const engineShort=id=>ENGINE_SHORT[id]||engineLabel(id);
 const PROVIDERS={
-  qwen:{id:'qwen',label:'Qwen / Alibaba',logo:'qwen.svg',order:1},
+  qwen:{id:'qwen',label:'Qwen · Alibaba',logo:'qwen.svg',order:1},
   nvidia:{id:'nvidia',label:'NVIDIA',logo:'nvidia.svg',order:2},
   meta:{id:'meta',label:'Meta',logo:'llama.svg',order:3},
   mistral:{id:'mistral',label:'Mistral',logo:'mistral.svg',order:4},
-  community:{id:'community',label:'Community',logo:'model-generic.svg',order:5}
+  community:{id:'community',label:'Community',logo:'model-generic.svg',order:9}
 };
 function getProvider(m){
   if(!m)return PROVIDERS.community;
@@ -447,15 +458,20 @@ function getProvider(m){
   if(brand==='mistral'||id.startsWith('mistral')||name.startsWith('mistral'))return PROVIDERS.mistral;
   return PROVIDERS.community;
 }
-const logoFor=m=>getProvider(m).logo;
+/* Family = name stem plus generation: "Qwen3.8-27B SC5" → "Qwen3.8", "Nemotron-3.5-Lightning" → "Nemotron 3.5".
+   A number followed by B is a parameter count, not a generation. A recipe may set `family` to override. */
+const FAMILY_RE=/^([A-Za-z]+)([-\s]?)(\d+(?:\.\d+)?)(?!\d*(?:\.\d+)?[BbMm]\b)/;
+function familyOf(m){if(m.family)return m.family;const name=String(m.name||m.id||'');
+  const x=name.match(FAMILY_RE);if(x)return x[2]?`${x[1]} ${x[3]}`:`${x[1]}${x[3]}`;
+  return name.split(/[-\s]/)[0]||name;}
+function shortName(m){const name=String(m.name||m.id||'');if(m.family)return name;
+  const x=name.match(FAMILY_RE);const rest=(x?name.slice(x[0].length):name.slice(familyOf(m).length)).replace(/^[-\s]+/,'');
+  return rest||name;}
 const ENG_ICON={openvino:'eng-ovms.svg',vllm:'eng-vllm.svg',llamacpp:'eng-llamacpp.svg',exl3:'eng-exl3.svg'};
 const engIcon=id=>ENG_ICON[id]||'eng-generic.svg';
-const engColor=id=>'var(--subtle)';
 const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['webui','Web UI'],['none','No app (endpoint only)']];
 const clientLabel=id=>CLIENTS.find(c=>c[0]===id)?.[1]||id;
 const shortQuant=q=>String(q||'').split(' (')[0].split(' — ')[0].trim();
-const firstSentence=t=>String(t||'').split(/(?<=\.)\s+/)[0]||'';
-const shortReason=reason=>{const r=String(reason||'').replace('incompatible: ','');return r.length>72?r.slice(0,72).replace(/\s\S*$/,'')+'…':r;};
 const gpuCount=r=>(r.gpus?.length||r.tp===2)?(r.gpus?.length||2):1;
 const validatedCtx=r=>r.ctx_safe||null;
 const defaultGpus=r=>{if(r.gpus?.length)return r.gpus;if(r.tp===2)return[0,1];return S.state?.preflight.default.gpus||[0];};
@@ -467,10 +483,17 @@ function cfg(){const g=$('gpu').value;return{model_id:S.model,engine:S.engine,po
 function sessionFor(modelId,engine,port){const rows=S.servers.filter(e=>e.model_id===modelId&&e.engine===engine&&e.status!=='stopped');
   return rows.find(e=>e.port===port&&live(e))||rows.find(e=>live(e))||rows[0]||null;}
 const currentSession=()=>S.model?sessionFor(S.model,S.engine,Number($('port').value)):null;
+const detected=(m,eng)=>Boolean(S.scan?.matches[m.id]?.[eng]?.detected);
+const liveEngine=m=>S.servers.find(e=>e.model_id===m.id&&live(e)&&m.recipes[e.engine])?.engine;
 
 /* ---------- selection ---------- */
+/* Without an explicit engine: the engine last used for this model, a running one, the recommended one when it
+   is on disk, any engine on disk, then the recommended one. */
+function pickEngine(m){const engs=Object.keys(m.recipes);const rec=m.recipes[m.recommended_engine]?m.recommended_engine:null;
+  const last=S.lastEngine[m.id];if(last&&m.recipes[last])return last;
+  return liveEngine(m)||(rec&&detected(m,rec)?rec:null)||engs.find(e=>detected(m,e))||rec||engs[0];}
 function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
-  S.engine=engine&&m.recipes[engine]?engine:m.recommended_engine&&m.recipes[m.recommended_engine]?m.recommended_engine:Object.keys(m.recipes)[0];
+  S.engine=engine&&m.recipes[engine]?engine:pickEngine(m);S.lastEngine[id]=S.engine;
   S.selection++;S.plan=null;S.downloadPlan=null;$('download-confirm').hidden=true;error('action-error','');
   const r=recipe();
   $('context').value=validatedCtx(r)||r.ctx||32768;
@@ -480,101 +503,108 @@ function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
 }
 
 /* ---------- library ---------- */
-function recipeCards(){const q=$('search').value.trim().toLowerCase();
-  const out=[];
-  for(const m of S.state?.recipes.models||[]){
-    const prov=getProvider(m);
-    const engines=Object.keys(m.recipes).sort((a,b)=>((b===m.recommended_engine)-(a===m.recommended_engine)));
-    for(const eng of engines){const r=m.recipes[eng];const mt=S.scan?.matches[m.id]?.[eng]||{};
-      const haystack=`${prov.label} ${prov.id} ${m.name} ${m.arch||''} ${m.chips?.join(' ')||''} ${engineShort(eng)} ${r.download?.quant||''} ${r.kind||''}`.toLowerCase();
-      if(q&&!haystack.includes(q))continue;
-      if($('on-disk').checked&&!mt.detected)continue;
-      out.push({m,engine:eng,r,mt,prov,notice:S.state?.recipe_notices?.[`${m.id}:${eng}`]});}}
-  out.sort((a,b)=>{
-    if(a.prov.order!==b.prov.order)return a.prov.order-b.prov.order;
-    if(a.m.id!==b.m.id)return a.m.name.localeCompare(b.m.name);
-    return 0;});
-  return out;}
-function availability(mt,r){if(mt.detected)return['ok','On disk'];
+function availability(mt,r){mt=mt||{};if(mt.detected)return['ok','On disk'];
   if(r.operator_hold)return['hold','Held'];
-  const reason=mt.reason||'';
-  if(reason.startsWith('incompatible'))return['bad','Incompatible'];
-  if(r.download?.repo)return['dl','Download required'];
+  if(r.download?.repo)return['dl','Download'];
+  if(String(mt.reason||'').startsWith('incompatible'))return['bad','Incompatible'];
   return['none','Not on disk'];}
-function renderLibrary(){const cards=recipeCards();
-  const sig=JSON.stringify([cards.map(c=>[c.m.id,c.engine,c.prov.id,c.mt.detected,c.mt.reason,Boolean(c.notice),c.m.recommended_engine===c.engine,
-    c.m.id===S.model&&c.engine===S.engine]),S.scan?.state]);
+const engineState=(m,eng)=>availability(S.scan?.matches[m.id]?.[eng],m.recipes[eng]);
+function modelState(m){if(liveEngine(m))return['run','Running'];
+  const st=Object.keys(m.recipes).map(e=>engineState(m,e)[0]);
+  if(st.includes('ok'))return['ok','On disk'];if(st.includes('dl'))return['dl','Download'];
+  if(st.includes('hold'))return['hold','Held'];return['none','Not on disk'];}
+function libraryModels(){const words=$('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const onDisk=$('on-disk').checked;const out=[];
+  for(const m of S.state?.recipes.models||[]){const prov=getProvider(m);const fam=familyOf(m);
+    const hay=[prov.label,prov.id,fam,m.name,m.arch,m.subtitle,...(m.chips||[]),
+      ...Object.entries(m.recipes).flatMap(([e,r])=>[engineShort(e),engineLabel(e),r.download?.quant,r.kind])].join(' ').toLowerCase();
+    if(words.length&&!words.every(w=>hay.includes(w)))continue;
+    if(onDisk&&!Object.keys(m.recipes).some(e=>detected(m,e)))continue;
+    out.push({m,prov,fam});}
+  const cmp=(a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true});
+  out.sort((a,b)=>a.prov.order-b.prov.order||cmp(a.prov.label,b.prov.label)||cmp(b.fam,a.fam)||cmp(a.m.name,b.m.name));
+  return out;}
+function loadCollapsed(){try{return new Set(JSON.parse(localStorage.getItem('b70-collapsed')||'[]'));}catch(e){return new Set();}}
+function toggleCompany(id){S.collapsed.has(id)?S.collapsed.delete(id):S.collapsed.add(id);
+  try{localStorage.setItem('b70-collapsed',JSON.stringify([...S.collapsed]));}catch(e){}
+  S.sig.library='';renderLibrary();}
+const CHEVRON='<svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5"/></svg>';
+function modelRow(x,focusable){const m=x.m;const[cls,label]=modelState(m);
+  const engs=Object.keys(m.recipes).sort((a,b)=>(b===m.recommended_engine)-(a===m.recommended_engine));
+  const twoCards=Object.values(m.recipes).some(r=>gpuCount(r)>1);
+  const sub=[engs.map(engineShort).join(' · '),twoCards?'2 GPUs':''].filter(Boolean).join(' · ');
+  const update=engs.some(e=>S.state?.recipe_notices?.[`${m.id}:${e}`]);
+  const selected=m.id===S.model;
+  return`<button class="model" type="button" role="radio" aria-checked="${selected}" tabindex="${focusable?0:-1}"
+    data-model="${esc(m.id)}" aria-label="${esc(`${m.name}, ${label}`)}" title="${esc(m.name)}">
+    <span class="m-name">${esc(shortName(m))}</span>
+    <span class="state st-${cls}"><span class="dot"></span>${update?'Update':label}</span>
+    <span class="m-sub">${esc(sub)}</span></button>`;}
+function renderLibrary(){const rows=libraryModels();const searching=Boolean($('search').value.trim());
+  const sig=JSON.stringify([rows.map(x=>[x.m.id,modelState(x.m),Object.keys(x.m.recipes),
+    Object.keys(x.m.recipes).some(e=>S.state?.recipe_notices?.[`${x.m.id}:${e}`])]),S.model,searching,[...S.collapsed],S.scan?.state]);
   if(sig===S.sig.library&&$('recipe-list').childElementCount)return;
   S.sig.library=sig;
-  let prevModel=null,prevProv=null;const html=[];
-  for(const c of cards){
-    if(c.prov.id!==prevProv){prevProv=c.prov.id;prevModel=null;
-      html.push(`<div class="group-h" role="presentation"><img src="/assets/${c.prov.logo}" alt="" aria-hidden="true">${esc(c.prov.label)}</div>`);}
-    const[cls,label]=availability(c.mt,c.r);
-    const tags=[];
-    if(c.m.recommended_engine===c.engine)tags.push('<span class="tag rec" title="Recommended engine in cookbook">Cookbook pick</span>');
-    if(c.notice?.is_new)tags.push('<span class="tag">New</span>');
-    if(c.notice&&!c.notice.is_new)tags.push('<span class="tag upd" title="Newer recipe revision available">Update</span>');
-    const meta=[validatedCtx(c.r)?`${fmt(validatedCtx(c.r))} ctx`:'',gpuCount(c.r)>1?`${gpuCount(c.r)} GPUs`:'',
-      c.mt.size_mib?mib(c.mt.size_mib):''].filter(Boolean).join(' · ');
-    const title=`${engineLabel(c.engine)} · ${c.r.download?.quant||c.r.kind}`;
-    html.push(`<button class="recipe${c.m.id===prevModel?' family':''}" type="button" role="radio"
-      aria-checked="${c.m.id===S.model&&c.engine===S.engine}" title="${esc(title)}"
-      tabindex="${c.m.id===S.model&&c.engine===S.engine||(!cards.some(x=>x.m.id===S.model&&x.engine===S.engine)&&c===cards[0])?0:-1}"
-      data-model="${esc(c.m.id)}" data-engine="${esc(c.engine)}">
-      <span class="r-top"><img class="r-logo" src="/assets/${c.prov.logo}" alt=""><span class="r-name">${esc(c.m.name)}</span>${tags.join('')}</span>
-      <span class="r-var">${esc(engineShort(c.engine))} · ${esc(shortQuant(c.r.download?.quant)||c.r.kind)}</span>
-      ${meta?`<span class="r-meta">${esc(meta)}</span>`:''}
-      <span class="r-state st-${cls}"${cls==='bad'&&c.mt.reason?` title="${esc(c.mt.reason)}"`:''}><span class="dot"></span>${label}${cls==='bad'&&c.mt.reason?` — ${esc(shortReason(c.mt.reason))}`:''}</span>
-    </button>`);
-    prevModel=c.m.id;}
-  $('recipe-list').innerHTML=html.join('');
-  $('empty').hidden=Boolean(cards.length);
-  $('empty-text').textContent=$('search').value?`No recipes match “${$('search').value}”.`
-    :$('on-disk').checked?'No matching recipes on disk.':'';
+  const companies=[];
+  for(const x of rows){let co=companies.find(c=>c.prov.id===x.prov.id);
+    if(!co)companies.push(co={prov:x.prov,families:[]});
+    let fam=co.families.find(f=>f.name===x.fam);if(!fam)co.families.push(fam={name:x.fam,rows:[]});
+    fam.rows.push(x);}
+  const open=co=>searching||!S.collapsed.has(co.prov.id);
+  const visible=companies.filter(open).flatMap(co=>co.families.flatMap(f=>f.rows));
+  const focusId=(visible.find(x=>x.m.id===S.model)||visible[0])?.m.id;
+  $('recipe-list').innerHTML=companies.map(co=>{const id=esc(co.prov.id);const n=co.families.reduce((s,f)=>s+f.rows.length,0);
+    return`<section class="company">
+      <button class="company-h" type="button" id="co-${id}" data-company="${id}" aria-expanded="${open(co)}" aria-controls="cl-${id}"${searching?' disabled':''}>
+        ${CHEVRON}<img src="/assets/${esc(co.prov.logo)}" alt="">${esc(co.prov.label)}<span class="count numbers">${n}</span></button>
+      <div class="company-list" id="cl-${id}" role="radiogroup" aria-labelledby="co-${id}"${open(co)?'':' hidden'}>
+        ${co.families.map(f=>`<div class="family" role="group" aria-label="${esc(f.name)}"><div class="family-h" aria-hidden="true">${esc(f.name)}</div>
+          ${f.rows.map(x=>modelRow(x,x.m.id===focusId)).join('')}</div>`).join('')}
+      </div></section>`;}).join('');
+  $('empty').hidden=Boolean(rows.length);
+  $('empty-text').textContent=$('search').value?`No models match “${$('search').value}”.`
+    :$('on-disk').checked?'No models on disk yet.':'';
+  const onDisk=rows.filter(x=>['ok','run'].includes(modelState(x.m)[0])).length;
   $('scan-status').textContent=S.scan?.state==='scanning'?'Scanning folders…'
-    :`${cards.length} recipe${cards.length===1?'':'s'} · ${(S.scan?.roots||[]).length} folders`;}
+    :`${rows.length} model${rows.length===1?'':'s'} · ${onDisk} on disk · ${(S.scan?.roots||[]).length} folders`;}
 
 /* ---------- workspace ---------- */
 function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
   const prov=getProvider(m);
+  $('recipe-kicker').innerHTML=`<span>${esc(prov.label)}</span><span aria-hidden="true">·</span><span>${esc(familyOf(m))}</span>`;
   const h1=$('recipe-name');h1.textContent='';
   const img=document.createElement('img');
   img.src=`/assets/${prov.logo}`;img.alt='';img.className='head-logo';
   h1.append(img,document.createTextNode(m.name));
-  const notice=S.state?.recipe_notices?.[`${S.model}:${S.engine}`];
-  $('recipe-variant').innerHTML=
-    `<span class="engine"><img src="/assets/${engIcon(S.engine)}" alt="">${esc(engineLabel(S.engine))}</span>`+
-    (r.download?.quant?`<span>·</span><span>${esc(r.download.quant)}</span>`:'')+
-    (m.recommended_engine===S.engine?'<span class="tag rec" title="Recommended engine in cookbook">Cookbook pick</span>':'')+
-    (notice?`<span class="tag upd" title="Newer recipe revision available">Update ${esc(notice.remote_ver)}</span>`+
-      (notice.can_apply?'<button id="recipe-update" type="button" class="mini">Apply update</button>':''):'');
   $('recipe-purpose').textContent=m.arch||m.subtitle||'';
+  const engs=Object.keys(m.recipes).sort((a,b)=>(b===m.recommended_engine)-(a===m.recommended_engine));
+  $('engine-switch').innerHTML=engs.map(e=>{const rr=m.recipes[e];const[cls,label]=engineState(m,e);const on=e===S.engine;
+    return`<button type="button" role="radio" aria-checked="${on}" tabindex="${on?0:-1}" data-switch-engine="${esc(e)}"
+      title="${esc(`${engineLabel(e)} · ${rr.download?.quant||rr.kind} · ${label}`)}">
+      <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
+      <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
+  const notice=S.state?.recipe_notices?.[`${S.model}:${S.engine}`];
+  $('recipe-notice').hidden=!notice;
+  $('recipe-notice').innerHTML=notice?`<span class="tag upd">Recipe update ${esc(notice.remote_ver)}</span>`+
+    (notice.can_apply?'<button id="recipe-update" type="button">Apply update</button>':''):'';
   $('recipe-meta').innerHTML=[
     validatedCtx(r)?`<span class="fact"><b>Validated ctx</b> ${fmt(validatedCtx(r))}</span>`:'',
-    r.ctx?`<span class="fact"><b>Recipe ctx</b> ${fmt(r.ctx)}</span>`:'',
-    r.ctx_max?`<span class="fact"><b>Ceiling</b> ${fmt(r.ctx_max)}</span>`:'',
     `<span class="fact"><b>GPUs</b> ${gpuCount(r)}</span>`,
-    r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:'',
-    `<span class="fact"><b>Provider</b> ${esc(prov.label)}</span>`
+    r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:''
   ].filter(Boolean).join('');
-  const others=Object.keys(m.recipes).filter(e=>e!==S.engine);
-  $('other-recipes').innerHTML=others.length?'Other engines: '+others.map(e=>
-    `<button type="button" data-switch-engine="${esc(e)}" aria-label="Switch to ${esc(engineLabel(e))} for ${esc(m.name)}"><img src="/assets/${engIcon(e)}" alt="" style="width:14px;height:14px;margin-inline-end:4px;vertical-align:middle">${esc(engineShort(e))} · ${esc(shortQuant(m.recipes[e].download?.quant)||m.recipes[e].kind)}</button>`).join(''):'';
   renderContext();renderKv();renderGpus();renderClients();renderAvailability();renderCookbook();}
 
-function renderContext(){const r=recipe(),mt=match();
+function renderContext(){const r=recipe(),mt=match();if(!r)return;
+  const now=Number($('context').value);const safe=validatedCtx(r);
+  const presets=[];const add=(v,label,title)=>{if(v&&!presets.some(p=>p.v===v))presets.push({v,label,title});};
+  add(safe,'Validated','Checked by the cookbook on a B70');
+  add(r.ctx,'Default','Recipe default');
+  add(r.ctx_max,'Ceiling','Largest context this recipe allows');
+  $('ctx-presets').innerHTML=presets.map(p=>`<button type="button" data-ctx="${p.v}" aria-pressed="${p.v===now}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');
   const parts=[];
-  if(validatedCtx(r))parts.push(`Validated ${fmt(validatedCtx(r))}`);
-  if(r.ctx&&r.ctx!==validatedCtx(r))parts.push(`Default ${fmt(r.ctx)}`);
-  if(r.ctx_max)parts.push(`Ceiling ${fmt(r.ctx_max)}`);
-  if(mt?.ctx_native&&mt.ctx_native!==validatedCtx(r)&&mt.ctx_native!==r.ctx)parts.push(`Native ${fmt(mt.ctx_native)}`);
-  $('context-hint').textContent=parts.join(' · ');
-  const presets=[];const add=(v,label,title)=>{if(v&&v!==Number($('context').value))presets.push({v,label,title});};
-  add(validatedCtx(r),'Validated','Cookbook-checked context');
-  add(r.ctx,'Default','Recipe-configured default');
-  add(r.ctx_max,'Ceiling','Maximum allowed context');
-  $('ctx-presets').innerHTML=presets.map(p=>`<button type="button" data-ctx="${p.v}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');}
+  if(mt?.ctx_native&&!presets.some(p=>p.v===mt.ctx_native))parts.push(`Model native ${fmt(mt.ctx_native)}`);
+  if(safe&&now>safe)parts.push(`Above the validated ${fmt(safe)}: not checked on a B70`);
+  $('context-hint').textContent=parts.join(' · ');}
 
 function renderKv(){const r=recipe();
   const options=r.kv_options||(r.kind?.startsWith('gguf')?['q8_0/q4_1','q8_0','q5_0/q4_1','f16']:r.kind==='ovms'?['auto']:['fp8']);
@@ -623,7 +653,8 @@ function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
       <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
   else if(cls==='dl'){
     rows.push(`<div class="avail dl"><span class="lead"><span class="dot"></span>Download required</span>
-      <span class="detail"><code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk</span></div>`);}
+      <span class="detail"><code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk${
+        String(mt?.reason||'').startsWith('incompatible')?`<br><span class="meta">Found a related file this engine cannot load: ${esc(mt.reason.replace('incompatible: ',''))}</span>`:''}</span></div>`);}
   else if(cls==='hold'){
     rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
       <span class="detail">${esc(r.operator_hold)}</span></div>`);}
@@ -635,7 +666,7 @@ function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
     rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
       <span class="detail">${esc(r.operator_hold)}</span></div>`);}
   if(cls==='ok'&&mt.path&&r.download?.quant&&S.plan?.variant){
-    rows.push(`<p class="note">Local artifact: “${esc(S.plan.found_name)}” (recipe default: ${esc(shortQuant(r.download.quant))}).</p>`);}
+    rows.push(`<p class="note">Local variant. The recipe default is ${esc(shortQuant(r.download.quant))}.</p>`);}
   box.innerHTML=rows.join('');}
 
 function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return;
@@ -672,7 +703,7 @@ function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return
     ${spec([['Result',r.perf],['Conditions',r.perf_note]])}
     <h3 style="margin-block-start:16px">Limitations</h3>${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded.</p>'}
     <h3 style="margin-block-start:16px">Technical notes</h3>${spec(techPairs)}
-    <p class="hint wrap" id="plan-warnings"></p>`;
+    <p class="hint wrap lines" id="plan-warnings"></p>`;
   if(S.plan)$('plan-warnings').textContent=[...(S.plan.warnings||[]),S.plan.error||''].filter(Boolean).join('\n');}
 
 /* ---------- sessions ---------- */
@@ -779,7 +810,7 @@ function renderAction(){const r=recipe();const button=$('primary');
     else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';button.disabled=true;
       status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s`:'Checking files';}
     else if(r.operator_hold){text='Launch held';status=r.operator_hold;button.disabled=true;}
-    else if(mt?.reason?.startsWith('incompatible')){text='Incompatible';status=mt.reason;button.disabled=true;}
+    else if(mt?.reason?.startsWith('incompatible')&&!r.download?.repo){text='Incompatible';status=mt.reason;button.disabled=true;}
     else if(!mt?.detected){if(r.download?.repo){text='Review download';S.action='download';
       status=`Download required · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk`;}
       else{text='Choose model file';S.action='browse';status='No verified download for this recipe';}}
@@ -805,8 +836,10 @@ async function poll(){if(S.polled)return;S.polled=true;
     $('version').textContent=`v${state.version}`;document.title=`B70 Launcher ${state.version}`;
     error('connection-error','');
     if(!S.model){await refreshScan();
-      const first=recipeCards().find(c=>c.mt.detected)||state.recipes.models.find(m=>m.id===state.preflight.default.model_id)&&{m:state.recipes.models.find(m=>m.id===state.preflight.default.model_id),engine:state.preflight.default.engine,r:state.recipes.models.find(m=>m.id===state.preflight.default.model_id).recipes[state.preflight.default.engine]}||null;
-      if(first){choose(first.m.id,first.engine);$('client').value=state.settings.open_with||'pi';}}
+      const rows=libraryModels();const def=state.preflight.default||{};
+      const first=rows.find(x=>modelState(x.m)[0]==='run')||rows.find(x=>modelState(x.m)[0]==='ok')||rows.find(x=>x.m.id===def.model_id)||rows[0];
+      if(first){choose(first.m.id,first.m.id===def.model_id&&!liveEngine(first.m)&&detected(first.m,def.engine)?def.engine:undefined);
+        $('client').value=state.settings.open_with||'pi';}}
     else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
     renderLibrary();renderDownloads();renderClients();renderGpus();renderAction();
     const power=await api('/api/power');renderHardware(power.power||[]);
@@ -893,11 +926,12 @@ $('preview').onclick=async()=>{await refreshPlan();if(!S.plan)return;
   openDialog('Launch command',`<p class="hint">Preview only — nothing starts. This is the exact command a launch runs.</p>
     <pre id="command-text">${esc(S.plan.cmd||S.plan.error||'')}</pre>
     <button id="copy-command" type="button">Copy command</button>
-    <p class="hint wrap">${esc((S.plan.warnings||[]).join('\n'))}</p>`);
+    ${(S.plan.warnings||[]).length?`<h3 style="margin-block-start:16px">Warnings</h3><ul class="warn-list">${S.plan.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}`);
   $('copy-command').onclick=()=>copy(S.plan.cmd||'').catch(e=>error('dialog-error',e.message));};
 document.addEventListener('click',async e=>{
   const cp=e.target.closest('[data-copy]');if(cp){copy(cp.dataset.copy).catch(ex=>toast(ex.message));return;}
-  const sw=e.target.closest('[data-switch-engine]');if(sw){choose(S.model,sw.dataset.switchEngine);return;}
+  const sw=e.target.closest('[data-switch-engine]');if(sw){const eng=sw.dataset.switchEngine;choose(S.model,eng);
+    $('engine-switch').querySelector(`[data-switch-engine="${CSS.escape(eng)}"]`)?.focus();return;}
   const ss=e.target.closest('[data-switch-session]');if(ss){
     const entry=S.servers.find(x=>x.id===ss.dataset.switchSession);
     if(entry){choose(entry.model_id,entry.engine);$('port').value=entry.port;}return;}
@@ -922,11 +956,20 @@ document.addEventListener('click',async e=>{
   const ru=e.target.closest('#recipe-update');if(ru){ru.disabled=true;
     try{await api('/api/recipes/update',{model_id:S.model,engine:S.engine});await poll();choose(S.model,S.engine);toast('Recipe updated');}
     catch(ex){ru.disabled=false;error('action-error',ex.message);}return;}});
-$('recipe-list').addEventListener('click',e=>{const b=e.target.closest('[data-model]');if(b)choose(b.dataset.model,b.dataset.engine);});
-$('recipe-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
-  const buttons=[...$('recipe-list').querySelectorAll('button')];const i=buttons.indexOf(document.activeElement);
+const focusModel=id=>$('recipe-list').querySelector(`.model[data-model="${CSS.escape(id)}"]`)?.focus();
+$('recipe-list').addEventListener('click',e=>{const co=e.target.closest('[data-company]');if(co){toggleCompany(co.dataset.company);
+    $('recipe-list').querySelector(`[data-company="${CSS.escape(co.dataset.company)}"]`)?.focus();return;}
+  const b=e.target.closest('[data-model]');if(b){choose(b.dataset.model);focusModel(b.dataset.model);}});
+$('recipe-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key)||!e.target.closest('.model'))return;
+  const buttons=[...$('recipe-list').querySelectorAll('.model')].filter(b=>!b.closest('[hidden]'));const i=buttons.indexOf(document.activeElement);
   const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
-  e.preventDefault();const b=buttons[next];if(b){choose(b.dataset.model,b.dataset.engine);b.focus();}});
+  e.preventDefault();const b=buttons[next];if(b){choose(b.dataset.model);focusModel(b.dataset.model);}});
+$('engine-switch').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
+  const buttons=[...$('engine-switch').querySelectorAll('[data-switch-engine]')];const i=buttons.indexOf(document.activeElement);
+  const fwd=['ArrowRight','ArrowDown'].includes(e.key);
+  const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(fwd?1:-1)+buttons.length)%buttons.length;
+  e.preventDefault();const eng=buttons[next]?.dataset.switchEngine;
+  if(eng){choose(S.model,eng);$('engine-switch').querySelector(`[data-switch-engine="${CSS.escape(eng)}"]`)?.focus();}});
 $('search').addEventListener('input',()=>{S.sig.library='';renderLibrary();});
 $('on-disk').addEventListener('change',()=>{S.sig.library='';renderLibrary();});
 $('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;S.sig.library='';renderLibrary();$('search').focus();};
@@ -941,8 +984,10 @@ $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;
   catch(e){error('action-error',e.message);}};
 $('download-rows').addEventListener('click',async e=>{const b=e.target.closest('[data-download]');if(!b)return;
   try{await api('/api/download/cancel',{id:b.dataset.download});await poll();}catch(ex){toast(ex.message);}});
-function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderAction();refreshPlan();}
-for(const id of['context','port','kv','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAction();refreshPlan();}
+for(const id of['port','kv','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+$('context').addEventListener('input',renderContext);
+$('context').addEventListener('change',()=>{renderContext();renderAction();refreshPlan();});
 $('gpu').addEventListener('change',()=>onConfigChange());
 $('client').addEventListener('change',renderAction);
 for(const id of['advanced','cookbook']){try{$(id).open=localStorage.getItem('b70-'+id)==='open';}catch(e){}
