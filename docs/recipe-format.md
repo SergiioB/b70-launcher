@@ -88,6 +88,7 @@ current UI.
 | `ctx_safe` | context the UI preselects ("Safe" preset); falls back to `ctx` when absent |
 | `ctx_note` | context hint line under the context field; used as the `ctx_source` label when no on-disk `config.json` value wins |
 | `kv_options` | list of KV choices the UI offers for this recipe. The UI falls back to `q8_0/q4_1`, `q8_0`, `q5_0/q4_1`, `f16` for `gguf`, `auto` for `ovms`, and `fp8` otherwise; the llama.cpp/vLLM/EXL3 builders validate a caller-supplied `kv` against the recipe list (or `q8_0/q4_1`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp16`, `bf16`, `auto`, `fp8`) and warn + fall back to the recipe `kv` or the first option when it is not listed. `ovms` does not read `kv` at all |
+| `prefill_options` | EXL3 only: prefill modes the UI offers (`int8`, `fp16`). `int8` is the engine default and adds nothing to the command; `fp16` adds `--set env.EXL3_INT8_PREFILL=0`. An unlisted value warns and falls back to `int8`; other engines warn that the option is ignored |
 | `operator_hold` | non-empty text blocks the recipe: launches are refused and downloads are not authorized; only a dry run still renders, with a warning |
 | `power` | advisory watts hint: when it exceeds the selected card's current hwmon cap the plan warns; never applied, and no power-cap command is generated |
 | `perf` | throughput note shown in Recipe notes |
@@ -218,7 +219,9 @@ disables immediate command lists. Every llama.cpp launch gets `-ngl 99`,
 image entrypoint), `docker_sock` (isolated daemon socket — `exl3_stack` starts
 it via `sudo -n` containerd/dockerd when down and never deletes its state),
 `inner_port` (container-side port, default 8100). Linux only; fp8 KV;
-`gpu_memory_utilization` 0.90 (<128K ctx) or 0.94 (≥128K).
+`gpu_memory_utilization` 0.90 (<128K ctx) or 0.94 (≥128K). `prefill_options` / caller `prefill`
+(`int8` default, `fp16` max quality). Every `extra_env` entry is passed both as `-e` and as
+`--set env.NAME="value"`, because the serve config's `env:` block overrides `docker -e`.
 
 ## Custom artifacts (`model_id: "__custom__"`)
 
@@ -256,7 +259,7 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
      `tags`, `chips`, `brand`);
    - recipe fields are **field-merged** over the local recipe, limited to
      `REMOTE_RECIPE_FIELDS` (`ctx`, `ctx_max`, `ctx_note`, `ctx_safe`, `power`,
-     `dtype`, `kv`, `kv_options`, `download`, `spec_tokens`, `spec_p_min`,
+     `dtype`, `kv`, `kv_options`, `prefill_options`, `download`, `spec_tokens`, `spec_p_min`,
      `speculative`, `draft_device`, `tensor_split`, `split_mode`,
      `offload_tensors`, `tool_parser`, `reasoning_parser`, `cim_long_ctx`,
      `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`) plus a
@@ -280,7 +283,7 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
 
 ## Caveats / inert fields
 
-- The UI sends `model_id`, `engine`, `port`, `ctx`, `kv`, `gpus` (list of ints),
+- The UI sends `model_id`, `engine`, `port`, `ctx`, `kv`, `prefill` (EXL3), `gpus` (list of ints),
   `harness`, and `no_test`; it never sends `slots`, `mtp`, `use_docker`,
   `power`, `extra`, `extra_env`, or `models_dir`. Dual-GPU recipes rely on
   recipe-level `tp`/`tensor_split`/`gpus`.

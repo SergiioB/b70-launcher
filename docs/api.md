@@ -80,7 +80,7 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "recipes":  "merged catalog: recipes.json + recipes-remote.json overlay + recipe_overrides",
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see POST /api/launch"],
-  "version":  "0.6.9",
+  "version":  "0.6.10",
   "is_win":   false,
   "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
 "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
@@ -255,7 +255,7 @@ directory; anything else → `404 {"error": "not found"}`.
 
 All bodies are JSON objects. `model_id` (or legacy `model`) + `engine` identify
 the recipe. Fields read by the shared `builders.build()` path: `model_id`,
-`engine`, `ctx`, `port`, `slots`, `kv`, `gpus` (list of ints), `power`, `extra`
+`engine`, `ctx`, `port`, `slots`, `kv`, `prefill` (EXL3: `int8` default or `fp16`), `gpus` (list of ints), `power`, `extra`
 (raw engine flags string), `extra_env` (`NAME=value` lines), `mtp` (bool),
 `use_docker` (bool), `dry_run`, `models_dir`, `harness`, `harness_cmd`,
 `no_test`, and `custom_path` when `model_id` is `"__custom__"`.

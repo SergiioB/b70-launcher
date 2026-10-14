@@ -91,6 +91,7 @@ traffic through the gateway; until then it prints
 b70 launch qwen38-27b                      # recommended engine (exl3 here), validated ctx
 b70 launch qwen36-35b -e vllm              # explicit engine
 b70 launch qwen36-35b -e llamacpp --ctx 65536 --port 8080 --kv q5_0/q4_1
+b70 launch qwen38-27b-sc5 -e exl3 --prefill fp16   # EXL3 max-quality prefill (slower cold prompts)
 b70 launch qwen38-27b-fp8-tp2              # recipe declares dual-card → gpus 0,1 auto
 b70 launch qwen38-flashnext --gpus 0,1     # same, manual
 b70 launch qwen36-35b -e vllm --slots 8 --no-mtp --extra "--async-scheduling"
@@ -102,7 +103,7 @@ b70 launch nemotron-35 --timeout 1800      # bigger engines need longer than 900
 ```
 
 Flags → API fields (`docs/api.md`): `--ctx`→`ctx` · `--port`→`port` ·
-`--slots`→`slots` · `--kv`→`kv` · `--gpus`→`gpus` · `--power`→`power` ·
+`--slots`→`slots` · `--kv`→`kv` · `--prefill`→`prefill` · `--gpus`→`gpus` · `--power`→`power` ·
 `--mtp/--no-mtp`→`mtp` · `--docker/--native`→`use_docker` · `--extra`→`extra`
 · `-E/--env`→`extra_env` (repeatable `NAME=value` lines) · `--path`→
 `custom_path` (`model_id=__custom__`).
