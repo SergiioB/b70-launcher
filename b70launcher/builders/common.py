@@ -252,6 +252,9 @@ class Bld:
                 warns.append("Two-card configuration is experimental and requires matching B70 GPUs, verified device order, sufficient PCIe bandwidth, and engine support.")
         self.envargs, self.extra_env = parse_extra_env(cfg, warns)
         self.kv = cfg.get("kv") or "recipe default"
+        self.prefill = cfg.get("prefill") or "int8"
+        if self.prefill == "fp16" and self.kind != "exl3":
+            warns.append("prefill option applies to EXL3 recipes only; ignored")
         self.env = {}
         self.native = False
         preflight = hardware.hardware_preflight() if not IS_WIN else {"devices": []}

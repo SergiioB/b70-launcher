@@ -522,5 +522,56 @@ class TestExl3Builder(LauncherStateCase):
         self.assertIn("vllm.gpu_memory_utilization=0.94", t)
         self.assertIn("vllm.max_model_len=131072", t)
 
+    def test_exl3_prefill_default_byte_identical(self):
+        port = free_port()
+        a = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               port=port))
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               port=port, prefill="int8"))
+        self.assertIsNone(a.get("error"))
+        self.assertEqual(a["tokens"], b["tokens"])
+        self.assertFalse(any("env.EXL3_INT8_PREFILL" in tok for tok in b["tokens"]))
+
+    def test_exl3_prefill_fp16(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               prefill="fp16"))
+        self.assertIsNone(b.get("error"))
+        t = b["tokens"]
+        self.assertEqual([x for x in t if "env.EXL3_INT8_PREFILL" in x],
+                         ['env.EXL3_INT8_PREFILL="0"'])
+        self.assertEqual(t[t.index('env.EXL3_INT8_PREFILL="0"') - 1], "--set")
+        self.assertTrue(any("fp16 prefill" in w for w in b["warnings"]))
+
+    def test_exl3_prefill_invalid_falls_back(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               prefill="bogus"))
+        self.assertIsNone(b.get("error"))
+        self.assertTrue(any("isn't supported" in w for w in b["warnings"]))
+        self.assertFalse(any("env.EXL3_INT8_PREFILL" in x for x in b["tokens"]))
+
+    def test_exl3_extra_env_emits_set_env(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               extra_env="FOO=bar"))
+        t = b["tokens"]
+        self.assertIn("-e", t)
+        self.assertIn("FOO=bar", t)
+        self.assertIn('env.FOO="bar"', t)
+        self.assertEqual(t[t.index('env.FOO="bar"') - 1], "--set")
+
+    def test_exl3_prefill_wins_over_extra_env(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608,
+                               prefill="fp16", extra_env="EXL3_INT8_PREFILL=1"))
+        t = b["tokens"]
+        self.assertEqual([x for x in t if "env.EXL3_INT8_PREFILL" in x],
+                         ['env.EXL3_INT8_PREFILL="0"'])
+        self.assertTrue(any("overrides extra_env" in w for w in b["warnings"]))
+
+    def test_prefill_warns_and_ignored_on_llamacpp(self):
+        b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",
+                               prefill="fp16"))
+        self.assertIsNone(b.get("error"))
+        self.assertTrue(any("applies to EXL3 recipes only" in w for w in b["warnings"]))
+        self.assertFalse(any("EXL3_INT8_PREFILL" in x for x in b["tokens"]))
+
 if __name__ == "__main__":
     unittest.main()

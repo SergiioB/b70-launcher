@@ -52,6 +52,27 @@ def build_exl3(b):
         gmu = str(recipe["gmu"])
     else:
         gmu = "0.94" if b.ctx >= 131072 else "0.90"
+    # Prefill option (EXL3 only): int8 W8A8 is the engine default and keeps the
+    # command byte-identical; fp16 is the opt-in max-quality mode.
+    prefill = b.prefill
+    pf_opts = recipe.get("prefill_options") or ["int8", "fp16"]
+    if prefill not in pf_opts:
+        warns.append(f"prefill '{prefill}' isn't supported by this recipe "
+                     f"(valid: {', '.join(pf_opts)}) — using int8.")
+        prefill = "int8"
+    # extra_env trap: serve.py's model.yaml `env:` overrides docker -e, so every
+    # extra_env key is ALSO emitted as `--set env.K=<json>` to survive it.
+    set_env = dict(b.extra_env)
+    int8_want = "0" if prefill == "fp16" else "1"
+    if "EXL3_INT8_PREFILL" in set_env and set_env["EXL3_INT8_PREFILL"] != int8_want:
+        warns.append(f"prefill option '{prefill}' overrides extra_env "
+                     f"EXL3_INT8_PREFILL={set_env['EXL3_INT8_PREFILL']}.")
+    if "EXL3_INT8_PREFILL" in set_env or prefill == "fp16":
+        set_env["EXL3_INT8_PREFILL"] = int8_want
+    if prefill == "fp16":
+        warns.append("fp16 prefill (max quality): removes the int8-prefill drift "
+                     "(served chat KL 0.00099, RL-213); cold prefill ~1.5x slower "
+                     "at 8-32K, ~1.3x at 128K+.")
     cname = common.cname_for(model["id"], "exl3", b.port)
     tokens = docker_cmd + ["run", "--rm", "--name", cname] + common.labels_for(cfg, b.port)
     tokens += common.dri_args(b) + [
@@ -77,6 +98,7 @@ def build_exl3(b):
         "--set", "vllm.reasoning_parser=qwen3",
         "--set", "vllm.enable_auto_tool_choice=true",
         "--set", "vllm.tool_call_parser=qwen3_coder"]
+    tokens += [x for k, v in set_env.items() for x in ("--set", f"env.{k}={json.dumps(v)}")]
     tokens += recipe.get("fixed_flags", []) + b.extra
     warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu}; "
                  "first load ~5-8 min for kernel compile.")

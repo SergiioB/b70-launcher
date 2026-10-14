@@ -38,7 +38,7 @@ REMOTE_MODEL_FIELDS = ("recommended_engine", "recommendation", "badge", "blurb",
 # catalog swap the binary/image, pick the docker socket, append container argv
 # or remount host paths. Everything else merges over the local recipe.
 REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtype",
-                        "kv", "kv_options", "download", "spec_tokens", "spec_p_min", "speculative",
+                        "kv", "kv_options", "prefill_options", "download", "spec_tokens", "spec_p_min", "speculative",
                         "draft_device", "tensor_split", "split_mode",
                         "offload_tensors", "tool_parser", "reasoning_parser",
                         "cim_long_ctx", "search_name", "inner_port", "tp",

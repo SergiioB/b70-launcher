@@ -381,6 +381,24 @@ class TestCliE2E(unittest.TestCase):
         self.assertIn("launch plan", out)
         self.assertIn("llama", out)
 
+    def test_launch_prefill_fp16_exl3(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b-sc5", "-e", "exl3",
+                                "--prefill", "fp16", "--port", str(free_port()),
+                                "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertIn('EXL3_INT8_PREFILL="0"', json.loads(out)["cmd"])
+
+    def test_launch_prefill_default_no_set(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b-sc5", "-e", "exl3",
+                                "--port", str(free_port()), "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("EXL3_INT8_PREFILL", json.loads(out)["cmd"])
+
+    def test_launch_prefill_bad_choice(self):
+        rc, _, _ = self.b70("launch", "qwen38-27b-sc5", "-e", "exl3",
+                            "--prefill", "fp32", "--dry-run")
+        self.assertEqual(rc, 2)
+
     def test_launch_unknown_model(self):
         rc, _, err = self.b70("launch", "no-such-model")
         self.assertEqual(rc, 1)

@@ -330,6 +330,10 @@
      "kv_options": [
       "fp8"
      ],
+     "prefill_options": [
+      "int8",
+      "fp16"
+     ],
      "model_path": "~/models/Qwen3.8-27B-exl3",
      "search_name": "qwen3.8-27b exl3 4bpw",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
@@ -479,6 +483,10 @@
      "kind": "exl3",
      "kv_options": [
       "fp8"
+     ],
+     "prefill_options": [
+      "int8",
+      "fp16"
      ],
      "model_path": "~/models/Qwen3.8-27B-exl3-SC_5.00bpw_H6",
      "search_name": "qwen3.8-27b exl3 sc5",

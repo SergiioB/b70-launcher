@@ -32,7 +32,7 @@ CUSTOM_TEMPLATES = {
              "download": {"kind": "snapshot", "quant": "HF/safetensors (custom)"}},
     "exl3": {"kind": "exl3", "image": "ghcr.io/0xsero/exl3xpu:0.1.0@sha256:21412bdd7535e9c653eeb3d099dce3bc79a83d440def2cd9556111c79c870fa8",
              "docker_sock": "/run/b70-exl3-docker.sock", "inner_port": 8100,
-             "ctx": 65536, "power": 230, "kv_options": ["fp8"],
+             "ctx": 65536, "power": 230, "kv_options": ["fp8"], "prefill_options": ["int8", "fp16"],
              "download": {"kind": "snapshot", "quant": "EXL3 trellis (custom)"}},
 }
 KIND_ENGINE = {"gguf": "llamacpp", "openvino": "openvino", "vllm": "vllm", "exl3": "exl3"}

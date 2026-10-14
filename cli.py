@@ -956,7 +956,7 @@ def cmd_launch(g, a):
         model_disp = model.get("name", model["id"])
 
     for k, v in (("ctx", a.ctx), ("port", a.port), ("slots", a.slots),
-                 ("kv", a.kv), ("power", a.power)):
+                 ("kv", a.kv), ("power", a.power), ("prefill", getattr(a, "prefill", None))):
         if v is not None:
             cfg[k] = v
     if a.ctx is None and recipe.get("ctx_safe"):
@@ -1763,6 +1763,7 @@ download open ui env agent usage tokens doctor scan version recipes-update compl
             COMPREPLY=( $(compgen -W "$rids ui" -- "$cur") ) ;;
         -e|--engine) COMPREPLY=( $(compgen -W "openvino vllm llamacpp exl3" -- "$cur") ) ;;
         --kv) COMPREPLY=( $(compgen -W "q8_0 q5_0/q4_1 q8_0/q4_1 f16 fp8" -- "$cur") ) ;;
+        --prefill) COMPREPLY=( $(compgen -W "int8 fp16" -- "$cur") ) ;;
         --gpus) COMPREPLY=( $(compgen -W "0 1 0,1 both" -- "$cur") ) ;;
         *) COMPREPLY=( $(compgen -f -W "--json --help" -- "$cur") ) ;;
     esac
@@ -1787,7 +1788,7 @@ quick start
   b70 usage                      tokens each agent used, today and all time
   b70 open · b70 open 8000       UI or an engine endpoint (prints SSH hint headless)
   b70 stop <rid> · b70 down      stop an engine, or the whole daemon
-every launch flag maps 1:1 to the recipe API: --ctx --port --slots --kv
+every launch flag maps 1:1 to the recipe API: --ctx --port --slots --kv --prefill
 --gpus 0|1|0,1 --power --mtp/--no-mtp --docker/--native --extra --env K=V
 """
 
@@ -1860,6 +1861,8 @@ def build_parser():
     s.add_argument("-p", "--port", type=int, help="endpoint port (default 8000)")
     s.add_argument("--gpus", help="0 | 1 | 0,1 | both (default: recipe topology or 0)")
     s.add_argument("--kv", help="KV cache dtype: q8_0 | q5_0/q4_1 | q8_0/q4_1 | f16 | fp8")
+    s.add_argument("--prefill", choices=["int8", "fp16"],
+                   help="EXL3 prefill mode: int8 (default, fast) | fp16 (max quality, slower cold prefill)")
     s.add_argument("-n", "--slots", type=int, help="max parallel sequences")
     s.add_argument("--power", type=int, help="watts hint (advisory; launcher never sets caps)")
     mtp = s.add_mutually_exclusive_group()

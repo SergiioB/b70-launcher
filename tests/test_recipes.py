@@ -80,5 +80,20 @@ class TestCatalogUpdates(support_env.LauncherStateCase):
         catalog._load_remote_overlay()
         self.assertEqual(catalog.find_model('qwen38-27b-sc5')['recipes']['exl3']['ctx'], local_ctx)
 
+    def test_exl3_recipes_carry_prefill_options(self):
+        for mid in ('qwen38-27b', 'qwen38-27b-sc5'):
+            r = catalog.find_model(mid)['recipes']['exl3']
+            self.assertEqual(r.get('prefill_options'), ['int8', 'fp16'], mid)
+
+    def test_prefill_options_merges_from_remote(self):
+        # prefill_options must pass the remote-field sanitizer (update channel can tune it)
+        doc = {'catalog_ver': '9999-01-01.1', 'models': [{'id': 'qwen38-27b-sc5', 'recipes': {
+            'exl3': {'prefill_options': ['int8'], 'recipe_ver': '9999-01-01.1'}}}]}
+        count, needs_app, error = catalog.apply_recipe_doc(doc)
+        self.assertIsNone(error)
+        self.assertEqual(count, 1)
+        r = catalog.find_model('qwen38-27b-sc5')['recipes']['exl3']
+        self.assertEqual(r['prefill_options'], ['int8'])
+
 if __name__ == '__main__':
     unittest.main()
