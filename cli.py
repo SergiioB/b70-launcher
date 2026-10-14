@@ -22,6 +22,7 @@ import signal
 import socket
 import subprocess
 import sys
+import textwrap
 import threading
 import time
 import urllib.error
@@ -401,20 +402,14 @@ def resolve_rid(client, query, allow_port=True):
 def rid_or_die(client, query):
     ent, state = resolve_rid(client, query)
     if isinstance(ent, list):
-        die("multiple servers match — pick a server id",
+        die("several servers match — pick one",
             hint="running: " + ", ".join(e["id"] for e in ent))
     if ent is None:
         running = [e["id"] for e in state.get("running", [])
-                   if e.get("status") in ("running", "starting")]
-        if not query:
-            if running:
-                die("which engine? multiple are running",
-                    hint="ids: " + ", ".join(running))
-            die("no engines running",
-                hint="launch one first: b70 launch <model>")
-        hint = "running servers: " + ", ".join(running) if running \
-            else "nothing is running — launch one first: b70 launch <model>"
-        die(f"no server matches {query!r}", hint=hint)
+                   if e.get("status") != "stopped"]
+        if not running:
+            die("no engines running", hint="launch one first: b70 launch <model>")
+        die(f"no server matches {query!r}", hint="running: " + ", ".join(running))
     return ent
 
 
@@ -440,11 +435,17 @@ def human_gb(mib):
 
 
 def human_ctx(n):
+    """131072 -> '128K'; values that are not whole K keep their digits."""
     try:
         n = int(n)
-        return f"{n // 1024}K" if n % 1024 == 0 else str(n)
+        return f"{n // 1024}K" if n % 1024 == 0 else f"{n:,}"
     except (TypeError, ValueError):
         return "-"
+
+
+def validated_ctx(rec):
+    """Context the UI preselects: the recipe's validated `ctx_safe`, else `ctx`."""
+    return rec.get("ctx_safe") or rec.get("ctx")
 
 
 def fmt_dur(s):
@@ -456,22 +457,47 @@ def fmt_dur(s):
     return f"{s // 3600}h{s % 3600 // 60:02d}m"
 
 
-def table(rows, headers, aligns=None):
-    """Borderless padded table; rows are lists of (possibly styled) strings."""
-    widths = [len(_strip(h)) for h in headers]
-    for row in rows:
-        for i, cell in enumerate(row):
-            if i < len(widths):
-                widths[i] = max(widths[i], len(_strip(str(cell))))
-    aligns = aligns or ["<"] * len(headers)
-    out = ["  " + dim("  ".join(h.ljust(widths[i]) for i, h in enumerate(headers)))]
+def term_width():
+    """Columns to fit into, or None when output is not a terminal."""
+    cols = os.environ.get("COLUMNS", "")
+    if cols.isdigit() and int(cols) > 0:
+        return int(cols)
+    if not _TTY:
+        return None
+    return shutil.get_terminal_size().columns
+
+
+def table(rows, headers, aligns=None, drop=()):
+    """Borderless padded table; rows are lists of (possibly styled) strings.
+
+    `drop` lists column indexes to leave out, in order, while the table is
+    wider than the terminal."""
+    aligns = list(aligns or ["<"] * len(headers))
+    keep = list(range(len(headers)))
+
+    def widths_for(cols):
+        w = {i: len(_strip(headers[i])) for i in cols}
+        for row in rows:
+            for i in cols:
+                if i < len(row):
+                    w[i] = max(w[i], len(_strip(str(row[i]))))
+        return w
+
+    widths = widths_for(keep)
+    limit = term_width()
+    for col in drop:
+        if limit is None or 2 + sum(widths.values()) + 2 * (len(keep) - 1) <= limit:
+            break
+        keep.remove(col)
+        widths = widths_for(keep)
+    out = ["  " + dim("  ".join(headers[i].ljust(widths[i]) for i in keep).rstrip())]
     for row in rows:
         cells = []
-        for i, cell in enumerate(row):
-            cell = str(cell)
+        for i in keep:
+            cell = str(row[i]) if i < len(row) else ""
             pad = widths[i] - len(_strip(cell))
             cells.append((" " * pad + cell) if aligns[i] == ">" else (cell + " " * pad))
-        out.append("  " + "  ".join(cells))
+        out.append(("  " + "  ".join(cells)).rstrip())
     return "\n".join(out)
 
 
@@ -480,6 +506,15 @@ _ansi_re = re.compile(r"\033\[[0-9;]*m")
 
 def _strip(s):
     return _ansi_re.sub("", s)
+
+
+def wrap(text, indent):
+    """Indent text; on a terminal also wrap it to the terminal width."""
+    width = term_width()
+    if not width:
+        return indent + text
+    return textwrap.fill(text, width=max(40, width - 1), initial_indent=indent,
+                         subsequent_indent=indent, break_on_hyphens=False)
 
 
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -646,7 +681,6 @@ def cmd_list(g, a):
     c = daemon_client(g)
     st = c.get("/api/state")
     recipes = st.get("recipes", {})
-    eng_meta = engines_by_id(recipes)
     matches = _detect_map(c)
     running = {e.get("id") for e in st.get("running", [])
                if e.get("status") in ("running", "starting")}
@@ -673,15 +707,16 @@ def cmd_list(g, a):
             best = yellow("★") if eng == m.get("recommended_engine") else " "
             rid_prefix = f"{m['id']}-{eng}-"
             live = red("▶ live") if any(r.startswith(rid_prefix) for r in running) else ""
-            ctx = human_ctx(rec.get("ctx"))
+            ctx = human_ctx(validated_ctx(rec))
             kind = rec.get("kind", eng)
             rows.append([f"{best} {m['id']}", m.get("name", ""), eng, kind,
                          ctx, mark, live])
     if not rows:
         die("no recipes match" + (f" engine '{only_eng}'" if only_eng else ""))
     print(bold(f"  B70 recipes  {dim('catalog ' + str(recipes.get('catalog_ver', '?')))}"))
-    print(table(rows, ["MODEL", "NAME", "ENGINE", "KIND", "CTX", "ARTIFACT", ""]))
-    print(f"\n  {dim('★ recommended engine   ● artifact on disk   ▶ running now')}")
+    print(table(rows, ["MODEL", "NAME", "ENGINE", "KIND", "CTX", "ARTIFACT", ""],
+                drop=(1, 3)))
+    print(f"\n  {dim('★ recommended   CTX validated context   ● on disk   ▶ running')}")
     print(f"  {dim('launch one:')} b70 launch <model> [-e engine]   {dim('detail:')} b70 show <model>")
     return 0
 
@@ -707,7 +742,7 @@ def cmd_show(g, a):
         print(f"  {yellow(model['badge'])}")
     for line in (model.get("blurb"), model.get("recommendation")):
         if line:
-            print(f"  {dim(line)}")
+            print(dim(wrap(line, "  ")))
     print()
     for eng, rec in model.get("recipes", {}).items():
         if a.engine and eng != a.engine:
@@ -716,14 +751,18 @@ def cmd_show(g, a):
         det = matches.get(model["id"], {}).get(eng, {})
         star = yellow("★ recommended") if eng == model.get("recommended_engine") else ""
         dmark = green("detected: " + det["path"]) if det.get("detected") else dim("not detected")
-        print(f"  {cyan(bold(eng))}  {dim(em.get('tagline', ''))} {star}")
-        print(f"    kind {rec.get('kind', eng)} · ctx {human_ctx(rec.get('ctx'))}"
-              + (f"/{human_ctx(rec['ctx_max'])} max" if rec.get("ctx_max") else "")
+        print(f"  {cyan(bold(eng))}  {dim(em.get('tagline', ''))} {star}".rstrip())
+        ctx_parts = [f"ctx {human_ctx(validated_ctx(rec))}"
+                     + (" validated" if rec.get("ctx_safe") else "")]
+        if rec.get("ctx_safe") and rec.get("ctx") and rec["ctx"] != rec["ctx_safe"]:
+            ctx_parts.append(f"recipe default {human_ctx(rec['ctx'])}")
+        if rec.get("ctx_max"):
+            ctx_parts.append(f"max {human_ctx(rec['ctx_max'])}")
+        print(f"    kind {rec.get('kind', eng)} · " + " · ".join(ctx_parts)
               + (f" · ~{rec['power']}W" if rec.get("power") else ""))
-        if rec.get("ctx_note"):
-            print(f"    {dim(rec['ctx_note'])}")
-        if rec.get("perf"):
-            print(f"    {dim(rec['perf'])}")
+        for note in (rec.get("ctx_note"), rec.get("perf")):
+            if note:
+                print(dim(wrap(note, "    ")))
         print(f"    artifact: {dmark}")
         dl = rec.get("download") or {}
         if dl.get("repo") and not det.get("detected"):
@@ -796,7 +835,8 @@ def _print_plan(out, a):
     if out.get("detected") is not None:
         det = out.get("detected")
         print(f"    artifact  {green('detected: ' + str(out.get('detected_path'))) if det else yellow('not detected — recipe defaults in use')}")
-    print(f"    endpoint  {cyan('http://127.0.0.1:' + str(a.port or 8000) + '/v1')}")
+    endpoint = out.get("endpoint") or f"http://127.0.0.1:{a.port or 8000}/v1"
+    print(f"    endpoint  {cyan(endpoint)}")
     if out.get("ctx"):
         print(f"    ctx       {out['ctx']:,}")
     for w in out.get("warnings") or []:
@@ -899,6 +939,8 @@ def cmd_launch(g, a):
                  ("kv", a.kv), ("power", a.power)):
         if v is not None:
             cfg[k] = v
+    if a.ctx is None and recipe.get("ctx_safe"):
+        cfg["ctx"] = recipe["ctx_safe"]  # same validated context the UI preselects
     for name, val, lo, hi in (("port", a.port, 1, 65535),
                               ("slots", a.slots, 1, 128),
                               ("ctx", a.ctx, 512, 262144)):
@@ -973,7 +1015,8 @@ def cmd_launch(g, a):
         pass
     else:
         print(f"{OK} launch accepted: {bold(rid)}")
-        print(f"  {dim('model')} {model_disp} · {cfg['engine']} · ctx {int(cfg.get('ctx') or 0) or 'recipe'}"
+        ctx_disp = human_ctx(cfg["ctx"]) if cfg.get("ctx") else "recipe default"
+        print(f"  {dim('model')} {model_disp} · {cfg['engine']} · ctx {ctx_disp}"
               f" · gpu{','.join(map(str, gpus))}")
         if out.get("harness_line"):
             print(f"  {dim('client:')} {out['harness_line']}")
@@ -1041,23 +1084,21 @@ def cmd_launch(g, a):
 def cmd_stop(g, a):
     c = daemon_client(g)
     ids = []
-    if a.all:
+    if a.all or not a.rids:
         st = c.get("/api/state")
-        ids = [e["id"] for e in st.get("running", [])
-               if e.get("status") in ("running", "starting")]
-        if not ids:
+        live = [e["id"] for e in st.get("running", [])
+                if e.get("status") in ("running", "starting")]
+        if not live:
             if g.json:
-                jprint({"stopped": []})
+                jprint({"stopped": [], "failed": []})
             else:
                 print(f"{DOT} nothing running")
             return 0
+        ids = live if a.all or len(live) == 1 else [rid_or_die(c, None)["id"]]
     else:
         for q in a.rids:
             ent = rid_or_die(c, q)
             ids.append(ent["id"])
-        if not a.rids:
-            ent = rid_or_die(c, None)
-            ids = [ent["id"]]
     stopped, failed = [], []
     for rid in ids:
         try:
@@ -1078,9 +1119,11 @@ def cmd_stop(g, a):
 def _gpu_rows(metrics):
     rows = []
     for p in metrics.get("power", []) or []:
+        # the # column already carries the index — drop the "GPU 0 " prefix
+        name = re.sub(r"^GPU\s*\d+\s*", "", p.get("name") or "") or "GPU"
         rows.append([
             str(p.get("index")),
-            (p.get("name") or "GPU")[:26],
+            name,
             f"{p['watts']:.0f}W" if p.get("watts") is not None else "-",
             f"{p['cap_w']}W" if p.get("cap_w") else "-",
             f"{p['temp_c']}°C" if p.get("temp_c") is not None else "-",
@@ -1091,6 +1134,16 @@ def _gpu_rows(metrics):
              else "-"),
         ])
     return rows
+
+
+def _dl_note(d):
+    """'12.3 MiB/s · 4m10s left' from a downloads entry (speed B/s, eta s)."""
+    parts = []
+    if d.get("speed"):
+        parts.append(f"{float(d['speed']) / 1048576:.1f} MiB/s")
+    if d.get("eta") is not None:
+        parts.append(f"{fmt_dur(d['eta'])} left")
+    return " · ".join(parts)
 
 
 def _status_payload(c):
@@ -1109,8 +1162,8 @@ def _print_status(payload):
 
     gpu_rows = _gpu_rows(metrics)
     if gpu_rows:
-        print(table(gpu_rows, ["#", "GPU", "DRAW", "CAP", "TEMP", "CLK", "VRAM"],
-                    aligns=["<", "<", ">", ">", ">", ">", ">"]))
+        print(table(gpu_rows, ["#", "GPU", "DRAW", "CAP", "TEMP", "BUSY", "VRAM"],
+                    aligns=["<", "<", ">", ">", ">", ">", ">"], drop=(1, 3)))
     else:
         print(f"  {dim('no GPU telemetry')}")
 
@@ -1131,15 +1184,15 @@ def _print_status(payload):
                 f"{int(m.get('tokens_in', e.get('tokens_in', 0)) or 0):,}/{int(m.get('tokens_out', e.get('tokens_out', 0)) or 0):,}",
             ])
         print()
-        print(table(rows, ["SERVER", "PORT", "STATUS", "LOAD", "RATE", "REQS", "TOK IN/OUT"]))
+        print(table(rows, ["SERVER", "PORT", "STATUS", "LOAD", "RATE", "REQS", "TOK IN/OUT"],
+                    drop=(3, 4)))
     else:
         print(f"  {dim('no engines running —')} b70 launch <model>")
 
     active = {k: v for k, v in (dls or {}).items()
               if v.get("state") in ("queued", "resolving", "downloading")}
     for did, d in active.items():
-        print(f"  {cyan('↓')} {did}  {progress_bar(d.get('pct', 0))}"
-              f"  {dim(d.get('speed', ''))} {dim(d.get('eta', ''))}")
+        print(f"  {cyan('↓')} {did}  {progress_bar(d.get('pct', 0))}  {dim(_dl_note(d))}")
 
 
 def _status_json(payload):
@@ -1226,15 +1279,15 @@ def cmd_test(g, a):
             # unresolved selector: with exactly one engine up, the first
             # positional is more likely the prompt than a server id
             running = [e for e in state.get("running", [])
-                       if e.get("status") in ("running", "starting",
-                                              "running (adopted)")]
+                       if e.get("status") in ("running", "starting")]
             if q and len(running) == 1:
                 ent = running[0]
                 prompt_parts.append(q)
+            elif not running:
+                die("no engines running", hint="launch one first: b70 launch <model>")
             else:
-                hint = "running servers: " + ", ".join(e["id"] for e in running) \
-                    if running else "nothing is running — launch one first: b70 launch <model>"
-                die(f"no server matches {q!r}" if q else "nothing is running", hint=hint)
+                die(f"no server matches {q!r}" if q else "several servers are running — pick one",
+                    hint="running: " + ", ".join(e["id"] for e in running))
         port = ent.get("port")
         rid = ent["id"]
     if a.prompt:
@@ -1246,7 +1299,8 @@ def cmd_test(g, a):
             lambda: c.post("/api/test_prompt", {"port": port, "prompt": prompt},
                            timeout=130))
     except CliError as exc:
-        die(str(exc))
+        die(str(exc), hint=None if rid else
+            f"check that a model is running on port {port}: b70 status")
     if g.json:
         jprint(out)
         return 0 if out.get("ok") else 1
@@ -1254,6 +1308,9 @@ def cmd_test(g, a):
         print(f"{ERR} {red(out.get('error', 'request failed'))}", file=sys.stderr)
         if rid:
             print(f"  {dim('engine log:')} b70 logs {rid}", file=sys.stderr)
+        else:
+            print(f"  {dim(f'check that a model is running on port {port}: b70 status')}",
+                  file=sys.stderr)
         return 1
     toks = out.get("tokens") or 0
     lat = out.get("elapsed_s") or 0
@@ -1283,14 +1340,24 @@ def cmd_download(g, a):
             hint="point a scan root at a local copy instead: b70 scan --roots")
     try:
         plan = c.post("/api/download", {"model_id": model["id"], "engine": engine, "confirm": False}, timeout=60)
+        if a.dry_run and g.json:
+            jprint(plan)
+            return 0 if plan.get("enough") else 1
         if not plan.get("enough"):
             die(plan.get("error") or "Cannot verify download size and free space.")
         if not g.json:
             print(f"Download {human_gb(plan['size_bytes'] / 1048576)} to {plan['dest_dir']}; {human_gb(plan['free_bytes'] / 1048576)} free.")
+        if a.dry_run:
+            print(f"  {dim('nothing downloaded — to fetch:')} b70 download {model['id']} -e {engine} --yes")
+            return 0
         if not getattr(a, "yes", False):
             if not sys.stdin.isatty():
                 die("Download requires --yes when input is not a terminal.")
-            if input("Download these files? [y/N] ").strip().lower() not in ("y", "yes"):
+            try:
+                answer = input("Download these files? [y/N] ")
+            except EOFError:
+                answer = ""
+            if answer.strip().lower() not in ("y", "yes"):
                 return 0
         out = c.post("/api/download", {"model_id": model["id"], "engine": engine, "confirm": True}, timeout=60)
     except CliError as exc:
@@ -1316,7 +1383,7 @@ def cmd_download(g, a):
             if d.get("state") in terminal:
                 w.done()
                 break
-            note = f"{progress_bar(d.get('pct', 0))} {human_gb((d.get('speed') or 0) / 1048576)}/s · {fmt_dur(d.get('eta'))}"
+            note = f"{progress_bar(d.get('pct', 0))} {_dl_note(d)}"
             w.tick(note)
             time.sleep(1.0)
     except KeyboardInterrupt:
@@ -1407,12 +1474,100 @@ def cmd_env(g, a):
     name = models[0] if models else (ent.get("model") or "default")
     if g.json:
         jprint({"OPENAI_BASE_URL": f"http://127.0.0.1:{port}/v1",
-                "OPENAI_API_KEY": "b70-local", "OPENAI_MODEL_NAME": name})
+                "OPENAI_API_KEY": "local-b70", "OPENAI_MODEL_NAME": name})
     else:
         print(f"export OPENAI_BASE_URL=http://127.0.0.1:{port}/v1")
-        print("export OPENAI_API_KEY=b70-local")
+        print("export OPENAI_API_KEY=local-b70")
         print(f"export OPENAI_MODEL_NAME={shlex.quote(name)}")
         print(dim("# eval \"$(b70 env " + ent["id"] + ")\" to apply"), file=sys.stderr)
+    return 0
+
+
+AGENT_CLIENTS = ("pi", "omp", "droid", "codex", "deepseek")
+CLIENT_LABELS = {"pi": "Pi", "omp": "OMP", "droid": "Droid", "codex": "Codex",
+                 "deepseek": "DeepSeek", "webui": "Web UI", "none": "No app"}
+
+
+def cmd_agent(g, a):
+    c = daemon_client(g)
+    label = CLIENT_LABELS.get(a.client, a.client)
+    ent, state = resolve_rid(c, a.rid)
+    if not any(e.get("status") in ("running", "starting") for e in state.get("running", [])):
+        die("no model is running — start one first: b70 launch <model>")
+    if isinstance(ent, list):
+        die("several servers are running — pick one",
+            hint=f"e.g. b70 agent {a.client} {ent[0]['id']}  (running: "
+                 + ", ".join(e["id"] for e in ent) + ")")
+    if ent is None:
+        ent = rid_or_die(c, a.rid)
+    if ent.get("status") != "running":
+        die(f"{ent['id']} is still loading — open {label} once it is ready",
+            hint="check: b70 status")
+    avail = (state.get("clients") or {}).get(a.client) or {}
+    if avail.get("installed") is False:
+        die(f"{label} is not installed on this machine",
+            hint="any OpenAI-compatible app works too: b70 env")
+    try:
+        out = c.post("/api/harness", {"id": ent["id"], "harness": a.client}, timeout=30)
+    except CliError as exc:
+        die(str(exc))
+    if g.json:
+        jprint(dict(out, id=ent["id"]))
+        return 0
+    if out.get("opened"):
+        print(f"{OK} opened {label} on {bold(ent['id'])}")
+    else:
+        print(f"{DOT} {label} was not opened — run this line yourself:")
+    if out.get("line"):
+        print(f"  {out['line']}")
+    return 0
+
+
+def _usage_rows(usage, label=lambda key: key, last_used=True):
+    """Table rows from {key: {requests, tokens_in, tokens_out, last_used}},
+    biggest token total first."""
+    def total(item):
+        return (item[1].get("tokens_in") or 0) + (item[1].get("tokens_out") or 0)
+    rows = []
+    for key, u in sorted(usage.items(), key=total, reverse=True):
+        row = [label(key), f"{int(u.get('requests') or 0):,}",
+               f"{int(u.get('tokens_in') or 0):,}", f"{int(u.get('tokens_out') or 0):,}"]
+        rows.append(row + [u.get("last_used") or "-"] if last_used else row)
+    return rows
+
+
+def cmd_usage(g, a):
+    c = daemon_client(g)
+    doc = c.get("/api/usage")
+    if g.json:
+        jprint(doc)
+        return 0
+    clients = doc.get("clients") or {}
+    if not clients:
+        print("No agent traffic recorded yet.")
+        return 0
+    heads = ["AGENT", "REQUESTS", "TOKENS IN", "TOKENS OUT", "LAST USED"]
+    aligns = ["<", ">", ">", ">", "<"]
+
+    def agent(cid):
+        return CLIENT_LABELS.get(cid, cid)
+
+    today = doc.get("today") or {}
+    print(bold("  Today"))
+    if today:
+        print(table(_usage_rows(today, agent), heads, aligns, drop=(4,)))
+    else:
+        print(f"  {dim('no agent traffic today')}")
+    print()
+    print(bold("  All time"))
+    print(table(_usage_rows(clients, agent), heads, aligns, drop=(4,)))
+    by_model = doc.get("by_model") or {}
+    if by_model:
+        rows = _usage_rows(by_model, last_used=False)
+        print()
+        print(bold("  By model"))
+        print(table(rows[:10], ["MODEL", "REQUESTS", "TOKENS IN", "TOKENS OUT"],
+                    ["<", ">", ">", ">"]))
     return 0
 
 
@@ -1501,30 +1656,63 @@ def cmd_version(g, a):
 
 def cmd_recipes_update(g, a):
     c = daemon_client(g)
-    body = {}
+    st = c.get("/api/state")
+    model = None
     if a.model:
-        model_state = c.get("/api/state").get("recipes", {})
-        model, cands = pick_model(model_state, a.model)
+        model, cands = pick_model(st.get("recipes", {}), a.model)
         if model is None:
             msg, hint = _model_miss(a.model, cands)
             die(msg, hint=hint)
-        body["model_id"] = model["id"]
-        if a.engine:
-            body["engine"] = pick_engine(model, a.engine)
-    try:
-        out = spin_while("fetching recipe catalog",
-                         lambda: c.post("/api/recipes/update", body, timeout=60))
-    except CliError as exc:
-        die(str(exc))
-    if g.json:
-        jprint(out)
-        return 0 if out.get("ok") else 1
-    if out.get("ok"):
-        print(f"{OK} recipes updated → catalog {out.get('catalog_ver')}"
-              f"  {dim(str(out.get('applied', 0)) + ' applied')}")
+    elif a.engine:
+        die("-e needs a model, e.g. b70 recipes-update qwen38-27b -e exl3", code=2)
+    engines = [pick_engine(model, a.engine)] if model and a.engine \
+        else list(model.get("recipes", {})) if model else [None]
+
+    if a.check:
+        notices = [n for n in (st.get("recipe_notices") or {}).values()
+                   if (not model or n.get("model_id") == model["id"])
+                   and (not a.engine or n.get("engine") == engines[0])]
+        remote = st.get("recipes_remote") or {}
+        if g.json:
+            jprint({"checked": bool(remote.get("checked")),
+                    "catalog_ver": remote.get("catalog_ver"), "updates": notices})
+            return 0
+        if not remote.get("checked"):
+            print(f"{DOT} the published catalog has not been checked yet — try again in a minute")
+            return 0
+        if not notices:
+            print(f"{OK} recipes are up to date (published catalog {remote.get('catalog_ver', '?')})")
+            return 0
+        rows = [[n.get("model_id", "?"), n.get("engine", "?"), n.get("local_ver") or "new",
+                 n.get("remote_ver", "?"), n.get("note", "")] for n in notices]
+        print(table(rows, ["MODEL", "ENGINE", "LOCAL", "PUBLISHED", "NOTE"], drop=(4,)))
+        print(f"\n  {dim('apply:')} b70 recipes-update [model] [-e engine]")
         return 0
-    print(f"{ERR} {out.get('error', 'update failed')}", file=sys.stderr)
-    return 1
+
+    # the API scopes an update to one model:engine — or the whole catalog
+    # when neither is sent — so a model without -e is applied engine by engine
+    results = []
+    for eng in engines:
+        body = {"model_id": model["id"], "engine": eng} if model else {}
+        try:
+            out = spin_while("fetching recipe catalog",
+                             lambda: c.post("/api/recipes/update", body, timeout=60))
+        except CliError as exc:
+            out = {"error": str(exc)}
+        results.append(dict(out, engine=eng) if eng else out)
+    ok = [r for r in results if r.get("ok")]
+    if g.json:
+        jprint(results[0] if not model else {"ok": bool(ok), "results": results})
+        return 0 if ok else 1
+    for r in results:
+        where = f"{model['id']}:{r['engine']}" if model else "catalog"
+        if r.get("ok"):
+            print(f"{OK} {where} updated → catalog {r.get('catalog_ver')}"
+                  f"  {dim(str(r.get('applied', 0)) + ' applied')}")
+        else:
+            print(f"{DOT if ok else ERR} {where}: {r.get('error', 'update failed')}",
+                  file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
 
 
 def cmd_completion(g, a):
@@ -1538,7 +1726,7 @@ _b70() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     cmds="serve down list ls recipes show launch stop status ps monitor logs test \
-download open ui env doctor scan version recipes-update completion help"
+download open ui env agent usage tokens doctor scan version recipes-update completion help"
     case "$prev" in
         b70) COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ) ;;
         launch|show|download)
@@ -1546,7 +1734,8 @@ download open ui env doctor scan version recipes-update completion help"
             models=$(b70 list --json 2>/dev/null | python3 -c \
                 'import json,sys; print(" ".join(m["id"] for m in json.load(sys.stdin)["models"]))' 2>/dev/null)
             COMPREPLY=( $(compgen -W "$models" -- "$cur") ) ;;
-        stop|logs|test|env|open)
+        agent) COMPREPLY=( $(compgen -W "pi omp droid codex deepseek" -- "$cur") ) ;;
+        stop|logs|test|env|open|pi|omp|droid|codex|deepseek)
             local rids
             rids=$(b70 status --json 2>/dev/null | python3 -c \
                 'import json,sys; print(" ".join(e["id"] for e in json.load(sys.stdin)["running"]))' 2>/dev/null)
@@ -1566,13 +1755,15 @@ complete -F _b70 b70""")
 EPILOG = """\
 quick start
   b70 serve                      start the launcher daemon (auto-starts on demand anyway)
-  b70 list                       models × engines, detected artifacts, live marks
+  b70 list                       models × engines, validated context, detected artifacts
   b70 launch qwen38-27b          launch the recommended recipe, wait for serving
-  b70 launch qwen38-27b -e vllm --ctx 65536 --port 8080
+  b70 launch qwen38-27b -e llamacpp --ctx 65536 --port 8080
   b70 launch ./model.gguf        serve any artifact from a scan root (auto-detect)
   b70 launch qwen36-35b -e vllm --dry-run     resolved command, nothing started
   b70 status · b70 monitor       servers, GPU draw/temp/VRAM, tok/s
   b70 test <rid> "prompt"        end-to-end smoke prompt through the API
+  b70 agent pi                   open the Pi agent on the running model
+  b70 usage                      tokens each agent used, today and all time
   b70 open · b70 open 8000       UI or an engine endpoint (prints SSH hint headless)
   b70 stop <rid> · b70 down      stop an engine, or the whole daemon
 every launch flag maps 1:1 to the recipe API: --ctx --port --slots --kv
@@ -1620,7 +1811,6 @@ def build_parser():
     s = add("serve", help="start the launcher daemon (idempotent)")
     s.add_argument("--fg", "--foreground", dest="foreground", action="store_true",
                    help="run the daemon in the foreground (tmux/systemd)")
-    s.add_argument("--kill", action="store_true", help="kill whatever holds the port first")
     s.set_defaults(fn=cmd_serve)
 
     s = add("down", help="stop the launcher daemon")
@@ -1642,7 +1832,8 @@ def build_parser():
     s.add_argument("model", nargs="?", help="model id/name, or a path to a .gguf/IR artifact")
     s.add_argument("-e", "--engine", help="openvino | vllm | llamacpp | exl3")
     s.add_argument("--path", help="custom artifact path (must be under a scan root)")
-    s.add_argument("-c", "--ctx", type=int, help="context tokens (recipe default if unset)")
+    s.add_argument("-c", "--ctx", type=int,
+                   help="context tokens (default: the recipe's validated context)")
     s.add_argument("-p", "--port", type=int, help="endpoint port (default 8000)")
     s.add_argument("--gpus", help="0 | 1 | 0,1 | both (default: recipe topology or 0)")
     s.add_argument("--kv", help="KV cache dtype: q8_0 | q5_0/q4_1 | q8_0/q4_1 | f16 | fp8")
@@ -1703,6 +1894,8 @@ def build_parser():
     s.add_argument("-e", "--engine", help="engine recipe to download")
     s.add_argument("--no-wait", action="store_true")
     s.add_argument("--yes", action="store_true", help="confirm download after its size and disk check")
+    s.add_argument("-d", "--dry-run", action="store_true",
+                   help="show the size and free-space check, download nothing")
     s.set_defaults(fn=cmd_download)
 
     s = add("open", help="open the UI or an engine endpoint")
@@ -1720,6 +1913,14 @@ def build_parser():
     s.add_argument("rid", nargs="?", help="server id (default: only running)")
     s.set_defaults(fn=cmd_env)
 
+    s = add("agent", help="open a coding agent on a running model")
+    s.add_argument("client", choices=AGENT_CLIENTS, help=" | ".join(AGENT_CLIENTS))
+    s.add_argument("rid", nargs="?", help="server id, model name, or port (default: the only running one)")
+    s.set_defaults(fn=cmd_agent)
+
+    s = add("usage", aliases=["tokens"], help="tokens each agent used, today and all time")
+    s.set_defaults(fn=cmd_usage)
+
     s = add("doctor", help="preflight: GPUs, blockers, scan roots")
     s.set_defaults(fn=cmd_doctor)
 
@@ -1729,7 +1930,9 @@ def build_parser():
 
     s = add("recipes-update", help="apply published recipe catalog updates")
     s.add_argument("model", nargs="?", help="limit to one model")
-    s.add_argument("-e", "--engine")
+    s.add_argument("-e", "--engine", help="limit to one engine of that model")
+    s.add_argument("--check", action="store_true",
+                   help="list recipes with a newer published version, change nothing")
     s.set_defaults(fn=cmd_recipes_update)
 
     s = add("version", help="CLI + daemon + catalog versions")
@@ -1768,7 +1971,7 @@ def main(argv=None):
         return exc.code
     except CliError as exc:
         if args.json:
-            jprint({"ok": False, "error": str(exc)})
+            jprint({"ok": False, "error": str(exc), "code": exc.code})
         else:
             print(f"{ERR} {red(str(exc))}", file=sys.stderr)
         return exc.code

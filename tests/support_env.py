@@ -69,5 +69,7 @@ class LauncherStateCase(unittest.TestCase):
         runtime.RUNNING.update(self._running)
         downloads.DOWNLOADS.clear()
         downloads.DOWNLOADS.update(self._downloads)
-        for path in (paths.OVERRIDE_PATH, paths.REMOTE_RECIPES_PATH, paths.USAGE_PATH, paths.STATE_PATH):
+        for path in (paths.OVERRIDE_PATH, paths.REMOTE_RECIPES_PATH, paths.USAGE_PATH, paths.STATE_PATH,
+                     runtime.LOAD_HISTORY_PATH):
             path.unlink(missing_ok=True)
+        runtime._LOAD_HISTORY = None

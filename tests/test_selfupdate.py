@@ -1,5 +1,6 @@
 """In-app update: only a verified tarball from version.json's own folder is installed."""
 import hashlib
+import importlib.util
 import io
 import json
 import tarfile
@@ -24,7 +25,7 @@ class SelfUpdateTest(unittest.TestCase):
         patch = mock.patch.object(catalog, "UPDATE_URL", f"file://{self.dir}/version.json")
         patch.start()
         self.addCleanup(patch.stop)
-        selfupdate.STATE.update(state="idle", version="", error="", log="")
+        selfupdate.STATE.update(state="idle", step="", version="", error="", log="")
 
     def _publish(self, version="99.0.0", digest=None, url=None):
         buf = io.BytesIO()
@@ -77,6 +78,33 @@ class SelfUpdateTest(unittest.TestCase):
     def test_restart_requires_an_installed_update(self):
         with self.assertRaises(ValueError):
             selfupdate.restart()
+
+    def test_update_check_carries_short_release_notes(self):
+        self.addCleanup(setattr, catalog, "UPDATE_INFO", catalog.UPDATE_INFO)
+        remote = dict(catalog.RECIPE_REMOTE)
+        self.addCleanup(lambda: (catalog.RECIPE_REMOTE.clear(), catalog.RECIPE_REMOTE.update(remote)))
+        (self.dir / "version.json").write_text(json.dumps({
+            "version": "99.0.0",
+            "notes": ["Faster  start.\n", 7, "x" * 500] + [f"note {i}" for i in range(10)]}))
+        catalog.check_for_updates()
+        notes = catalog.UPDATE_INFO["notes"]
+        self.assertTrue(catalog.UPDATE_INFO["has_update"])
+        self.assertEqual(len(notes), 8)
+        self.assertEqual(notes[0], "Faster start.")
+        self.assertEqual(len(notes[1]), 300)
+
+    def test_release_notes_come_from_the_readme_section(self):
+        spec = importlib.util.spec_from_file_location(
+            "b70_release", Path(__file__).resolve().parent.parent / "packaging" / "release.py")
+        release = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(release)
+        readme = ("## What is new in 1.2.3\n\n"
+                  "- **Short lead.** First sentence here. Second one.\n"
+                  "- Plain `code` bullet with [a link](https://example.com).\n"
+                  "## What is new in 1.2.2\n\n- **Old.** Old text.\n")
+        self.assertEqual(release.release_notes(readme, "1.2.3"),
+                         ["Short lead. First sentence here.", "Plain code bullet with a link."])
+        self.assertEqual(release.release_notes(readme, "9.9.9"), [])
 
 
 if __name__ == "__main__":

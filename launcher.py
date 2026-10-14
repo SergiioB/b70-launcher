@@ -90,12 +90,25 @@ def main():
         else:
             def watch():
                 child.wait()
+                # Agents opened from the launcher reach their model through this
+                # daemon's gateway, so it stays up while an engine is live and
+                # exits once none is left and no window has polled for a minute.
+                while not runtime.STOP_EVT.is_set():
+                    runtime.servers_snapshot()
+                    with runtime.LOCK:
+                        live = any(e.get('status') in runtime.LIVE_STATES for e in runtime.RUNNING.values())
+                    if not live and time.monotonic() - http_api.LAST_UI_POLL > 60:
+                        break
+                    if runtime.STOP_EVT.wait(10):
+                        return
                 runtime.graceful_shutdown()
             threading.Thread(target=watch, daemon=True).start()
     try:
         server.serve_forever()
     finally:
         runtime.STOP_EVT.set()
+        from b70launcher import gateway
+        gateway.flush()
         server.server_close()
         runtime.persist_state()
         if child is not None and child.poll() is None:

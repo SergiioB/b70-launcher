@@ -34,23 +34,24 @@ def build_exl3(b):
         warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
     inner_port = int(recipe.get("inner_port", 8100))
     # Context profile dispatch:
-    # 1. Explicit user/operator override in cfg or recipe takes precedence.
-    # 2. If recipe defines gmu_safe (e.g. "0.90") and ctx <= ctx_safe (e.g. 131,072),
-    #    dispatches to gmu_safe for the >=2 GiB high-reserve cell.
-    # 3. Otherwise uses recipe["gmu"] (e.g. "0.94" for long-ctx single-request profile).
-    # 4. Fallback when neither is defined: 0.94 if ctx >= 131072 else 0.90.
-    # 5. Guard: if ctx > 168000, gmu must be at least 0.94 to avoid container pool aborts.
+    # Explicit user/operator override in cfg or recipe takes precedence and is NEVER silently increased.
+    # When no explicit override is given, dispatch by recipe profile:
+    # ctx <= ctx_safe uses gmu_safe ("0.90"), ctx > ctx_safe uses gmu ("0.94").
     user_override = recipe.get("override_gmu") or cfg.get("gmu")
     if user_override:
         gmu = str(user_override)
+        safe_budget = recipe.get("gmu_safe_budget")
+        if safe_budget and float(gmu) <= float(recipe.get("gmu_safe", "0.90")) and b.ctx > safe_budget:
+            raise common.BuildError(
+                f"ctx {b.ctx} exceeds the engine pool budget for gmu {gmu} "
+                f"(max sequence length {safe_budget:,} at gmu {gmu}; requires gmu >= {recipe.get('gmu', '0.94')})."
+            )
     elif recipe.get("gmu_safe") and b.ctx <= recipe.get("ctx_safe", 131072):
         gmu = str(recipe["gmu_safe"])
     elif recipe.get("gmu"):
         gmu = str(recipe["gmu"])
     else:
         gmu = "0.94" if b.ctx >= 131072 else "0.90"
-    if b.ctx > 168000 and float(gmu) < 0.94:
-        gmu = "0.94"
     cname = common.cname_for(model["id"], "exl3", b.port)
     tokens = docker_cmd + ["run", "--rm", "--name", cname] + common.labels_for(cfg, b.port)
     tokens += common.dri_args(b) + [

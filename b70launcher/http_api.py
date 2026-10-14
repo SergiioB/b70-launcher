@@ -45,7 +45,12 @@ def scan_response():
             'roots': sc.get('roots', []), 'catalog': sc.get('catalog', []), 'matches': matches, 'free_gb': free_gb}
 
 
+LAST_UI_POLL = 0.0  # monotonic time of the last /api/state call (a window is open)
+
+
 def state_response():
+    global LAST_UI_POLL
+    LAST_UI_POLL = time.monotonic()
     running = runtime.servers_snapshot()
     return {'recipes': catalog.RECIPES, 'settings': catalog.SETTINGS, 'running': running,
             'version': paths.VERSION, 'is_win': paths.IS_WIN,
@@ -57,9 +62,9 @@ def state_response():
 
 
 def _settings(cfg):
-    allowed = {'scan_dirs', 'models_dir', 'open_with', 'sync_clients'}
+    allowed = {'scan_dirs', 'models_dir', 'open_with', 'sync_clients', 'meter_clients'}
     if not cfg or set(cfg) - allowed:
-        raise ValueError('Only model folders, download folder, default client and client sync may be changed here.')
+        raise ValueError('Only model folders, download folder, default client, client sync and agent metering may be changed here.')
     values = {}
     if 'scan_dirs' in cfg:
         roots = cfg['scan_dirs']
@@ -87,10 +92,11 @@ def _settings(cfg):
         if cfg['open_with'] not in harness.CLIENT_IDS:
             raise ValueError('Choose Pi, OMP, Droid, Codex, DeepSeek, Web UI or no client.')
         values['open_with'] = cfg['open_with']
-    if 'sync_clients' in cfg:
-        if not isinstance(cfg['sync_clients'], bool):
-            raise ValueError('sync_clients must be true or false.')
-        values['sync_clients'] = cfg['sync_clients']
+    for key in ('sync_clients', 'meter_clients'):
+        if key in cfg:
+            if not isinstance(cfg[key], bool):
+                raise ValueError(f'{key} must be true or false.')
+            values[key] = cfg[key]
     with LOCK:
         catalog.SETTINGS.update(values)
         catalog.save_override(tuple(values))

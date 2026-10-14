@@ -64,11 +64,13 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .brand img{width:28px;height:28px;flex:none}
 .brand strong{font-size:var(--body)}
 .versionline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.update-chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--caption);color:var(--warn);
-  border:1px solid var(--border);border-radius:99px;padding:2px 4px 2px 10px;background:var(--raised)}
+.update-chip{display:inline-flex;align-items:center;font-size:var(--caption);
+  border:1px solid var(--border);border-radius:99px;padding:0 4px;background:var(--raised)}
 .update-chip button{border:0;background:none;min-height:24px;padding:2px 8px;font-size:var(--caption);color:var(--warn);text-decoration:underline}
-.update-chip .err-inline{color:var(--err);padding-inline:8px}
+.header-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .hardware{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+.usage-btn{min-height:28px;padding:3px 10px;font-size:var(--caption);border-radius:8px;color:var(--muted);background:var(--bg);border-color:var(--border)}
+.usage-btn:hover{color:var(--text)}
 .chip{font-size:var(--caption);background:var(--bg);border:1px solid var(--border);border-radius:8px;
   padding:4px 8px;display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
 .chip .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--subtle)}
@@ -189,6 +191,30 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
 .test-line{font-size:var(--small);color:var(--muted)}
 .client-line{font-size:var(--small);color:var(--muted)}
 .session .error{padding:6px 0 0}
+/* live load + telemetry inside the session panel */
+.load{margin-block:2px 10px;max-width:640px}
+.load-line{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:var(--small);color:var(--muted)}
+.loadbar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-block:6px 0}
+.loadbar i{display:block;height:100%;border-radius:2px;background:var(--warn)}
+.loadbar.unknown i{width:30%}
+@media(prefers-reduced-motion:no-preference){
+  .loadbar i{transition:width .6s linear}
+  .loadbar.unknown i{animation:slide 1.6s ease-in-out infinite}}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
+.fail{margin-block:2px 10px}
+.fail pre{margin:6px 0;padding:8px 10px;font-size:var(--caption);color:var(--muted);max-height:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0 0 10px}
+.stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;min-width:0}
+.stat dt{font-size:var(--caption);color:var(--subtle)}
+.stat dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat dd small{font-weight:400}
+table.nums{border-collapse:collapse;font-size:var(--small);font-variant-numeric:tabular-nums;min-width:min(100%,360px)}
+table.nums th,table.nums td{padding:4px 10px;text-align:end;border-block-end:1px solid var(--border);white-space:nowrap}
+table.nums th:first-child,table.nums td:first-child{text-align:start;padding-inline-start:0}
+table.nums th{font-size:var(--caption);color:var(--subtle);font-weight:600}
+.table-wrap{overflow-x:auto;margin-block-end:14px}
+.agents h3{font-size:var(--caption);color:var(--subtle);margin:0 0 2px;font-weight:600}
+.update-notes{margin:0 0 14px;padding-inline-start:18px;display:flex;flex-direction:column;gap:6px;max-width:70ch}
 
 /* other sessions strip */
 .other-sessions{margin-block:12px 0;border:1px dashed var(--border);border-radius:10px;padding:10px 12px}
@@ -237,6 +263,7 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 .dialog{background:var(--surface);color:var(--text);border:1px solid var(--input-border);border-radius:14px;
   padding:22px;width:min(760px,calc(100vw - 32px));max-height:85vh;overflow:auto;overscroll-behavior:contain}
 .dialog::backdrop{background:rgb(0 0 0/.6)}
+.dialog.narrow{width:min(600px,calc(100vw - 32px))}
 .dialog-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-block-end:14px}
 .dialog-head h2{margin:0}
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -262,7 +289,8 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
   .fields,.advanced-grid{grid-template-columns:1fr}
   .field.full{grid-column:auto}
   .primary{width:100%;min-width:0}
-  .hardware{width:100%;justify-content:flex-start}
+  .header-right{width:100%;justify-content:flex-start}
+  .hardware{justify-content:flex-start}
   dl.spec{grid-template-columns:1fr;gap:2px 0}
   dl.spec dd{margin-block-end:8px}
   input,select,textarea{font-size:1rem}
@@ -288,7 +316,10 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
       </div>
     </div>
   </div>
-  <div id="hardware" class="hardware numbers" aria-label="Hardware status"></div>
+  <div class="header-right">
+    <div id="hardware" class="hardware numbers" aria-label="Hardware status"></div>
+    <button id="usage" class="usage-btn" type="button" aria-haspopup="dialog">Usage</button>
+  </div>
 </header>
 <main class="shell" id="main">
 <div class="error" id="connection-error" role="alert" hidden></div>
@@ -417,13 +448,15 @@ const TOKEN='__API_TOKEN__';
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S={state:null,scan:null,model:null,engine:null,servers:[],downloads:{},plan:null,downloadPlan:null,
-  request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false,
+  request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false,power:[],tails:{},
+  dialogKind:'',updateError:'',restarting:'',
   sig:{},gpuDraft:{},openFail:{},lastEngine:{},collapsed:loadCollapsed()};
 const LIVE=['starting','running'];
 const live=e=>LIVE.includes(e.status);
 function bytes(n){if(n==null)return '';let x=Number(n);for(const u of['B','KiB','MiB','GiB','TiB']){if(x<1024||u==='TiB')return`${x.toFixed(u==='B'?0:1)} ${u}`;x/=1024;}}
 const mib=m=>m==null?'':bytes(m*1048576);
-function elapsed(n){n=Math.max(0,Math.round(n));return n<60?`${n}s`:`${Math.floor(n/60)}m ${n%60}s`;}
+function elapsed(n){n=Math.max(0,Math.round(n));if(n<60)return`${n}s`;
+  if(n<3600)return`${Math.floor(n/60)}m ${n%60}s`;return`${Math.floor(n/3600)}h ${Math.floor(n%3600/60)}m`;}
 const fmt=n=>Number(n).toLocaleString('en-US');
 async function api(path,body){const options={headers:{'X-Launcher-Token':TOKEN}};
   if(body!==undefined){options.method='POST';options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}
@@ -469,7 +502,7 @@ function shortName(m){const name=String(m.name||m.id||'');if(m.family)return nam
   return rest||name;}
 const ENG_ICON={openvino:'eng-ovms.svg',vllm:'eng-vllm.svg',llamacpp:'eng-llamacpp.svg',exl3:'eng-exl3.svg'};
 const engIcon=id=>ENG_ICON[id]||'eng-generic.svg';
-const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['webui','Web UI'],['none','No app (endpoint only)']];
+const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['codex','Codex'],['deepseek','DeepSeek'],['webui','Web UI'],['none','No app (endpoint only)']];
 const clientLabel=id=>CLIENTS.find(c=>c[0]===id)?.[1]||id;
 const shortQuant=q=>String(q||'').split(' (')[0].split(' — ')[0].trim();
 const gpuCount=r=>(r.gpus?.length||r.tp===2)?(r.gpus?.length||2):1;
@@ -711,28 +744,73 @@ function sessionStatus(e){if(e.status==='running')return['running','Ready','Serv
   if(e.status==='starting')return['starting',e.phase||'Starting','Loading; the endpoint is not accepting requests yet'];
   if(e.status==='exited')return['exited',`Exited${e.exitcode==null?'':' ('+e.exitcode+')'}`,'The engine process ended'];
   return['',e.status||'',''];}
+const nowS=()=>Date.now()/1000;
+const failedStart=e=>e.status==='exited'&&!e.ready_at;
+/* VRAM and watts for the session's cards: /api/power matched to preflight devices by PCI address. */
+function gpuStats(e){const devices=deviceList();
+  return(e.gpus||[]).map(g=>{const d=devices[g]||{};const p=S.power.find(x=>x.pci&&x.pci===d.pci)||{};
+    const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
+    const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
+    const parts=[used!=null?`${used.toFixed(1)}${total?` / ${Math.round(total)}`:''} GiB`:'',p.watts!=null?`${Math.round(p.watts)} W`:''].filter(Boolean);
+    return parts.length?[`GPU ${g}`,parts.join(' · ')]:null;}).filter(Boolean);}
+const statList=rows=>rows.length?`<dl class="stats">${rows.map(([k,v])=>`<div class="stat"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`:'';
+function agentRows(e){return Object.entries(e.clients||{}).filter(([,c])=>c&&typeof c==='object')
+  .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));}
+/* The live block changes every poll; it is rebuilt only when its shape changes so focus and animation survive. */
+function renderSessionLive(e){const box=$('session-live');if(!box)return;
+  const exp=e.load_expected_s||null;const gpus=gpuStats(e).map(([k,v])=>[k,esc(v)]);const agents=agentRows(e);
+  const tail=S.tails[e.id]?.lines||[];
+  const sig=JSON.stringify([e.id,e.status,failedStart(e),exp,gpus,e.tok_s,e.requests,e.tokens_in,e.tokens_out,agents,tail,e.error,e.exitcode]);
+  if(sig!==S.sig.live){S.sig.live=sig;
+    if(e.status==='starting'){
+      box.innerHTML=`<div class="load"><div class="load-line numbers"><span id="load-elapsed"></span><span id="load-usual"></span></div>
+        <div class="loadbar${exp?'':' unknown'}" id="load-bar" role="progressbar" aria-label="Model load progress"${exp?' aria-valuemin="0" aria-valuemax="100"':''}><i id="load-fill"></i></div></div>
+        ${statList(gpus)}`;}
+    else if(failedStart(e)){
+      box.innerHTML=`<div class="fail"><p class="error">Loading failed${e.exitcode==null?'':` (exit code ${esc(e.exitcode)})`}${e.error?`: ${esc(e.error)}`:'.'}</p>
+        ${tail.length?`<pre aria-label="Last log lines">${esc(tail.join('\n'))}</pre>`:''}
+        <button type="button" id="session-logs">Logs</button></div>`;}
+    else if(e.status==='running'){
+      box.innerHTML=statList([['Speed',`${Number(e.tok_s||0).toFixed(1)} <small>tok/s</small>`],['Requests',fmt(e.requests||0)],
+        ['Tokens in',fmt(e.tokens_in||0)],['Tokens out',fmt(e.tokens_out||0)],...gpus])
+        +(agents.length?`<div class="agents table-wrap"><h3 id="agents-heading">Agents this session</h3>
+          <table class="nums" aria-labelledby="agents-heading"><thead><tr><th scope="col">Agent</th><th scope="col">Requests</th><th scope="col">Tokens out</th></tr></thead>
+          <tbody>${agents.map(([id,c])=>`<tr><td>${esc(clientLabel(id))}</td><td>${fmt(c.requests||0)}</td><td>${fmt(c.tokens_out||0)}</td></tr>`).join('')}</tbody></table></div>`:'');}
+    else box.innerHTML='';}
+  if(e.status==='starting'){const t=nowS()-(e.launch_ts||e.started_at||nowS());
+    $('load-elapsed').textContent=`${elapsed(t)} elapsed`;
+    $('load-usual').textContent=!exp?'First load of this recipe: no estimate yet':t>exp?`Usually about ${elapsed(exp)}; taking longer`:`Usually about ${elapsed(exp)}`;
+    if(exp){const pct=Math.min(95,t/exp*100);$('load-fill').style.width=`${pct.toFixed(1)}%`;$('load-bar').setAttribute('aria-valuenow',Math.round(pct));}}}
+/* Last 3 log lines of a failed load: fetched once per log file, not on every poll. */
+async function fetchTail(e){S.tails[e.id]={key:e.log,lines:[]};
+  try{const r=await api(`/api/logs?id=${encodeURIComponent(e.id)}`);
+    if(S.tails[e.id]?.key!==e.log)return;
+    S.tails[e.id].lines=(r.lines||[]).filter(l=>l.trim()).slice(-3);renderSession();}
+  catch(ex){/* the Logs button still shows the full log */}}
 function renderSession(){const e=currentSession();const box=$('session');
-  if(!e){box.hidden=true;S.sig.session='';renderOtherSessions();return;}
-  const sig=JSON.stringify([e.id,e.status,e.phase,e.ready_at,e.client_open,e.test?.state,e.error,e.exitcode,e.tok_s,e.endpoint,S.openFail[e.id]||'']);
+  if(!e){box.hidden=true;S.sig.session='';S.sig.live='';renderOtherSessions();return;}
+  const failed=failedStart(e);
+  if(failed&&(!S.tails[e.id]||S.tails[e.id].key!==e.log))fetchTail(e);
+  const sig=JSON.stringify([e.id,e.status,e.phase,e.ready_at,e.client_open,e.test?.state,e.error,e.exitcode,e.endpoint,S.openFail[e.id]||'']);
   const[cls,label,desc]=sessionStatus(e);
   const t=e.test||{};
-  const up=e.ready_at?elapsed((Date.now()/1000)-e.ready_at):elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000));
   const client=e.client?clientLabel(e.client):'';
   const openState=e.client_open?`<span class="good">Opened ${esc(e.client_open)}</span>`
     :S.openFail[e.id]?`<span class="danger">Server is ready, but opening ${esc(client||'the app')} failed:</span> <span class="wrap">${esc(S.openFail[e.id])}</span>`
     :cls==='running'&&e.client&&e.client!=='none'?`Not opened yet — use “Open ${esc(client)}”`
     :cls==='running'?'Endpoint only (no app selected)':'';
   box.hidden=false;
-  if(sig!==S.sig.session){S.sig.session=sig;
+  if(sig!==S.sig.session){S.sig.session=sig;S.sig.live='';
     box.className=`session ${cls}`;
     box.innerHTML=`
       <div class="session-head">
         <h2 id="session-heading">Session</h2>
         <span class="status-pill ${cls}" title="${esc(desc)}"><span class="dot"></span>${esc(label)}</span>
-        <span class="meta numbers">${cls==='running'?`loaded in ${e.load_s??'?'}s · up ${up}`:`up ${up}`}</span>
+        <span class="meta numbers" id="session-time"></span>
         <span class="spacer"></span>
         <button type="button" class="danger" id="session-stop">${e.status==='starting'?'Cancel launch':'Stop session'}</button>
       </div>
+      <div id="session-live"></div>
       <div class="session-grid numbers">
         <div class="kv"><dt>Endpoint</dt><dd><code>${esc(e.endpoint)}</code>
           <button class="mini" type="button" data-copy="${esc(e.endpoint)}">Copy</button></dd></div>
@@ -742,9 +820,8 @@ function renderSession(){const e=currentSession();const box=$('session');
         <div class="kv"><dt>GPUs</dt><dd>${(e.gpus||[]).map(g=>'GPU '+g).join(' + ')}</dd></div>
         <div class="kv"><dt>Context</dt><dd>${fmt(e.ctx)}${e.ctx_source?` <span class="meta">(${esc(e.ctx_source)})</span>`:''}</dd></div>
         ${e.quant?`<div class="kv"><dt>Quantization</dt><dd>${esc(e.quant)}${e.variant?' <span class="meta">(local variant)</span>':''}</dd></div>`:''}
-        ${e.tok_s?`<div class="kv"><dt>Throughput</dt><dd>${e.tok_s} tok/s</dd></div>`:''}
       </div>
-      <div class="session-actions">
+      ${failed?'':`<div class="session-actions">
         <button type="button" id="session-open" ${e.status==='running'?'':'disabled'}>${e.client==='none'?'Copy endpoint':`Open ${esc(client||'client')}`}</button>
         <button type="button" id="session-test" ${e.status==='running'?'':'disabled'} title="Sends one prompt and checks the answer">Test prompt</button>
         <button type="button" id="session-logs">Logs</button>
@@ -755,7 +832,10 @@ function renderSession(){const e=currentSession();const box=$('session');
         :t.state==='running'?'Testing answer…'
         :t.state==='failed'?`Test failed: ${esc(t.error||'no answer')}`
         :cls==='running'?'Not tested yet':'Test runs once the endpoint is ready'}</p>
-      ${e.error?`<p class="error">${esc(e.error)}</p>`:''}`;}
+      ${e.error?`<p class="error">${esc(e.error)}</p>`:''}`}`;}
+  $('session-time').textContent=e.status==='running'
+    ?`${e.load_s!=null?`loaded in ${elapsed(e.load_s)} · `:''}up ${elapsed(nowS()-(e.ready_at||e.started_at||nowS()))}`:'';
+  renderSessionLive(e);
   renderOtherSessions();}
 function renderOtherSessions(){const rows=S.servers.filter(e=>e.status!=='stopped'&&!(e.model_id===S.model&&e.engine===S.engine));
   const box=$('other-sessions');
@@ -782,7 +862,7 @@ function renderDownloads(){const rows=Object.values(S.downloads).filter(e=>!['do
   </div>`).join('');}
 
 /* ---------- hardware ---------- */
-function renderHardware(power=[]){const devices=deviceList();
+function renderHardware(power=S.power){const devices=deviceList();
   $('hardware').innerHTML=devices.map((d,i)=>{const p=power.find(x=>x.pci===d.pci)||{};
     const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
     const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
@@ -804,7 +884,8 @@ function renderAction(){const r=recipe();const button=$('primary');
     const category=S.plan?.native?'native':r.kind==='exl3'?'exl3':'docker';
     const blockers=S.state?.preflight.blockers_by_kind?.[category]||[];
     const mt=match();
-    if(e?.status==='starting'){text='Loading model';status=`${e.phase||'Starting'} · ${elapsed((Date.now()/1000)-(e.started_at||Date.now()/1000))}`;button.disabled=true;}
+    if(e?.status==='starting'){text='Loading model';const exp=e.load_expected_s;
+      status=`${e.phase||'Starting'} · ${elapsed(nowS()-(e.launch_ts||e.started_at||nowS()))}${exp?` of about ${elapsed(exp)}`:''}`;button.disabled=true;}
     else if(e?.status==='running'){text=$('client').value==='none'?'Copy endpoint':`Open ${clientLabel($('client').value)}`;S.action='open';
       status=`Ready on ${e.endpoint}`;button.disabled=false;}
     else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';button.disabled=true;
@@ -841,24 +922,81 @@ async function poll(){if(S.polled)return;S.polled=true;
       if(first){choose(first.m.id,first.m.id===def.model_id&&!liveEngine(first.m)&&detected(first.m,def.engine)?def.engine:undefined);
         $('client').value=state.settings.open_with||'pi';}}
     else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
-    renderLibrary();renderDownloads();renderClients();renderGpus();renderAction();
-    const power=await api('/api/power');renderHardware(power.power||[]);
+    const power=await api('/api/power');S.power=power.power||[];
+    renderLibrary();renderDownloads();renderClients();renderGpus();renderAction();renderHardware();
     renderUpdate(state.update);}
-  catch(e){error('connection-error',`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
+  catch(e){error('connection-error',S.restarting?restartText():`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
   finally{S.polled=false;}}
-function renderUpdate(update){const chip=$('update-chip');const inst=update?.install||{};
-  if(!update?.has_update){chip.hidden=true;return;}
-  chip.hidden=false;
-  if(inst.state==='done'){chip.innerHTML=`Launcher ${esc(inst.version)} installed. <button type="button" data-update="restart">Restart now</button>`;}
-  else if(inst.state==='running'){chip.innerHTML=`Installing launcher ${esc(update.latest_version)}… running servers keep running.`;}
-  else{chip.innerHTML=`${esc(update.latest_version)} available. <button type="button" data-update="install">Install update</button>`+
-    (inst.state==='failed'?` <span class="err-inline">${esc(inst.error)}</span>`:'');}}
+
+/* ---------- launcher update ---------- */
+const UPDATE_STEPS=[['checking','Checking the published version'],['downloading','Downloading'],
+  ['verifying','Checking the SHA256'],['installing','Installing']];
+const restartText=()=>S.restarting==='reopen'?'Restarting. Open B70 Launcher again from the app menu in a few seconds.'
+  :'Restarting. A new launcher window opens in a few seconds.';
+function updateBody(update){const inst=update?.install||{};
+  const notes=Array.isArray(update?.notes)?update.notes.filter(n=>typeof n==='string'):[];
+  let status='',action='';
+  if(S.restarting)status=`<p>${esc(restartText())}</p>`;
+  else if(inst.state==='running'){const i=UPDATE_STEPS.findIndex(s=>s[0]===inst.step);
+    status=`<p class="numbers">Step ${i<0?1:i+1} of ${UPDATE_STEPS.length}: ${esc(i<0?'Starting':UPDATE_STEPS[i][1])}…</p><div class="loadbar unknown"><i></i></div>`;}
+  else if(inst.state==='done'){status=`<p class="good">Launcher ${esc(inst.version||update.latest_version)} is installed. Restart to use it.</p>`;
+    action='<button type="button" class="primary" data-update="restart">Restart now</button>';}
+  else{if(inst.state==='failed')status=`<p class="error">Update failed: ${esc(inst.error||'unknown error')}</p>`;
+    action=`<button type="button" class="primary" data-update="install">${inst.state==='failed'?'Try again':'Install update'}</button>`;}
+  if(S.updateError)status+=`<p class="error">${esc(S.updateError)}</p>`;
+  return`<p class="hint">You have ${esc(S.state?.version||'')}. Running models keep running during the update and the restart.</p>
+    ${notes.length?`<h3>What is new</h3><ul class="update-notes">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`
+      :'<p class="hint">No release notes were published with this version.</p>'}
+    <div id="update-status" role="status">${status}</div>
+    ${action?`<div class="actions divider">${action}</div>`:''}`;}
+function showUpdate(){const u=S.state?.update;if(!u)return;
+  openDialog(`Launcher ${u.latest_version} is available`,updateBody(u));S.dialogKind='update';S.sig.updateDialog=updateSig(u);
+  $('dialog').classList.add('narrow');}
+const updateSig=u=>JSON.stringify([u?.install,u?.notes,S.updateError,S.restarting]);
+function renderUpdate(update,force=false){const chip=$('update-chip');const inst=update?.install||{};
+  if(update?.has_update||['running','done'].includes(inst.state)){
+    const v=esc(update?.latest_version||inst.version||'');
+    const label=S.restarting?'Restarting…':inst.state==='running'?`Installing ${v}…`:inst.state==='done'?'Restart to finish the update'
+      :inst.state==='failed'?'Update failed':`Launcher ${v} available`;
+    const html=`<button type="button" data-update="dialog" aria-haspopup="dialog">${label}</button>`;
+    if(chip.innerHTML!==html)chip.innerHTML=html;
+    chip.hidden=false;}
+  else chip.hidden=true;
+  if(S.dialogKind!=='update'||!$('dialog').open)return;
+  const sig=updateSig(update);if(!force&&sig===S.sig.updateDialog)return;
+  S.sig.updateDialog=sig;
+  const hadFocus=$('dialog-content').contains(document.activeElement);
+  $('dialog-content').innerHTML=updateBody(update);
+  if(hadFocus)($('dialog-content').querySelector('[data-update]')||$('close-dialog')).focus();}
+
+/* ---------- usage ---------- */
+const usageRows=o=>Object.entries(o&&typeof o==='object'?o:{}).filter(([,v])=>v&&typeof v==='object')
+  .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));
+function usageTable(id,title,head,rows,cells,empty){
+  return`<h3 id="${id}">${esc(title)}</h3>`+(rows.length?`<div class="table-wrap"><table class="nums" aria-labelledby="${id}">
+    <thead><tr>${head.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>`<tr>${cells(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:`<p class="hint">${esc(empty)}</p>`);}
+function usageBody(u){const today=usageRows(u.today),all=usageRows(u.clients),models=usageRows(u.by_model);
+  if(!today.length&&!all.length&&!models.length)
+    return'<p class="hint">No agent traffic yet. Open Pi, OMP, Droid, Codex or DeepSeek from a running model and it will show here.</p>';
+  const agentCells=time=>([k,c])=>[esc(clientLabel(k)),fmt(c.requests||0),fmt(c.tokens_in||0),fmt(c.tokens_out||0),
+    esc(String(c.last_used||'').slice(time?11:0,16))];
+  const head=['Agent','Requests','Tokens in','Tokens out','Last used'];
+  return'<p class="hint">Requests that agents sent through the launcher.</p>'
+    +usageTable('usage-today','Today',head,today,agentCells(true),'No agent traffic today.')
+    +usageTable('usage-all','All time',head,all,agentCells(false),'No agent traffic yet.')
+    +usageTable('usage-models','By model',['Model','Requests','Tokens in','Tokens out'],models,
+      ([k,c])=>[esc(k),fmt(c.requests||0),fmt(c.tokens_in||0),fmt(c.tokens_out||0)],'No model traffic yet.');}
+async function showUsage(){openDialog('Usage','<p class="hint">Loading…</p>');S.dialogKind='usage';
+  try{const u=await api('/api/usage');if(S.dialogKind==='usage')$('dialog-content').innerHTML=usageBody(u);}
+  catch(ex){if(S.dialogKind==='usage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
 
 /* ---------- dialogs, copy, logs ---------- */
-function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.trigger=document.activeElement;
+function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').classList.remove('narrow');
+  if(!$('dialog').open)S.trigger=document.activeElement;
   $('dialog-title').textContent=title;$('dialog-content').innerHTML=html;error('dialog-error','');
   if(!$('dialog').open)$('dialog').showModal();}
-function closeDialog(){clearInterval(S.logTimer);S.logTimer=null;$('dialog').close();S.trigger?.focus();}
+function closeDialog(){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').close();S.trigger?.focus();}
 async function copy(text){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Copied');return;}
   catch(e){/* WebKit may require the fallback inside the user gesture. */}}
   const input=document.createElement('textarea');input.value=text;input.setAttribute('aria-label','Copy text');
@@ -936,10 +1074,14 @@ document.addEventListener('click',async e=>{
     const entry=S.servers.find(x=>x.id===ss.dataset.switchSession);
     if(entry){choose(entry.model_id,entry.engine);$('port').value=entry.port;}return;}
   const cx=e.target.closest('[data-ctx]');if(cx){$('context').value=cx.dataset.ctx;onConfigChange();return;}
-  const ub=e.target.closest('[data-update]');if(ub){ub.disabled=true;
-    try{await api(`/api/update/${ub.dataset.update}`,{});poll();}
-    catch(err){ub.disabled=false;renderUpdate(S.state?.update);
-      const chip=$('update-chip');chip.insertAdjacentHTML('beforeend',` <span class="err-inline">${esc(err.message)}</span>`);}return;}
+  const ub=e.target.closest('[data-update]');if(ub){const act=ub.dataset.update;
+    if(act==='dialog'){showUpdate();return;}
+    ub.disabled=true;S.updateError='';
+    try{const res=await api(`/api/update/${act}`,{});
+      if(act==='restart')S.restarting=res.window===false?'reopen':'window';
+      else if(S.state?.update)S.state.update.install=res;}
+    catch(err){S.updateError=err.message;}
+    renderUpdate(S.state?.update,true);return;}
   if(e.target.closest('#open-folders')){showFolders();return;}
   const stop=e.target.closest('#session-stop');if(stop){const entry=currentSession();
     if(entry&&confirm(`Stop ${entry.model_name||entry.model} on :${entry.port}?`)){
@@ -974,6 +1116,7 @@ $('search').addEventListener('input',()=>{S.sig.library='';renderLibrary();});
 $('on-disk').addEventListener('change',()=>{S.sig.library='';renderLibrary();});
 $('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;S.sig.library='';renderLibrary();$('search').focus();};
 $('folders').onclick=()=>showFolders();
+$('usage').onclick=()=>showUsage();
 $('close-dialog').onclick=closeDialog;
 $('dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
 $('cancel-confirm').onclick=()=>{$('download-confirm').hidden=true;S.downloadPlan=null;};

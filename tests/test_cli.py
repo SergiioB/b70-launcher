@@ -105,7 +105,7 @@ class TestPickEngine(unittest.TestCase):
 class TestFmt(unittest.TestCase):
     def test_units(self):
         self.assertEqual(cli.human_ctx(131072), "128K")
-        self.assertEqual(cli.human_ctx(98392), "98392")
+        self.assertEqual(cli.human_ctx(98392), "98,392")
         self.assertEqual(cli.human_gb(32768), "32.0 GiB")
         self.assertEqual(cli.fmt_dur(45), "45s")
         self.assertEqual(cli.fmt_dur(125), "2m05s")

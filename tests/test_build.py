@@ -406,7 +406,7 @@ class TestLoadPhases(LauncherStateCase):
         self.assertEqual(items["loadtest"]["status"], "starting")
         self.assertEqual(items["loadtest"]["phase"], "graph capture")
 
-    def test_ready_stamps_load_s(self):
+    def _serve_models(self):
         import http.server, threading
         class H(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
@@ -422,12 +422,35 @@ class TestLoadPhases(LauncherStateCase):
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         self.addCleanup(srv.shutdown)
         self.addCleanup(srv.server_close)
+        return port
+
+    def test_ready_stamps_load_s(self):
+        port = self._serve_models()
         runtime.RUNNING["ready1"] = self._entry("ready1", port, "")
         items = {i["id"]: i for i in runtime.servers_snapshot()}
         e = runtime.RUNNING["ready1"]
         self.assertEqual(items["ready1"]["status"], "running")
         self.assertIsNotNone(e["ready_at"])
         self.assertGreaterEqual(items["ready1"]["load_s"], 29)
+
+    def test_next_load_shows_expected_time_from_past_loads(self):
+        runtime.LOAD_HISTORY_PATH.unlink(missing_ok=True)
+        runtime._LOAD_HISTORY = None
+        port = self._serve_models()
+        for i, ago in enumerate((30, 50, 40, 100, 20, 60)):  # six loads; the last five count
+            entry = self._entry(f"hist{i}", port, "")
+            entry["launch_ts"] = runtime.time.time() - ago
+            runtime.RUNNING[f"hist{i}"] = entry
+            runtime.servers_snapshot()
+            del runtime.RUNNING[f"hist{i}"]
+        saved = json.loads(runtime.LOAD_HISTORY_PATH.read_text())["m1:llamacpp"]
+        self.assertEqual(len(saved), 5)
+        self.assertAlmostEqual(saved[0], 50, delta=2)
+        runtime._LOAD_HISTORY = None  # a restarted daemon reads the file again
+        runtime.RUNNING["next"] = self._entry("next", free_port(), "")  # nothing listens: still loading
+        item = {i["id"]: i for i in runtime.servers_snapshot()}["next"]
+        self.assertEqual(item["status"], "starting")
+        self.assertAlmostEqual(item["load_expected_s"], 50, delta=2)
 
 
 class TestExl3Builder(LauncherStateCase):
@@ -462,7 +485,10 @@ class TestExl3Builder(LauncherStateCase):
         self.assertIn("vllm.gpu_memory_utilization=0.94", t)
         self.assertIn("vllm.max_model_len=200000", t)
         self.assertTrue(any("exceeds the 196,608 tested profile" in w for w in b.get("warnings", [])))
-
+    def test_exl3_sc5_explicit_low_gmu_with_high_ctx_raises_budget_error(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=196608, gmu="0.90"))
+        self.assertIsNotNone(b.get("error"))
+        self.assertIn("exceeds the engine pool budget for gmu 0.90", b["error"])
     def test_exl3_plain_uses_gmu_094_at_long_ctx(self):
         b = builders.build(cfg(model_id="qwen38-27b", engine="exl3", ctx=131072))
         self.assertIsNone(b.get("error"))

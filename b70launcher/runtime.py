@@ -315,7 +315,7 @@ def servers_snapshot():
         if sync:
             record_load(e)
             from .harness import sync_harness_configs
-            sync_harness_configs(e["port"], e["served_name"], e.get("model_id"), e.get("engine"), e.get("ctx") or 32768)
+            sync_harness_configs(e["port"], e["served_name"], e.get("model_id"), e.get("engine"), e.get("ctx") or 32768, entry=e)
         if test:
             threading.Thread(target=_auto_test, args=(e,), daemon=True).start()
         if ready and time.time() - e.get("_metrics_ts", 0) > 3:

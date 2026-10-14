@@ -42,7 +42,7 @@ REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtyp
                         "draft_device", "tensor_split", "split_mode",
                         "offload_tensors", "tool_parser", "reasoning_parser",
                         "cim_long_ctx", "search_name", "inner_port", "tp",
-                        "perf", "topology", "recipe_ver", "gmu", "gmu_safe")
+                        "perf", "topology", "recipe_ver", "gmu", "gmu_safe", "gmu_safe_budget")
 _MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)

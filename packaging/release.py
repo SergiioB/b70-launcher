@@ -286,6 +286,8 @@ def verify(archive: Path) -> bool:
                     warn("version.json: 'sha256' does not match this tarball")
                 if manifest and v.get("version") and manifest.get("version") != v["version"]:
                     warn(f"version.json: version {v['version']!r} != manifest version {manifest.get('version')!r}")
+                if not v.get("notes"):
+                    warn("version.json: no release notes (README.md has no 'What is new in' section for this version)")
         except json.JSONDecodeError:
             warn("version.json: not valid JSON")
     else:
