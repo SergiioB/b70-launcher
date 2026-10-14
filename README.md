@@ -40,7 +40,7 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 - **Engine switch in the workspace.** The engines for a model (EXL3, llama.cpp, vLLM, OpenVINO) sit in one row of buttons with their quant and status; arrow keys move between them. Picking a model opens the engine you used last, then a running one, then the recommended one if it is on disk.
 - **Download instead of a dead end.** A recipe with a pinned download no longer shows "Incompatible" just because a related file in another format is on disk. It offers the download and names the file it found.
 - **Less repeated text.** Context values appear once, as preset buttons; the current one is highlighted, and a note appears only above the validated value. Dropdowns and number fields use the dark theme in the native window.
-
+- **SC5 190K+ tested context.** `qwen38-27b-sc5` features a tested 190K+ inference profile (196,438 occupied tokens verified on exact retrieval and multi-turn; 196,608 configured context @ gmu 0.94, 1,069 MiB free VRAM) alongside the 131K safe high-reserve alternate (2,327 MiB free @ gmu 0.90) and a 206,000 engine pool budget ceiling. Profile-validated builder dispatch selects the appropriate memory utilization without silent clamps.
 ## What is new in 0.6.5
 
 - **SC5 131K validated context safe default.** `qwen38-27b-sc5` default context is now 131,072 tokens (safe default verified with 130,872 occupied tokens and 2,327 MiB free VRAM at gmu 0.90). Engine pool budget ceiling is set to 168,000 with clear unverified budget labeling.

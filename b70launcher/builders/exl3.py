@@ -33,10 +33,14 @@ def build_exl3(b):
         # previews never touch dockerd — bring-up is a launch-time step only
         warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
     inner_port = int(recipe.get("inner_port", 8100))
+    # Context profile validated dispatch:
+    # Long context (> 131,072) dispatches to gmu 0.94 for the 190K+ single-request capacity scope (up to 206,400 max len).
+    # Shorter context (<= 131,072) defaults to gmu 0.90 for >=2 GiB high-reserve margin (2,327 MiB free).
+    # Explicit recipe or operator override gmu is honored when compatible with b.ctx.
     if recipe.get("gmu"):
         gmu = str(recipe["gmu"])
-    elif model.get("id") == "qwen38-27b-sc5":
-        gmu = "0.90"
+        if b.ctx > 168000 and float(gmu) < 0.94:
+            gmu = "0.94"
     else:
         gmu = "0.94" if b.ctx >= 131072 else "0.90"
     cname = common.cname_for(model["id"], "exl3", b.port)
@@ -65,11 +69,13 @@ def build_exl3(b):
         "--set", "vllm.enable_auto_tool_choice=true",
         "--set", "vllm.tool_call_parser=qwen3_coder"]
     tokens += recipe.get("fixed_flags", []) + b.extra
-    warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu} "
-                 "(0.90 for SC5 / 0.94 at ≥128K on plain 4bpw); first load ~5-8 min for kernel compile.")
-    if model.get("id") == "qwen38-27b-sc5" and b.ctx > 131072:
-        warns.append(f"ctx {b.ctx} exceeds the 131,072 validated ceiling for SC5 (tested with ≥2 GiB free VRAM); "
-                     "values up to the 168,000 engine pool budget are unverified.")
+    warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu}; "
+                 "first load ~5-8 min for kernel compile.")
+    if recipe.get("ctx_safe") and b.ctx > recipe["ctx_safe"]:
+        warns.append(f"ctx {b.ctx} operates with low VRAM headroom (observation class, ~1.1 GiB free under load); "
+                     f"sized for single-client capacity scope. Safe high-reserve alternate is {recipe['ctx_safe']}.")
+    if recipe.get("ctx_max") and b.ctx > 196608:
+        warns.append(f"ctx {b.ctx} exceeds the 196,608 tested profile (unverified budget ceiling up to {recipe['ctx_max']}).")
     if b.slots > 1:
         warns.append("EXL3 manages concurrency internally; slots is advisory here.")
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
