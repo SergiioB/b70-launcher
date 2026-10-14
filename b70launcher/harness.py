@@ -24,6 +24,14 @@ BINARIES = {"pi": "pi", "omp": "omp", "droid": "droid", "codex": "codex", "deeps
 TOOL_MARKERS = ("--enable-auto-tool-choice", "tool_call_parser", "tool-call-parser", "--tool_parser")
 
 
+class HeadlessError(ValueError):
+    """No GUI to open a terminal in; carries the command to run by hand."""
+
+    def __init__(self, message, line):
+        super().__init__(message)
+        self.line = line
+
+
 def daemon_port():
     server = runtime.SERVER
     return server.server_port if server is not None else int(catalog.SETTINGS.get("port", 7570))
@@ -245,8 +253,8 @@ def open_harness(cfg, built):
     if client == "none":
         return {"line": line, "opened": False, "client": "none"}
     if not _display_ok():
-        raise ValueError("No display available in this session (headless) — the server is ready; "
-                         "copy the client command and run it where you have a GUI.")
+        raise HeadlessError("No display available in this session (headless) — the server is ready; "
+                            "copy the client command and run it where you have a GUI.", line)
     if paths.IS_WIN:
         argv = catalog.SETTINGS["terminal_windows"] + [line]
     elif client == "webui":

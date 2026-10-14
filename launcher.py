@@ -91,14 +91,17 @@ def main():
             def watch():
                 child.wait()
                 # Agents opened from the launcher reach their model through this
-                # daemon's gateway, so it stays up while an engine is live and
-                # exits once none is left and no window has polled for a minute.
+                # daemon's gateway: with no live engine it quits now, otherwise it
+                # stays up and quits once none is left and no window has polled
+                # /api/state for a minute.
+                waited = False
                 while not runtime.STOP_EVT.is_set():
                     runtime.servers_snapshot()
                     with runtime.LOCK:
                         live = any(e.get('status') in runtime.LIVE_STATES for e in runtime.RUNNING.values())
-                    if not live and time.monotonic() - http_api.LAST_UI_POLL > 60:
+                    if not live and (not waited or time.monotonic() - http_api.LAST_UI_POLL > 60):
                         break
+                    waited = True
                     if runtime.STOP_EVT.wait(10):
                         return
                 runtime.graceful_shutdown()

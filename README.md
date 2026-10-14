@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.6.7 (Linux source)
+# B70 Launcher 0.6.8 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -29,9 +29,39 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
     <td><img src=".github/screenshots/library.png" alt="Library — detected artifacts, recipe pick, launch summary"></td>
     <td><img src=".github/screenshots/dry-run.png" alt="Dry-run command preview — nothing is hidden"></td>
   </tr>
+  <tr>
+    <td><img src=".github/screenshots/session.png" alt="Running session — speed, tokens, VRAM, watts and a row per agent"></td>
+    <td><img src=".github/screenshots/usage.png" alt="Usage — requests and tokens per agent, today and all time"></td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/agent-codex.png" alt="Codex opened by the launcher on the local Qwen3.8-27B"></td>
+    <td><img src=".github/screenshots/agent-omp.png" alt="OMP opened by the launcher on the local Qwen3.8-27B"></td>
+  </tr>
 </table>
 
 **How it works:** pick a model → pick an engine recipe (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command (dry-run preview) → launch. Running servers survive restarts and are re-adopted; recipe updates arrive over the release channel and apply as state overlays — your install is never rewritten.
+
+## Run it
+
+```sh
+b70-launcher                 # open the app
+b70 list                     # models and engines on this machine
+b70 launch qwen38-27b        # start a model and wait until it answers
+b70 agent pi                 # open an agent on it: pi, omp, droid, codex or deepseek
+b70 usage                    # tokens per agent, today and all time
+b70 stop                     # stop the model
+```
+
+## What is new in 0.6.8
+
+- **Token use per agent.** Pi, OMP, Droid, Codex and DeepSeek opened from the launcher reach the model through a local gateway that counts requests and tokens per agent. The session panel shows a row per agent, the new Usage dialog and `b70 usage` show today and all time, and the totals are saved in `client-usage.json`.
+- **Codex and DeepSeek.** Codex opens with command-line overrides only, so `~/.codex` is not changed. DeepSeek (`dsh`) gets its own home folder and opens its web UI; `~/.dsh` is not changed. Both were checked on Qwen3.8-27B with llama.cpp, including a Codex shell tool call.
+- **Agents open cleanly.** Each agent opens in a terminal titled with the agent and model, starts in your home folder, and keeps the terminal open after it exits. Its config is written just before it starts, a missing agent is named, and headless sessions get the exact command to run. Pi and OMP keep their tools when the engine can call tools, and the Qwen3.6-35B vLLM recipe now starts with a tool parser.
+- **Model loads show progress.** A loading model shows the time so far and a bar against the median of its last 5 loads. A failed load shows the last 3 log lines.
+- **Update with release notes.** The update button shows what is new, each install step, and errors in plain text, then restarts with the window open. Running models keep running.
+- **CLI fixes.** `b70 list` and `b70 launch` use the validated context like the app; `b70 agent` and `b70 usage` are new; `stop`, `status`, `download --dry-run` and `recipes-update --check` were fixed or added. See `docs/cli.md`.
+- **The app stays up for your agents.** Closing the window quits at once when no model runs. While a model runs, the background service stays up so open agents keep working, and quits a minute after the last model stops.
+- **Clean model names.** llama.cpp recipes start with `--alias`, so agents see `Qwen3.8-27B-UD-Q4_K_M` instead of the file path.
 
 ## What is new in 0.6.7
 
@@ -187,9 +217,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.7-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.7-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.7-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.8-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.8-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.8-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space. Containers see only the selected card(s). Some recipe images use mutable tags.
 
@@ -202,9 +232,9 @@ The installer does not overwrite system files but does replace an existing user-
 - **Card count:** Recipes with an explicit dual-B70 topology can use both identified, accessible B70 cards. Other recipes follow their own engine/device configuration; a dry run previews the exact command without launching it. More than two GPUs are unsupported.
 - **Windows:** Python source may open the UI, but GPU launch is intentionally blocked. WSL2/Docker passthrough is not validated; the Linux desktop archive/installer is not a Windows installer.
 
-`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `open_with`, `sync_clients`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, and `sync_clients` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
+`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `open_with`, `sync_clients`, `meter_clients`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, and `meter_clients` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
 
-The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). Every request needs the per-port token — `POST /api/window` mints a one-time nonce URL that swaps itself for an `HttpOnly` cookie, and same-box scripts read `token-<port>` from the state directory; POSTs additionally need the `X-Launcher-Token` header plus Host/Origin checks. Do not expose the port through a proxy, and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them.
+The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). Every request needs the per-port token — `POST /api/window` mints a one-time nonce URL that swaps itself for an `HttpOnly` cookie, and same-box scripts read `token-<port>` from the state directory; POSTs additionally need the `X-Launcher-Token` header plus Host/Origin checks. The one exception is the agent gateway under `/gw/` (see `docs/api.md`): it needs no token, refuses requests from web pages (any `Origin` header), and only forwards to a running engine — the same access the engine port already gives local processes. Do not expose the port through a proxy, and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them. While an engine runs, closing the window leaves the background service up for the agents.
 
 Launcher flags: `--port`, `--no-open`, `--browser` (also `B70_LAUNCHER_WINDOW=browser`), `--version`, and `--kill`/`--force` to replace an authenticated launcher on the UI port (a second instance otherwise just opens the existing UI). For scripted and headless operation prefer the `b70` CLI (`docs/cli.md`), which wraps this API including `serve`/`down` lifecycle. `B70_UPDATE_URL` overrides the update-check URL for testing — point it at a local `version.json` to exercise the release and recipe-update channel end to end. Endpoint and recipe references for contributors live in `docs/api.md` and `docs/recipe-format.md`.
 

@@ -22,39 +22,73 @@ Stdlib only, Python 3.9+, no GUI dependencies. Installed as
   SSH tunnel (`b70 open` prints the line for you).
 - Exit codes: `0` ok · `1` operation error · `2` usage error · `3` daemon
   unreachable · `130` Ctrl+C. `--json` emits machine-readable output for
-  every command. `NO_COLOR` is honored; colors auto-disable off a TTY.
+  every command; errors come back as `{"ok": false, "error", "code"}`.
+  `NO_COLOR` is honored; colors auto-disable off a TTY. On a narrow terminal
+  tables drop their least useful columns (names, kind, load time) instead of
+  wrapping, and long notes wrap to the terminal width.
 
 ## Commands
 
 | command | does |
 |---|---|
-| `b70 serve` | start the daemon (idempotent; `--fg` foreground, `--kill` free the port) |
+| `b70 serve` | start the daemon (idempotent; `--fg` foreground, `--kill` replaces a running daemon, engines keep running) |
 | `b70 down` | stop the daemon (`--stop-engines` also stops engines) |
-| `b70 list` | every model × engine recipe: kind, ctx, detected artifact, live mark (`-e` filters) |
-| `b70 show <model>` | model detail: recipes, ctx ceilings, detected path, launch/download hints |
+| `b70 list` | every model × engine recipe: kind, validated context, detected artifact, live mark (`-e` filters) |
+| `b70 show <model>` | model detail: validated / default / max context, detected path, launch/download hints |
 | `b70 launch <model>` | launch a recipe and wait for the OpenAI endpoint |
 | `b70 launch` | interactive picker on a TTY (model → engine, detected/recommended marks) |
 | `b70 launch <path>` | serve any artifact under a scan root (`__custom__` recipe) |
-| `b70 stop [rid]` | stop an engine (`--all` for everything; no arg = the only running one) |
-| `b70 status` | GPUs (draw/cap/temp/clock/VRAM) + engines (status, load time, tok/s, tokens) |
+| `b70 stop [rid]` | stop an engine (`--all` for everything; no arg = the only running one; nothing running = exit 0) |
+| `b70 status` | GPUs (draw/cap/temp/busy %/VRAM) + engines (status, load time, tok/s, tokens) |
 | `b70 monitor` | live dashboard on a TTY; one snapshot when piped (`-f` streams, `--once` single) |
 | `b70 logs <rid>` | engine log tail (`-f` follow by byte offset, `-n` lines, default 60) |
 | `b70 test [rid|port] [prompt]` | smoke prompt end-to-end; latency + approx tok/s (`--show-thinking` also prints the reasoning text) |
-| `b70 download <model> -e <eng>` | fetch the recipe artifact; size/space check first, then progress to done |
+| `b70 download <model> -e <eng>` | fetch the recipe artifact; size/space check first, then progress to done (`--dry-run` shows the check only, `--yes` skips the question) |
 | `b70 open [ui|rid|port]` | open UI or engine endpoint; prints the URL + SSH hint when headless |
 | `b70 env [rid]` | `export OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL_NAME` |
+| `b70 agent <client> [rid]` | open a coding agent (`pi`, `omp`, `droid`, `codex`, `deepseek`) on a running model |
+| `b70 usage` | tokens each agent used: today, all time, and per model |
 | `b70 doctor` | render nodes, B70 identification, blockers, scan roots |
 | `b70 scan` | detected artifacts + per-recipe matches (`--roots a,b` to set roots) |
-| `b70 recipes-update [model]` | apply the published recipe catalog overlay (`-e` limits it to one engine) |
+| `b70 recipes-update [model]` | apply the published recipe catalog overlay (`-e` limits it to one engine, `--check` only lists what is newer) |
 | `b70 version` | CLI / daemon / catalog versions |
 | `b70 completion bash` | bash completion script |
 
-Aliases: `ls`, `recipes` → `list`; `ps` → `status`; `ui` → `open ui`.
+Aliases: `ls`, `recipes` → `list`; `ps` → `status`; `ui` → `open ui`;
+`tokens` → `usage`.
+
+## Context: the validated value by default
+
+`b70 list` and `b70 show` print the recipe's validated context (`ctx_safe`,
+the value the UI preselects), falling back to the recipe `ctx` when no
+validated value exists. `b70 show` also lists the recipe default and the
+ceiling (`ctx_max`) when they differ. `b70 launch` without `--ctx` sends the
+same validated context the UI would, so a CLI launch and a UI launch of the
+same recipe start identical engines.
+
+## Agents and token use
+
+```sh
+b70 agent pi                 # Pi on the only running model
+b70 agent codex qwen38-27b   # Codex on a chosen server (id, model name or port)
+b70 usage                    # per-agent tokens: today, all time, per model
+b70 usage --json             # the raw GET /api/usage document
+```
+
+`b70 agent` asks the daemon (`POST /api/harness`) to open the agent in a new
+terminal, wired to the launcher's metering gateway, and prints the command it
+ran. With no display it prints the command for you to run yourself. With no
+model running it says so and points at `b70 launch`; a model that is still
+loading is refused until it is ready.
+
+`b70 usage` reads `GET /api/usage`. Agents only show up after they have sent
+traffic through the gateway; until then it prints
+`No agent traffic recorded yet.`
 
 ## `b70 launch` — every knob maps to the recipe API
 
 ```sh
-b70 launch qwen38-27b                      # recommended engine (exl3 here)
+b70 launch qwen38-27b                      # recommended engine (exl3 here), validated ctx
 b70 launch qwen36-35b -e vllm              # explicit engine
 b70 launch qwen36-35b -e llamacpp --ctx 65536 --port 8080 --kv q5_0/q4_1
 b70 launch qwen38-27b-fp8-tp2              # recipe declares dual-card → gpus 0,1 auto
@@ -85,9 +119,9 @@ kills the engine — it detaches and prints the follow-up commands.
 
 Model arguments fuzzy-match: exact id → unique prefix → substring of id or
 display name. Ambiguity lists candidates; a typo suggests close ids.
-`b70 stop`, `b70 logs`, `b70 test`, `b70 env`, `b70 open <target>` accept a
-server id (`<model>-<engine>-<port>`), a model name, or a bare port — and
-default to the only running engine when there's exactly one.
+`b70 stop`, `b70 logs`, `b70 test`, `b70 env`, `b70 agent`, `b70 open <target>`
+accept a server id (`<model>-<engine>-<port>`), a model name, or a bare port —
+and default to the only running engine when there's exactly one.
 
 ## Headless / remote workflows
 
@@ -117,6 +151,7 @@ local agents an OpenAI client.
 | `B70_LAUNCHER` | launcher.py (or wrapper) used for auto-start |
 | `XDG_STATE_HOME` | moves the state dir (`token-<port>`, logs, servers-state) |
 | `NO_COLOR` | disable ANSI color |
+| `COLUMNS` | table width to fit (defaults to the terminal; unset when piped = no trimming) |
 
 ## Notes & edge cases
 
@@ -137,3 +172,6 @@ local agents an OpenAI client.
   when the engine returned reasoning only.
 - `b70 stop` understands "starting" engines too: mid-load launches are
   cancelled cleanly.
+- `b70 recipes-update <model>` without `-e` updates that model's engines one
+  by one; it never applies the whole catalog. `-e` without a model is a usage
+  error.

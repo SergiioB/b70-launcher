@@ -80,12 +80,12 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "recipes":  "merged catalog: recipes.json + recipes-remote.json overlay + recipe_overrides",
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see POST /api/launch"],
-  "version":  "0.6.7",
+  "version":  "0.6.8",
   "is_win":   false,
   "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
 "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
   "recipes_remote": {"checked": true, "catalog_ver": "2026-10-14.3", "recipes_url": "...", "entries": {"<model_id>:<engine>": {"ver", "note", "recommended"}}},
-  "clients": {"pi": {"installed", "openable"}, "omp": {...}, "droid": {...},
+  "clients": {"pi": {"installed", "openable"}, "omp": {...}, "droid": {...}, "codex": {...}, "deepseek": {...},
               "webui": {"installed", "openable", "url", "detail"},
               "none": {"installed": true, "openable": true},
               "terminal": {"installed", "name"}, "display": {"available", "reason"}},
@@ -182,9 +182,39 @@ Per-server counters come from the engine's own Prometheus `/metrics`
 ### `GET /api/usage`
 
 `{"sessions": [last 50 records], "totals": {tokens_in, tokens_out, requests,
-sessions}}` — read from `usage-history.json` (500 records kept on disk). A
+sessions}, "clients": {...}, "today": {...}, "by_model": {...}}`.
+`sessions`/`totals` come from `usage-history.json` (500 records kept on disk). A
 session record: `{id, model, engine, port, started, ended, status, tokens_in,
 tokens_out, requests, peak_tok_s, artifact_mib}`.
+
+`clients` (all time) and `today` map an agent id (`pi`, `omp`, `droid`,
+`codex`, `deepseek`, `other`) to `{requests, tokens_in, tokens_out, errors,
+last_used}`; `by_model` maps a served model name to the same shape. They count
+requests that went through the client gateway (below) and are stored in
+`client-usage.json` in the state directory (one row per day, one year kept). A
+request the agent cancelled counts as a request, not an error; an engine reply
+other than HTTP 200 counts as an error and is printed in the daemon output.
+
+## Client gateway `/gw/<client>/<engine_port>/v1/...`
+
+Agents opened from the launcher get `http://127.0.0.1:<daemon port>/gw/<client>/<engine port>/v1`
+as their base URL, so the launcher can count tokens per agent. No token is
+needed (agents are local CLI processes), but the Host check applies and any
+request carrying an `Origin` header (a web page) gets `403`. A port without a
+`running` server answers `503`.
+
+- `POST .../v1/chat/completions` and `.../v1/completions`: forwarded. A streamed
+  request without `stream_options.include_usage` gets it added, and the extra
+  usage-only chunk is removed before the agent sees it.
+- `POST .../v1/responses` (Codex): llama.cpp, vLLM and EXL3 serve it natively;
+  the gateway first merges `instructions` and developer/system messages into one
+  leading system message and drops `store`/`include`. OpenVINO OVMS gets a
+  Responses ↔ Chat Completions translation (`b70launcher/responses_translate.py`).
+- Anything else (`GET .../v1/models`, …) is passed through unchanged.
+
+Each server entry gains `clients: {"<client>": {requests, tokens_in,
+tokens_out, errors, last_used}}` for the current session. Set
+`"meter_clients": false` to point agents at the engine port directly.
 
 ### `GET /api/logs?id=<rid>&offset=<bytes>`
 
@@ -329,15 +359,32 @@ only when `answer` is non-empty. A reasoning-only reply fails with
 The id (or fallback port) must name a server whose status is `running`, otherwise
 `400 {"error": "Choose a ready server to open a client."}`. `line` is the shell
 line that was spawned with `OPENAI_BASE_URL` / `OPENAI_API_KEY` /
-`OPENAI_MODEL_NAME`; the client is `pi`, `omp`, `droid`, `webui`
-(`xdg-open http://localhost:3000`), or `none` (line only, `opened: false`).
-Server readiness and app-open success are separate facts: a headless session
-(no `DISPLAY`/`WAYLAND_DISPLAY`), a missing terminal (kitty, gnome-terminal,
-xfce4-terminal, x-terminal-emulator, xterm — otherwise `400`), or a client
-that exits nonzero within ~1.2 s raises `400` with the exact reason while the
-server stays ready. A successful open stamps `client_open` on the server
-entry. `harness_cmd` overrides the command text. Client ids are fixed in
-`harness.harness_line`; `settings.harnesses[]` is not consulted.
+`OPENAI_MODEL_NAME`. Clients:
+
+- `pi`, `omp`: `<client> --model b70/<served name>`, plus `--no-tools` when the
+  engine has no tool parser (`harness.supports_tools`).
+- `droid`: `droid --model custom:Desktop-B70-Loaded-Model-0`.
+- `codex`: Codex CLI with `-c` overrides only (`b70launcher/codex_client.py`),
+  nothing written to `~/.codex`: provider `b70`, `wire_api="responses"`,
+  `env_key` + `requires_openai_auth=false`, the context window, web search off,
+  no update check.
+- `deepseek`: `npx -y @deepseek-ai/dsh@0.2.0-rc.2 web --patch <state>/dsh/gateway.yml --port 0`
+  with `DSH_HOME=<state>/dsh/home`, so `~/.dsh` is untouched
+  (`b70launcher/dsh_client.py`). dsh 0.2 has no terminal UI; it opens its web UI.
+- `webui` (`xdg-open http://localhost:3000`), or `none` (line only, `opened: false`).
+
+Before an agent opens, its config (`~/.pi/agent/models.json`,
+`~/.omp/agent/models.yml`, `~/.factory/settings.json`) is pointed at this
+server through the gateway; a file is created only inside an agent folder that
+already exists. The agent runs in a terminal titled `<Agent> · <model>`, starts
+in `settings.agent_dir` (default `~`), and the terminal waits for Enter after it
+exits. An agent that is not installed → `400` naming the missing binary.
+Headless (no `DISPLAY`/`WAYLAND_DISPLAY`) → `400 {"error", "line"}` with the
+command to run by hand. A missing terminal (kitty, gnome-terminal,
+xfce4-terminal, x-terminal-emulator, xterm) or a client that exits nonzero
+within ~1.2 s → `400` with the exact reason while the server stays ready. A
+successful open stamps `client_open` and `client` on the server entry.
+`harness_cmd` overrides the command text.
 
 ### `POST /api/recipes/update`
 
@@ -365,7 +412,8 @@ a rescan. See `docs/recipe-format.md`.
 ### `POST /api/settings`
 
 ```json
-{"scan_dirs"?: ["..."], "models_dir"?: "...", "open_with"?: "pi|omp|droid|none", "sync_clients"?: true}
+{"scan_dirs"?: ["..."], "models_dir"?: "...", "open_with"?: "pi|omp|droid|codex|deepseek|webui|none",
+ "sync_clients"?: true, "meter_clients"?: true}
 ```
 
 Any other key, or an empty body, → `400`. `scan_dirs`: at most 8 absolute,
@@ -373,11 +421,14 @@ existing directories; `/` and the home directory are refused. `models_dir`: one
 absolute, existing directory (same refusals). Persists into
 `settings-override.json` (other keys preserved) and starts a rescan. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
-`exl3_data_root`, and `recipe_overrides`.
+`exl3_data_root`, `agent_dir`, and `recipe_overrides`.
 
 ### `POST /api/shutdown`
 
 `{"stop_engines"?: bool}` → `{"ok": true}`, then shuts down asynchronously
 (`runtime.graceful_shutdown`): cancels all downloads, optionally stops every
 tracked server, persists `servers-state.json`, and stops the HTTP server. The
-same path runs on window close and on SIGINT/SIGTERM (without `stop_engines`).
+same path runs on SIGINT/SIGTERM (without `stop_engines`). Closing the app
+window runs it only when no engine is starting or running; otherwise the daemon
+stays up for the agents using its gateway and exits once no engine is left and
+no window has polled `/api/state` for a minute.

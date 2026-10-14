@@ -169,7 +169,10 @@ def _harness(cfg):
         raise ValueError('Choose a ready server to open a client.')
     cfg = dict(cfg, port=entry['port'])
     # open_harness reports the app-open outcome; readiness was gated above
-    return harness.open_harness(cfg, entry)
+    try:
+        return harness.open_harness(cfg, entry)
+    except harness.HeadlessError as exc:
+        return {'error': str(exc), 'line': exc.line}, 400
 
 
 GET_ROUTES = {

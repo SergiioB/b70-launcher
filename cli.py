@@ -179,12 +179,13 @@ class Client:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout) as r:
-                return json.loads(r.read() or b"{}")
+                raw = r.read()
         except urllib.error.HTTPError as e:
             try:
                 body = json.loads(e.read() or b"{}")
             except Exception:
                 body = {}
+            body = body if isinstance(body, dict) else {}
             msg = body.get("error") or f"HTTP {e.code} from launcher"
             if e.code in (401, 403):
                 if not self.token:
@@ -192,7 +193,9 @@ class Client:
                 else:
                     msg += " — daemon rejected the API token (check --token / B70_TOKEN)"
                 raise AuthError(msg)
-            raise CliError(msg)
+            err = CliError(msg)
+            err.body = body  # callers may use extra fields the daemon sent
+            raise err
         except ValueError as e:
             raise CliError(f"invalid daemon address {self.api!r} ({e})")
         except urllib.error.URLError as e:
@@ -202,6 +205,11 @@ class Client:
             raise DaemonDown(f"launcher daemon at {self.api} went away")
         except (TimeoutError, socket.timeout):
             raise DaemonDown(f"launcher daemon at {self.api} timed out")
+        try:
+            return json.loads(raw or b"{}")
+        except ValueError:
+            raise CliError(f"{self.api} answered, but not like the launcher "
+                           "(reply is not JSON) — check --api / B70_API")
 
     def get(self, path, timeout=None):
         return self._req("GET", path, timeout=timeout)
@@ -609,18 +617,32 @@ def progress_bar(pct, width=28):
 # ── commands ───────────────────────────────────────────────────────────────
 
 
+def _wait_daemon_gone(g, seconds=10):
+    deadline = time.time() + seconds
+    while time.time() < deadline and Client(api=g.api, token=g.token).alive():
+        time.sleep(0.3)
+
+
 def cmd_serve(g, a):
     c = Client(api=g.api, token=g.token)
     if c.alive():
-        st = c.get("/api/state")
-        if g.json:
-            jprint({"ok": True, "already_running": True, "api": c.api,
-                    "version": st.get("version"), "token_file": str(token_file())})
+        if a.kill:
+            # replace it: the old daemon exits, engines keep running and the
+            # new daemon adopts them
+            c.post("/api/shutdown", {"stop_engines": False})
+            _wait_daemon_gone(g)
+            if Client(api=g.api, token=g.token).alive():
+                die(f"the daemon at {c.api} did not exit in 10s", hint="try again: b70 serve --kill")
         else:
-            print(f"{OK} daemon already running at {cyan(c.api)} "
-                  f"(b70-launcher {st.get('version', '?')})")
-            print(f"  {dim('open it: b70 open    stop it: b70 down')}")
-        return 0
+            st = c.get("/api/state")
+            if g.json:
+                jprint({"ok": True, "already_running": True, "api": c.api,
+                        "version": st.get("version"), "token_file": str(token_file())})
+            else:
+                print(f"{OK} daemon already running at {cyan(c.api)} "
+                      f"(b70-launcher {st.get('version', '?')})")
+                print(f"  {dim('open it: b70 open    stop it: b70 down    restart it: b70 serve --kill')}")
+            return 0
     port = c.port
     if a.foreground:
         launcher = find_launcher()
@@ -664,9 +686,7 @@ def cmd_down(g, a):
     else:
         extra = " and engines" if a.stop_engines else ""
         print(f"{OK} shutdown requested{extra} — daemon exiting")
-    deadline = time.time() + 10
-    while time.time() < deadline and Client(api=g.api, token=g.token).alive():
-        time.sleep(0.3)
+    _wait_daemon_gone(g)
     return 0
 
 
@@ -1510,7 +1530,8 @@ def cmd_agent(g, a):
     try:
         out = c.post("/api/harness", {"id": ent["id"], "harness": a.client}, timeout=30)
     except CliError as exc:
-        die(str(exc))
+        line = (getattr(exc, "body", None) or {}).get("line")
+        die(str(exc), hint=f"run it yourself: {line}" if line else None)
     if g.json:
         jprint(dict(out, id=ent["id"]))
         return 0
@@ -1628,10 +1649,10 @@ def cmd_scan(g, a):
     print(f"  {dim('roots:')} {', '.join(body.get('roots') or [])}   {dim('free:')} {body.get('free_gb')} GiB")
     cat = body.get("catalog") or []
     if cat:
-        rows = [[i.get("kind"), i.get("name")[:46], human_gb(i.get("size_mib")),
-                 i.get("path")] for i in cat]
+        rows = [[i.get("kind") or "?", (i.get("name") or "")[:46], human_gb(i.get("size_mib")),
+                 i.get("path") or ""] for i in cat]
         print()
-        print(table(rows, ["KIND", "NAME", "SIZE", "PATH"]))
+        print(table(rows, ["KIND", "NAME", "SIZE", "PATH"], drop=(1,)))
     else:
         print(f"  {dim('no artifacts found under the scan roots')}")
     print(f"\n  {dim('matched recipes appear as ● detected in:')} b70 list")
@@ -1811,6 +1832,8 @@ def build_parser():
     s = add("serve", help="start the launcher daemon (idempotent)")
     s.add_argument("--fg", "--foreground", dest="foreground", action="store_true",
                    help="run the daemon in the foreground (tmux/systemd)")
+    s.add_argument("--kill", action="store_true",
+                   help="replace a running daemon (engines keep running)")
     s.set_defaults(fn=cmd_serve)
 
     s = add("down", help="stop the launcher daemon")

@@ -91,7 +91,9 @@ def build_llamacpp(b):
                    "-p", f"127.0.0.1:{b.port}:{b.port}", "-e", "ZES_ENABLE_SYSMAN=1"] + b.envargs + [
             recipe["image"]]
         model_arg = gpath
-    tokens += ["-m", model_arg, "-ngl", "99", "--host", host, "--port", str(b.port),
+    # --alias: /v1/models must report the short name the agents are configured
+    # with, not the full .gguf path
+    tokens += ["-m", model_arg, "--alias", Path(gpath).stem, "-ngl", "99", "--host", host, "--port", str(b.port),
                "-c", str(b.ctx), "--flash-attn", "on", "--metrics"]
     if "--cache-type-k" not in recipe.get("fixed_flags", []):
         tokens += KV_MAP[kv]

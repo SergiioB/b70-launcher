@@ -751,8 +751,10 @@ function gpuStats(e){const devices=deviceList();
   return(e.gpus||[]).map(g=>{const d=devices[g]||{};const p=S.power.find(x=>x.pci&&x.pci===d.pci)||{};
     const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
     const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
-    const parts=[used!=null?`${used.toFixed(1)}${total?` / ${Math.round(total)}`:''} GiB`:'',p.watts!=null?`${Math.round(p.watts)} W`:''].filter(Boolean);
-    return parts.length?[`GPU ${g}`,parts.join(' · ')]:null;}).filter(Boolean);}
+    const rows=[];
+    if(used!=null)rows.push([`GPU ${g} VRAM`,`${used.toFixed(1)}${total?` / ${Math.round(total)}`:''} GiB`]);
+    if(p.watts!=null)rows.push([`GPU ${g} power`,`${Math.round(p.watts)} W`]);
+    return rows;}).flat();}
 const statList=rows=>rows.length?`<dl class="stats">${rows.map(([k,v])=>`<div class="stat"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`:'';
 function agentRows(e){return Object.entries(e.clients||{}).filter(([,c])=>c&&typeof c==='object')
   .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));}
@@ -771,7 +773,8 @@ function renderSessionLive(e){const box=$('session-live');if(!box)return;
         ${tail.length?`<pre aria-label="Last log lines">${esc(tail.join('\n'))}</pre>`:''}
         <button type="button" id="session-logs">Logs</button></div>`;}
     else if(e.status==='running'){
-      box.innerHTML=statList([['Speed',`${Number(e.tok_s||0).toFixed(1)} <small>tok/s</small>`],['Requests',fmt(e.requests||0)],
+      const agentReqs=agents.reduce((s,[,c])=>s+(c.requests||0),0);
+      box.innerHTML=statList([['Speed',`${Number(e.tok_s||0).toFixed(1)} <small>tok/s</small>`],['Requests',fmt(Math.max(e.requests||0,agentReqs))],
         ['Tokens in',fmt(e.tokens_in||0)],['Tokens out',fmt(e.tokens_out||0)],...gpus])
         +(agents.length?`<div class="agents table-wrap"><h3 id="agents-heading">Agents this session</h3>
           <table class="nums" aria-labelledby="agents-heading"><thead><tr><th scope="col">Agent</th><th scope="col">Requests</th><th scope="col">Tokens out</th></tr></thead>
@@ -822,7 +825,6 @@ function renderSession(){const e=currentSession();const box=$('session');
         ${e.quant?`<div class="kv"><dt>Quantization</dt><dd>${esc(e.quant)}${e.variant?' <span class="meta">(local variant)</span>':''}</dd></div>`:''}
       </div>
       ${failed?'':`<div class="session-actions">
-        <button type="button" id="session-open" ${e.status==='running'?'':'disabled'}>${e.client==='none'?'Copy endpoint':`Open ${esc(client||'client')}`}</button>
         <button type="button" id="session-test" ${e.status==='running'?'':'disabled'} title="Sends one prompt and checks the answer">Test prompt</button>
         <button type="button" id="session-logs">Logs</button>
       </div>
@@ -1086,10 +1088,6 @@ document.addEventListener('click',async e=>{
   const stop=e.target.closest('#session-stop');if(stop){const entry=currentSession();
     if(entry&&confirm(`Stop ${entry.model_name||entry.model} on :${entry.port}?`)){
       try{await api('/api/stop',{id:entry.id});await poll();}catch(ex){toast(ex.message);}}return;}
-  const open=e.target.closest('#session-open');if(open){const entry=currentSession();
-    if(entry){try{const result=await api('/api/harness',{id:entry.id,harness:$('client').value});
-      delete S.openFail[entry.id];toast(result.opened?`Opened ${clientLabel(result.client)}`:'Endpoint copied');await poll();}
-      catch(ex){S.openFail[entry.id]=ex.message;await poll();}}return;}
   const test=e.target.closest('#session-test');if(test){const entry=currentSession();if(!entry)return;
     test.disabled=true;try{const result=await api('/api/test_prompt',{id:entry.id});await viewAnswer({...entry,test:result});await poll();}
     catch(ex){toast(ex.message);}finally{test.disabled=false;}return;}

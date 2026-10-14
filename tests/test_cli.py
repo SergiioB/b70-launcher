@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 try:
@@ -114,6 +115,18 @@ class TestFmt(unittest.TestCase):
         t = cli.table([[cli.green("ok"), "1"]], ["A", "B"])
         self.assertIn("ok", cli._strip(t))
         self.assertIn("A", t)
+
+    def test_table_drops_columns_to_fit_narrow_terminal(self):
+        rows = [["qwen38-27b", "Qwen3.8-27B long display name", "exl3", "128K"]]
+        heads = ["MODEL", "NAME", "ENGINE", "CTX"]
+        with mock.patch.dict(os.environ, {"COLUMNS": "40"}):
+            narrow = cli.table(rows, heads, drop=(1,))
+        with mock.patch.dict(os.environ, {"COLUMNS": "200"}):
+            wide = cli.table(rows, heads, drop=(1,))
+        self.assertNotIn("NAME", narrow)
+        self.assertIn("128K", narrow)
+        self.assertTrue(all(len(line) <= 40 for line in narrow.splitlines()))
+        self.assertIn("NAME", wide)
 
 
 class _StubClient:
@@ -304,6 +317,29 @@ class TestCliE2E(unittest.TestCase):
         self.assertIn("qwen38-27b", out)
         self.assertIn("exl3", out)
 
+    def test_list_ctx_is_the_validated_context(self):
+        """CTX must match what the UI preselects: ctx_safe, else ctx."""
+        _, out, _ = self.b70("--json", "list")
+        models = json.loads(out)["models"]
+        rc, pretty, _ = self.b70("list", "-e", "exl3")
+        self.assertEqual(rc, 0)
+        checked = 0
+        for m in models:
+            rec = m["recipes"].get("exl3")
+            if not rec:
+                continue
+            line = next(ln for ln in pretty.splitlines() if f" {m['id']} " in ln)
+            want = cli.human_ctx(rec.get("ctx_safe") or rec.get("ctx"))
+            self.assertIn(f"  {want}  ", line, f"{m['id']}: {line}")
+            checked += rec.get("ctx_safe") is not None
+        self.assertTrue(checked, "no exl3 recipe with ctx_safe to check")
+
+    def test_launch_without_ctx_uses_validated_context(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b", "-e", "llamacpp",
+                                "--port", str(free_port()), "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(json.loads(out)["ctx"], 131072)
+
     def test_show(self):
         rc, out, _ = self.b70("show", "qwen38-27b")
         self.assertEqual(rc, 0)
@@ -364,9 +400,29 @@ class TestCliE2E(unittest.TestCase):
         self.assertTrue(err.strip())
 
     def test_stop_nothing_running(self):
-        rc, out, _ = self.b70("stop", "--all")
+        for argv in (("stop", "--all"), ("stop",)):
+            rc, out, _ = self.b70(*argv)
+            self.assertEqual(rc, 0, argv)
+            self.assertIn("nothing", out)
+
+    def test_agent_without_server_points_at_launch(self):
+        rc, out, err = self.b70("agent", "pi")
+        self.assertEqual(rc, 1)
+        self.assertIn("b70 launch", err)
+        self.assertEqual(len(err.strip().splitlines()), 1)
+
+    def test_usage_without_traffic(self):
+        rc, out, _ = self.b70("usage")
         self.assertEqual(rc, 0)
-        self.assertIn("nothing", out)
+        self.assertIn("No agent traffic recorded yet.", out)
+        rc, out, _ = self.b70("tokens", "--json")
+        self.assertEqual(rc, 0)
+        self.assertIn("totals", json.loads(out))
+
+    def test_recipes_update_engine_needs_model(self):
+        rc, _, err = self.b70("recipes-update", "-e", "exl3")
+        self.assertEqual(rc, 2)
+        self.assertIn("needs a model", err)
 
     def test_status_json(self):
         rc, out, _ = self.b70("--json", "status")

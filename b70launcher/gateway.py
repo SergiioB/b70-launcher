@@ -221,6 +221,13 @@ def _sse_lines(resp):
         yield line, parsed
 
 
+def _ok(client, path, resp):
+    """True for HTTP 200; otherwise note it in the daemon output."""
+    if resp.status != 200:
+        print(f"gateway: {client} {path} -> engine HTTP {resp.status}", flush=True)
+    return resp.status == 200
+
+
 def _usage_tokens(usage):
     """(tokens_in, tokens_out) from chat or responses usage, or None."""
     if not isinstance(usage, dict):
@@ -244,7 +251,7 @@ def _chat(handler, client, entry, path, req):
     except OSError as exc:
         record(client, entry, 0, 0, False)
         return _error(handler, 502, f"Engine on port {entry['port']} did not answer: {exc}")
-    tokens, ok, estimated = None, resp.status == 200, 0
+    tokens, ok, estimated = None, _ok(client, path, resp), 0
     try:
         ctype = resp.getheader("Content-Type", "")
         if not stream or "event-stream" not in ctype:
@@ -269,7 +276,7 @@ def _chat(handler, client, entry, path, req):
                         estimated += 1
             _write(handler, line)
     except (BrokenPipeError, ConnectionResetError):
-        ok = False
+        pass  # the agent cancelled the request (e.g. an aborted title call); not an engine error
     finally:
         conn.close()
         tin, tout = tokens if tokens else (0, estimated)
@@ -312,7 +319,7 @@ def _responses_native(handler, client, entry, req):
     except OSError as exc:
         record(client, entry, 0, 0, False)
         return _error(handler, 502, f"Engine on port {entry['port']} did not answer: {exc}")
-    tokens, ok = None, resp.status == 200
+    tokens, ok = None, _ok(client, "/v1/responses", resp)
     try:
         ctype = resp.getheader("Content-Type", "")
         if "event-stream" not in ctype:
@@ -332,7 +339,7 @@ def _responses_native(handler, client, entry, req):
                 ok = False
             _write(handler, line)
     except (BrokenPipeError, ConnectionResetError):
-        ok = False
+        pass  # the agent cancelled the request; not an engine error
     finally:
         conn.close()
         record(client, entry, *(tokens or (0, 0)), ok)
@@ -351,7 +358,7 @@ def _responses_translated(handler, client, entry, req):
     except OSError as exc:
         record(client, entry, 0, 0, False)
         return _error(handler, 502, f"Engine on port {entry['port']} did not answer: {exc}")
-    tokens, ok = None, resp.status == 200
+    tokens, ok = None, _ok(client, "/v1/chat/completions (from /v1/responses)", resp)
     try:
         if resp.status != 200:
             data = resp.read()
@@ -378,7 +385,7 @@ def _responses_translated(handler, client, entry, req):
         _write(handler, b"data: [DONE]\n\n")
         tokens = _usage_tokens(state.usage)
     except (BrokenPipeError, ConnectionResetError):
-        ok = False
+        pass  # the agent cancelled the request; not an engine error
     finally:
         conn.close()
         record(client, entry, *(tokens or (0, 0)), ok)
