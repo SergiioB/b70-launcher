@@ -326,6 +326,61 @@ class TestServer(unittest.TestCase):
             code, out = self.post("/api/settings", {"scan_dirs": bad})
             self.assertEqual(code, 400, bad)
 
+    def test_settings_pcie_links(self):
+        # strict validation: bad address, generation, width, shape or type
+        for bad in ([], "x", 7, {"nope": {"gen": 4, "width": 8}},
+                    {"0000:0b:00.0": {"gen": 7, "width": 8}},
+                    {"0000:0b:00.0": {"gen": 0, "width": 8}},
+                    {"0000:0b:00.0": {"gen": 4, "width": 3}},
+                    {"0000:0b:00.0": {"gen": 4, "width": 32}},
+                    {"0000:0b:00.0": {"gen": 4, "width": "8"}},
+                    {"0000:0b:00.0": {"gen": 4}},
+                    {"0000:0b:00.0": True}):
+            code, out = self.post("/api/settings", {"pcie_links": bad})
+            self.assertEqual(code, 400, bad)
+            self.assertIn("error", out)
+        code, state = self.get("/api/state")
+        self.assertEqual(state["settings"]["pcie_links"], {})  # nothing was stored
+        devices = state["preflight"]["devices"]
+        for dev in devices:
+            self.assertIn("pcie", dev)
+        if not devices:  # no GPU on this host — nothing further to check
+            return
+        pci = devices[0]["pci"]
+        before = devices[0]["pcie"]
+        code, out = self.post("/api/settings",
+                              {"pcie_links": {pci: {"gen": 5, "width": 16}}})
+        self.assertEqual(code, 200)
+        self.assertEqual(out["pcie_links"], {pci: {"gen": 5, "width": 16}})
+        code, state = self.get("/api/state")
+        self.assertEqual(state["settings"]["pcie_links"], {pci: {"gen": 5, "width": 16}})
+        link = [d for d in state["preflight"]["devices"] if d["pci"] == pci][0]["pcie"]
+        self.assertEqual(link["source"], "user")
+        self.assertEqual((link["gen"], link["width"], link["gbps"]), (5, 16, 63.0))
+        self.assertEqual(link["detected"], before["detected"])  # sysfs values kept
+        # null removes that card's override
+        code, out = self.post("/api/settings", {"pcie_links": {pci: None}})
+        self.assertEqual(code, 200)
+        self.assertEqual(out["pcie_links"], {})
+        code, state = self.get("/api/state")
+        self.assertEqual(state["settings"]["pcie_links"], {})
+        link = [d for d in state["preflight"]["devices"] if d["pci"] == pci][0]["pcie"]
+        self.assertEqual((link["source"], link["gen"], link["width"]),
+                         (before["source"], before["gen"], before["width"]))
+        # a post mixing pcie_links with another setting still refreshes the link
+        code, out = self.post("/api/settings",
+                              {"pcie_links": {pci: {"gen": 4, "width": 4}},
+                               "scan_dirs": [str(self.artdir)]})
+        self.assertEqual(code, 200)
+        code, state = self.get("/api/state")
+        link = [d for d in state["preflight"]["devices"] if d["pci"] == pci][0]["pcie"]
+        self.assertEqual((link["source"], link["gen"], link["width"], link["gbps"]),
+                         ("user", 4, 4, 7.9))
+        # the whole map may be nulled to clear every override
+        self.assertEqual(self.post("/api/settings", {"pcie_links": None})[0], 200)
+        code, state = self.get("/api/state")
+        self.assertEqual(state["settings"]["pcie_links"], {})
+
     # ---- shutdown (alphabetically last) ---------------------------------
 
     def test_zz_shutdown(self):

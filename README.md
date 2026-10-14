@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.6.8 (Linux source)
+# B70 Launcher 0.6.9 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -22,8 +22,12 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 <table>
   <tr>
-    <td><img src=".github/screenshots/first-run.png" alt="First run — model catalog, honest on-disk status"></td>
-    <td><img src=".github/screenshots/missing-model.png" alt="Missing artifact — compact download guidance"></td>
+    <td><img src=".github/screenshots/welcome.png" alt="Welcome — recipes come from the B70 Inference Cookbook by SergiioB"></td>
+    <td><img src=".github/screenshots/downloading.png" alt="Download in progress — percent, size, speed and time left"></td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/multi-card.png" alt="Multi-card recipe — each card's PCIe link and a warning when one is slower"></td>
+    <td><img src=".github/screenshots/agent-deepseek.png" alt="DeepSeek opened by the launcher on the selected model"></td>
   </tr>
   <tr>
     <td><img src=".github/screenshots/library.png" alt="Library — detected artifacts, recipe pick, launch summary"></td>
@@ -51,6 +55,16 @@ b70 agent pi                 # open an agent on it: pi, omp, droid, codex or dee
 b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
+
+## What is new in 0.6.9
+
+- **A welcome on first start.** It explains where the recipes come from (the Intel Arc Pro B70 Inference Cookbook by SergiioB, linked on GitHub), the three steps to a running model, and how to request a new recipe with the issue form or add one with a pull request. The library footer keeps the link; About opens the welcome again.
+- **Multi-card recipes are checked against your cards.** A recipe that needs 2 cards says "Needs 2 GPUs" in the library and blocks launch when fewer B70 cards are usable. The GPU list offers every valid card combination on hosts with more than two cards, and the CLI accepts any card number (`--gpus 2,3`).
+- **PCIe link per card.** Each card shows the link it trained at (for example PCIe 4.0 x8, about 15.8 GB/s) and the card's own maximum. When a multi-card launch would use a narrower or uneven link, the app and the command preview say so. If the reading is wrong, set it in the Hardware dialog (click any GPU chip).
+- **Telemetry fits any number of cards.** With more than two cards the header chips shorten to card number, VRAM bar and watts; the Hardware dialog lists every card with status, VRAM, power, temperature and link.
+- **Downloads you can follow.** The model card shows percent, size done, speed averaged over 5 seconds, time left and the file in progress. Cancelling keeps the partial files, and Resume continues from them, also on a nearly full disk. When the files land, the button turns into Launch recipe.
+- **Gated models explained.** A license-gated Hugging Face model is caught before anything downloads, with a link to accept its terms and the sign-in step (`hf auth login` or `HF_TOKEN`). A token is used when present and is sent only to huggingface.co.
+- **Agents open on the selected model.** Checked for every agent: Codex starts with the session's model selected, DeepSeek's web UI has it as the default, and Pi, OMP and Droid are set to it.
 
 ## What is new in 0.6.8
 
@@ -217,9 +231,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.8-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.8-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.8-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.9-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.9-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.9-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space. Containers see only the selected card(s). Some recipe images use mutable tags.
 
@@ -229,10 +243,10 @@ The installer does not overwrite system files but does replace an existing user-
 
 - **B70:** The UI and command templates target Arc Pro B70 on Linux. Recipes are model- and engine-specific; the listed Qwen3.8-27B INT4-OV (GDN8) OpenVINO IR has a validated single-card OVMS recipe. Do not infer support for other OpenVINO exports.
 - **B50/B60/B65 and other Intel GPUs:** Not validated by this launcher. The preflight deliberately blocks real launches when it cannot identify accessible B70 render nodes; use dry-run to inspect commands. Do not infer compatibility from shared Intel branding.
-- **Card count:** Recipes with an explicit dual-B70 topology can use both identified, accessible B70 cards. Other recipes follow their own engine/device configuration; a dry run previews the exact command without launching it. More than two GPUs are unsupported.
+- **Card count:** Recipes with an explicit multi-card topology run on that many identified, accessible B70 cards; the app blocks them when fewer are usable. On hosts with more than two cards any card combination can be chosen (up to 8 cards), but only one- and two-card recipes are shipped and only two-card setups have been run. Other recipes follow their own engine/device configuration; a dry run previews the exact command without launching it.
 - **Windows:** Python source may open the UI, but GPU launch is intentionally blocked. WSL2/Docker passthrough is not validated; the Linux desktop archive/installer is not a Windows installer.
 
-`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `open_with`, `sync_clients`, `meter_clients`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, and `meter_clients` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
+`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `open_with`, `sync_clients`, `meter_clients`, `pcie_links`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, `meter_clients`, and `pcie_links` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
 
 The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). Every request needs the per-port token — `POST /api/window` mints a one-time nonce URL that swaps itself for an `HttpOnly` cookie, and same-box scripts read `token-<port>` from the state directory; POSTs additionally need the `X-Launcher-Token` header plus Host/Origin checks. The one exception is the agent gateway under `/gw/` (see `docs/api.md`): it needs no token, refuses requests from web pages (any `Origin` header), and only forwards to a running engine — the same access the engine port already gives local processes. Do not expose the port through a proxy, and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them. While an engine runs, closing the window leaves the background service up for the agents.
 

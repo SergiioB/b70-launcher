@@ -9,6 +9,7 @@ fallback; it does not identify a workload.
 """
 import glob
 import json
+import re
 import sys
 import os
 import shutil
@@ -67,6 +68,149 @@ def _docker_blockers():
     return out
 
 
+# ----------------------------------------------------------------- PCIe link
+
+# trained link speed (GT/s) -> generation, and the approximate usable
+# one-direction bandwidth per lane (GB/s) at that generation
+PCIE_GEN_BY_GT_S = ((2.5, 1), (5.0, 2), (8.0, 3), (16.0, 4), (32.0, 5), (64.0, 6))
+PCIE_GT_S_BY_GEN = {gen: gt_s for gt_s, gen in PCIE_GEN_BY_GT_S}
+PCIE_GBPS_PER_LANE = {1: 0.25, 2: 0.5, 3: 0.985, 4: 1.969, 5: 3.938, 6: 7.877}
+PCIE_WIDTHS = (1, 2, 4, 8, 16)
+PCI_ADDR = re.compile(r"^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$")
+PCI_DOMAIN_DIR = re.compile(r"^pci[0-9a-fA-F]{4}:[0-9a-fA-F]{2}$")
+
+
+def _link_gt_s(path):
+    """Trained speed from a sysfs ``*link_speed`` file ("16.0 GT/s PCIe")."""
+    try:
+        text = Path(path).read_text().strip()
+    except OSError:
+        return None
+    try:
+        gt_s = float(text.split()[0])
+    except (IndexError, ValueError):
+        return None
+    return gt_s if gt_s > 0 else None
+
+
+def _link_width(path):
+    width = _read_int(path)
+    return width if width and width > 0 else None
+
+
+def _link_gen(gt_s):
+    for speed, gen in PCIE_GEN_BY_GT_S:
+        if gt_s is not None and abs(gt_s - speed) < 0.01:
+            return gen
+    return None
+
+
+def _link_gbps(gen, width):
+    """Approximate usable one-direction bandwidth (GB/s) of a gen x width link."""
+    if gen in PCIE_GBPS_PER_LANE and width:
+        return round(PCIE_GBPS_PER_LANE[gen] * width, 1)
+    return None
+
+
+def _clean_pcie_entry(entry):
+    """``{"gen", "width"}`` for one valid override entry, else None."""
+    if not isinstance(entry, dict) or set(entry) != {"gen", "width"}:
+        return None
+    gen, width = entry["gen"], entry["width"]
+    if isinstance(gen, bool) or not isinstance(gen, int) or not 1 <= gen <= 6:
+        return None
+    if isinstance(width, bool) or not isinstance(width, int) or width not in PCIE_WIDTHS:
+        return None
+    return {"gen": gen, "width": width}
+
+
+def clean_pcie_links(value, current=None):
+    """Validate a posted ``pcie_links`` map and merge it onto ``current``.
+
+    ``{pci: {"gen": 1-6, "width": 1|2|4|8|16}}``; a null entry drops that
+    card's override, a null map clears them all. Raises ValueError (-> HTTP
+    400) on a malformed address, entry or field."""
+    merged = {}
+    if isinstance(current, dict):
+        for pci, entry in current.items():
+            clean = _clean_pcie_entry(entry)
+            if clean and isinstance(pci, str) and PCI_ADDR.match(pci):
+                merged[pci] = clean
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("PCIe link overrides must map a PCI address to gen and width.")
+    for pci, entry in value.items():
+        if not isinstance(pci, str) or not PCI_ADDR.match(pci):
+            raise ValueError(f"Not a PCI address: {pci if isinstance(pci, str) else type(pci).__name__}.")
+        if entry is None:
+            merged.pop(pci, None)
+            continue
+        clean = _clean_pcie_entry(entry)
+        if clean is None:
+            raise ValueError("Each PCIe link override needs gen 1-6 and width 1, 2, 4, 8 or 16.")
+        merged[pci] = clean
+    return merged
+
+
+def _pcie_chain(real_path):
+    """``(pci####:## anchor, [nested path, ...])`` of a resolved sysfs device path."""
+    parts = Path(real_path).parts
+    for idx, part in enumerate(parts):
+        if PCI_DOMAIN_DIR.match(part):
+            anchor = Path(*parts[:idx + 1])
+            nested, current = [], anchor
+            for part in parts[idx + 1:]:
+                current = current / part
+                nested.append(current)
+            return anchor, nested
+    return None, []
+
+
+def pcie_link(pci, sysfs_root="/sys", overrides=None):
+    """Trained PCIe link of one card, as the launcher UI reads it.
+
+    gen/width come from the ROOT PORT (the ancestor directly under
+    ``pci####:##``); max_gen/max_width are the card's own capability, read from
+    that port's child (the card's uplink, e.g. its internal switch upstream
+    port). Deeper switch links report a virtual 2.5 GT/s x1 on a B70 and are
+    ignored. A ``settings["pcie_links"]`` entry for this card wins over sysfs
+    (``source`` "user") and keeps the sysfs values in ``detected``."""
+    unknown = {"gen": None, "width": None, "gt_s": None, "max_gen": None,
+               "max_width": None, "gbps": None, "source": "unknown", "detected": None}
+    detected = None
+    if not IS_WIN and isinstance(pci, str) and PCI_ADDR.match(pci):
+        try:
+            real = (Path(sysfs_root) / "bus" / "pci" / "devices" / pci).resolve()
+        except OSError:
+            real = None
+        anchor, chain = _pcie_chain(real) if real else (None, [])
+        if anchor is not None and chain:
+            port = chain[0]                     # root port
+            uplink = chain[1] if len(chain) > 1 else port
+            gt_s = _link_gt_s(port / "current_link_speed")
+            width = _link_width(port / "current_link_width")
+            gen = _link_gen(gt_s)
+            if gen and width:
+                detected = {"gen": gen, "width": width,
+                            "max_gen": _link_gen(_link_gt_s(uplink / "max_link_speed")),
+                            "max_width": _link_width(uplink / "max_link_width")}
+    link = dict(unknown)
+    if detected:
+        link.update(gen=detected["gen"], width=detected["width"], gt_s=gt_s,
+                    max_gen=detected["max_gen"], max_width=detected["max_width"],
+                    gbps=_link_gbps(detected["gen"], detected["width"]),
+                    source="sysfs", detected=detected)
+    if overrides is None:
+        overrides = catalog.SETTINGS.get("pcie_links")
+    choice = _clean_pcie_entry(overrides.get(pci)) if isinstance(overrides, dict) else None
+    if choice:
+        link.update(gen=choice["gen"], width=choice["width"], gt_s=PCIE_GT_S_BY_GEN[choice["gen"]],
+                    gbps=_link_gbps(choice["gen"], choice["width"]), source="user",
+                    detected=detected)
+    return link
+
+
 def hardware_preflight():
     """Base preflight (cached 10 s): devices, union blockers, profile, default."""
     import stat as stat_m
@@ -122,7 +266,8 @@ def hardware_preflight():
                             "b70": b70,
                             "vram_total_mib": round(vram_total / 1048576, 1) if vram_total else None,
                             "vram_used_mib": round(vram_used / 1048576, 1) if vram_used else None,
-                            "power_cap_w": cap_w})
+                            "power_cap_w": cap_w,
+                            "pcie": pcie_link(pci)})
         except (OSError, subprocess.TimeoutExpired):
             continue
     gpu_blockers = []

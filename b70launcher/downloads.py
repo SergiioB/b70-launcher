@@ -7,13 +7,28 @@ as space-safe (a listing that fails to report sizes rejects the confirm).
 
 Recipes may declare a draft sidecar (``draft.download``) — it is fetched into
 the same models_dir in the same transfer (recipe-audit #8).
+
+Bytes already on disk (complete files of the listed size and ``.part``
+partials) are resumed, not re-fetched: the plan reports them as
+``partial_bytes`` and only ``remaining_bytes`` must fit on the destination.
+Live ``speed`` is a sliding-window wall-clock average across all files.
+
+A Hugging Face token (HF_TOKEN, HUGGING_FACE_HUB_TOKEN, $HF_HOME/token or the
+huggingface cache token file) is read, never written, and sent only to the HF
+origin — redirects to CDN / Xet hosts drop it. Gated repositories without a
+token are refused at plan time; a 401/403 mid-transfer stops at once with an
+``error_code`` (``gated`` | ``auth``) instead of retrying.
 """
 import json
+import os
 import re
 import shutil
+import stat
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
+from collections import deque
 from pathlib import Path
 
 from . import catalog, scan
@@ -49,13 +64,88 @@ HF_APPROVED_REPOS = {
     "dzannotti/Qwen3.8-Flash-Next-MTP-GGUF",
 }
 
-SPACE_HEADROOM = 1.05  # require free >= size * 1.05
+SPACE_HEADROOM = 1.05  # require free >= remaining bytes * 1.05
+SPEED_WINDOW = 5.0  # seconds of wall time the reported speed averages over
+SPEED_MIN_SPAN = 1.0  # speed stays 0 until this much wall time is sampled
+SAMPLE_EVERY = 0.1  # min seconds between recorded progress samples
+
+
+GATED_PLAN_ERROR = ("This model is gated on Hugging Face. Accept its terms at {url}, sign in with "
+                    "`hf auth login` (or set HF_TOKEN), then try again.")
+ACCESS_ERRORS = {
+    "gated": "Hugging Face refused the download: accept the model terms at {url} with the account of your token, then resume.",
+    "auth": "Hugging Face needs a sign-in for this model: run `hf auth login` (or set HF_TOKEN), then resume.",
+}
+
+
+def hf_token():
+    """The user's Hugging Face token, or None. Read-only lookup in the
+    huggingface_hub order: env HF_TOKEN, env HUGGING_FACE_HUB_TOKEN,
+    $HF_HOME/token, then ${XDG_CACHE_HOME:-~/.cache}/huggingface/token."""
+    for var in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        token = os.environ.get(var, "").strip()
+        if token:
+            return token
+    files = []
+    if os.environ.get("HF_HOME"):
+        files.append(Path(os.environ["HF_HOME"]).expanduser() / "token")
+    cache = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    files.append(Path(cache).expanduser() / "huggingface" / "token")
+    for path in files:
+        try:
+            token = path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError):
+            continue
+        if token:
+            return token
+    return None
+
+
+def _is_hf(url):
+    """True only for the Hugging Face origin itself (scheme + host + port)."""
+    got, hf = urllib.parse.urlsplit(url), urllib.parse.urlsplit(HF)
+    return (got.scheme, got.netloc.lower()) == (hf.scheme, hf.netloc.lower())
+
+
+class _HFRedirect(urllib.request.HTTPRedirectHandler):
+    """Authorization is an unredirected header, so urllib never copies it;
+    re-attach it only when the redirect stays on the HF origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        auth = req.unredirected_hdrs.get("Authorization")
+        if new is not None and auth and _is_hf(new.full_url):
+            new.add_unredirected_header("Authorization", auth)
+        return new
+
+
+_OPENER = urllib.request.build_opener(_HFRedirect)
+
+
+def _open(url, headers=None, timeout=30, token=None):
+    req = urllib.request.Request(url, headers={**UA, **(headers or {})})
+    if token and _is_hf(url):
+        req.add_unredirected_header("Authorization", f"Bearer {token}")
+    return _OPENER.open(req, timeout=timeout)
+
+
+class HFAccessError(Exception):
+    """HF refused the transfer (401/403); retrying cannot help."""
+
+    def __init__(self, kind):
+        super().__init__(kind)
+        self.kind = kind
 
 
 def _http_json(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with _open(url, token=hf_token()) as resp:
         return json.loads(resp.read(24 << 20))
+
+
+def hf_gated(repo):
+    """The repo's gating mode from the model info API: False, "auto" or "manual"."""
+    gated = _http_json(f"{HF}/api/models/{repo}").get("gated") or False
+    return gated if gated is False else str(gated)
 
 
 def hf_files(repo, revision=None):
@@ -169,8 +259,28 @@ def _space_check(needs):
 
 
 def _reject(msg):
-    return {"size_bytes": None, "dest_dir": "", "free_bytes": None,
+    return {"size_bytes": None, "partial_bytes": 0, "remaining_bytes": None,
+            "dest_dir": "", "free_bytes": None, "gated": False,
+            "hf_token": hf_token() is not None, "repo_url": "",
             "enough": False, "error": msg, "groups": []}
+
+
+def _on_disk(dest, size):
+    """Bytes of one artifact already present at `dest`: `size` for a regular
+    file of exactly that size, else the size of a regular `<dest>.part`
+    (uncapped — callers decide what an oversized partial means). An existing
+    `dest` of the wrong size and any symlink count as 0."""
+    try:
+        st = dest.lstat()
+    except OSError:
+        st = None
+    if st is not None:
+        return size if size and stat.S_ISREG(st.st_mode) and st.st_size == size else 0
+    try:
+        st = dest.with_suffix(dest.suffix + ".part").lstat()
+    except OSError:
+        return 0
+    return st.st_size if stat.S_ISREG(st.st_mode) else 0
 
 
 def plan_download(model, engine):
@@ -189,6 +299,7 @@ def plan_download(model, engine):
         return _reject("recipe has no downloadable artifact")
     out_groups = []
     total_size = 0
+    gating = {}  # repo -> gated mode; main and sidecar may share a repo
     for dl, dest_dir, label in groups:
         repo, err = resolve_repo(dl)
         if err:
@@ -209,71 +320,136 @@ def plan_download(model, engine):
         if any(s is None for s in sizes):
             return _reject("remote file sizes unknown — refusing to start without a size check")
         size = int(sum(sizes))
+        present = 0
+        for w, s in zip(wanted, sizes):
+            have = _on_disk(dest_dir / w, s)
+            present += have if have <= s else 0  # an oversized .part resumes nothing
+        if repo not in gating:
+            try:
+                gating[repo] = hf_gated(repo)
+            except Exception as e:
+                return _reject(f"could not read repository info: {e}")
         total_size += size
-        out_groups.append({"repo": repo, "dest_dir": str(dest_dir),
-                           "files": wanted, "size_bytes": size, "label": label})
-    free, error = _space_check([(g["dest_dir"], g["size_bytes"]) for g in out_groups])
-    return {"size_bytes": total_size, "dest_dir": out_groups[0]["dest_dir"],
-            "free_bytes": free, "enough": error is None, "error": error,
+        out_groups.append({"repo": repo, "dest_dir": str(dest_dir), "files": wanted,
+                           "size_bytes": size, "partial_bytes": present, "label": label,
+                           "gated": gating[repo], "repo_url": f"{HF}/{repo}"})
+    partial = sum(g["partial_bytes"] for g in out_groups)
+    free, error = _space_check([(g["dest_dir"], g["size_bytes"] - g["partial_bytes"])
+                                for g in out_groups])
+    has_token = hf_token() is not None
+    gated_group = next((g for g in out_groups if g["gated"]), None)
+    shown = gated_group or out_groups[0]
+    if gated_group and not has_token:
+        error = GATED_PLAN_ERROR.format(url=gated_group["repo_url"])
+    return {"size_bytes": total_size, "partial_bytes": partial,
+            "remaining_bytes": total_size - partial, "dest_dir": out_groups[0]["dest_dir"],
+            "free_bytes": free, "gated": shown["gated"], "hf_token": has_token,
+            "repo_url": shown["repo_url"], "enough": error is None, "error": error,
             "groups": out_groups}
 
 
+def _rate(entry, now):
+    """Bytes/s received over the last SPEED_WINDOW seconds of wall time.
+
+    `_samples` holds (monotonic_ts, bytes received this run); the oldest kept
+    sample is the last one at or before the window start, so file boundaries
+    and slow HTTP connects stay inside the average instead of resetting it."""
+    samples = entry.get("_samples")
+    if not samples:
+        return 0.0
+    while len(samples) > 1 and samples[1][0] <= now - SPEED_WINDOW:
+        samples.popleft()
+    t0, x0 = samples[0]
+    span = now - t0
+    if span < SPEED_MIN_SPAN:
+        return 0.0
+    return (entry.get("_xfer", 0) - x0) / span
+
+
+def _refresh(entry, now):
+    """Recompute speed/eta/pct from the samples. Caller holds LOCK."""
+    speed = _rate(entry, now)
+    entry["speed"] = round(speed, 1)
+    total, done = entry.get("total"), entry.get("done", 0)
+    if total:
+        entry["pct"] = round(min(100 * done / total, 100), 1)
+    entry["eta"] = round(max(total - done, 0) / speed, 1) if total and speed > 0 else None
+
+
+def _advance(entry, n):
+    """Count `n` freshly received bytes. Caller holds LOCK."""
+    entry["done"] = entry.get("done", 0) + n
+    entry["_xfer"] = entry.get("_xfer", 0) + n
+    samples = entry.setdefault("_samples", deque())
+    now = time.monotonic()
+    if not samples or now - samples[-1][0] >= SAMPLE_EVERY:
+        samples.append((now, entry["_xfer"]))
+        _refresh(entry, now)
+
+
+def _finish(entry, state, **extra):
+    """Terminal transition: stop the clock and drop the speed samples."""
+    with LOCK:
+        entry.update(state=state, finished=time.time(), speed=0, **extra)
+        entry.pop("_samples", None)
+
+
 def _download_file(url, dest, entry):
-    """Stream to dest with HTTP Range resume across network failures (HF/Xet 403s)."""
+    """Stream to dest with HTTP Range resume across network failures (HF/Xet 403s).
+
+    An existing `.part` was already counted into entry["done"] and
+    entry["resumed_bytes"] by download_worker before the transfer began.
+    A 401/403 raises HFAccessError at once (kind "gated" or "auth"); the
+    `.part` stays for a later resume."""
     tmp = dest.with_suffix(dest.suffix + ".part")
     if tmp.is_symlink():
         raise ValueError("Refusing symlinked partial download")
-    counted = 0  # bytes of THIS file already reflected in entry["done"]
+    counted = tmp.stat().st_size if tmp.exists() else 0  # this file's bytes in entry["done"]
+    resumed = counted  # of those, bytes that pre-dated this transfer
+    token = hf_token()
     last_err = None
     for attempt in range(4):
         try:
             existing = tmp.stat().st_size if tmp.exists() else 0
-            headers = dict(UA)
-            if existing:
-                headers["Range"] = f"bytes={existing}-"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            headers = {"Range": f"bytes={existing}-"} if existing else {}
+            try:
+                resp = _open(url, headers, timeout=60, token=token)
+            except urllib.error.HTTPError as e:
+                if e.code not in (401, 403):
+                    raise
+                code = e.headers.get("x-error-code", "") if e.headers else ""
+                e.close()
+                gated = code == "GatedRepo" or (e.code == 403 and token)
+                raise HFAccessError("gated" if gated else "auth") from None
+            with resp:
                 if existing and getattr(resp, "status", 200) != 206:
                     existing = 0  # server ignored Range -> restart this file
                 with LOCK:
-                    if counted > existing:
-                        entry["done"] = entry.get("done", 0) - counted
-                        counted = 0
-                    if existing and not counted:
-                        entry["done"] = entry.get("done", 0) + existing
-                        counted = existing
+                    entry["done"] = entry.get("done", 0) + existing - counted
+                    counted = existing
+                    if resumed and not existing:
+                        entry["resumed_bytes"] = entry.get("resumed_bytes", 0) - resumed
+                        resumed = 0
                     total = resp.headers.get("Content-Length")
                     if total and not entry.get("total"):
-                        entry["total"] = entry.get("done", 0) + int(total) + (
-                            existing if counted != existing else 0)
-                last = time.time()
-                speed = 0.0
+                        entry["total"] = entry["done"] + int(total)
+                read = getattr(resp, "read1", resp.read)  # return what arrived: smooth progress, prompt cancel
                 with open(tmp, "ab" if existing else "wb") as f:
                     while True:
                         if entry.get("cancel"):
                             raise InterruptedError("cancelled")
-                        chunk = resp.read(1 << 20)
+                        chunk = read(1 << 20)
                         if not chunk:
                             break
                         f.write(chunk)
-                        now = time.time()
-                        inst = len(chunk) / max(now - last, 1e-6)
-                        speed = inst if speed == 0 else 0.8 * speed + 0.2 * inst
-                        last = now
-                        with LOCK:
-                            entry["done"] = entry.get("done", 0) + len(chunk)
-                            entry["speed"] = speed
-                            total_all = entry.get("total")
-                            if total_all:
-                                left = max(total_all - entry["done"], 0)
-                                entry["eta"] = left / speed if speed > 0 else None
-                                entry["pct"] = round(100 * entry["done"] / total_all, 1)
                         counted += len(chunk)
+                        with LOCK:
+                            _advance(entry, len(chunk))
             if dest.exists():
                 raise FileExistsError(f"Refusing to overwrite existing artifact: {dest}")
             tmp.rename(dest)
             return
-        except InterruptedError:
+        except (InterruptedError, HFAccessError):
             raise
         except FileExistsError:
             raise  # not retryable — re-downloading cannot fix a full destination
@@ -285,9 +461,16 @@ def _download_file(url, dest, entry):
     raise RuntimeError(f"download failed after 4 attempts: {last_err}")
 
 
+def _checked_dest(ddir, name):
+    dest = ddir / name
+    if dest.is_symlink() or not dest.parent.resolve().is_relative_to(ddir.resolve()):
+        raise ValueError("Refusing download through symlink or outside destination")
+    return dest
+
+
 def download_worker(did, model, engine):
-    import threading
     entry = DOWNLOADS[did]
+    repo_url = None
     try:
         with LOCK:
             entry["state"] = "resolving"
@@ -307,9 +490,22 @@ def download_worker(did, model, engine):
             if dl.get("kind") == "file" and any(w not in files for w in wanted):
                 raise ValueError("Pinned repository does not contain the exact recipe filename")
             resolved.append((dl, repo, files, wanted, dest_dir, label))
-        needs = [(d, sum((f.get(w) or 0) for w in wanted if w in f))
-                 for _dl, _r, f, wanted, d, _l in resolved]
-        total_known = sum(size for _d, size in needs)
+        # bytes already on disk resume instead of re-downloading; only the
+        # remainder needs room on each destination filesystem
+        needs, present = [], 0
+        for _dl, _r, files, wanted, ddir, _l in resolved:
+            size = have = 0
+            for w in wanted:
+                expected = files.get(w)
+                on_disk = _on_disk(_checked_dest(ddir, w), expected)
+                if expected and on_disk > expected:
+                    raise ValueError(f"Partial download is larger than the remote file; move it aside manually: {ddir / w}.part")
+                size += expected or 0
+                have += on_disk
+            needs.append((ddir, max(size - have, 0)))
+            present += have
+        total_known = sum(sum((f.get(w) or 0) for w in wanted if w in f)
+                          for _dl, _r, f, wanted, _d, _l in resolved)
         # disk guard at transfer time, per destination filesystem
         if total_known:
             _free, error = _space_check(needs)
@@ -318,8 +514,11 @@ def download_worker(did, model, engine):
         dest_dir = resolved[0][4]
         dest_dir.mkdir(parents=True, exist_ok=True)
         with LOCK:
-            entry.update({"state": "downloading",
-                          "total": total_known or None, "dest": str(dest_dir)})
+            entry.update({"state": "downloading", "total": total_known or None,
+                          "dest": str(dest_dir), "done": present, "resumed_bytes": present,
+                          "files_done": 0, "files_total": sum(len(r[3]) for r in resolved),
+                          "_xfer": 0, "_samples": deque([(time.monotonic(), 0)])})
+            _refresh(entry, time.monotonic())
         for dl, repo, files, wanted, ddir, label in resolved:
             if label != "main":
                 entry_note = f"{label} sidecar: {repo}"
@@ -327,33 +526,33 @@ def download_worker(did, model, engine):
                     entry["note"] = entry_note
             ddir.mkdir(parents=True, exist_ok=True)
             for w in wanted:
-                dest = ddir / w
-                if dest.is_symlink() or not dest.parent.resolve().is_relative_to(ddir.resolve()):
-                    raise ValueError("Refusing download through symlink or outside destination")
+                repo_url = f"{HF}/{repo}"
+                dest = _checked_dest(ddir, w)
                 if dest.exists():
                     if files.get(w) and dest.stat().st_size == files[w]:
                         with LOCK:
-                            entry["done"] += files[w]
+                            entry["files_done"] += 1  # counted in done/resumed_bytes above
                         continue
                     raise FileExistsError(f"Existing artifact has unknown or mismatched size; move it aside manually: {dest}")
+                with LOCK:
+                    entry["file"] = w
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 url = f"{HF}/{repo}/resolve/{urllib.parse.quote(dl.get('revision') or 'main', safe='')}/{urllib.parse.quote(w)}"
                 _download_file(url, dest, entry)
                 if files.get(w) and dest.stat().st_size != files[w]:
                     raise ValueError(f"size mismatch after download ({w}): got "
                                      f"{dest.stat().st_size}, expected {files[w]}")
-        with LOCK:
-            entry["state"] = "done"
-            entry["pct"] = 100
-            entry["eta"] = 0
+                with LOCK:
+                    entry["files_done"] += 1
+        _finish(entry, "done", pct=100, eta=0, file=None)
         scan.start_scan_async(force=True)
     except InterruptedError:
-        with LOCK:
-            entry["state"] = "cancelled"
+        _finish(entry, "cancelled", eta=None)
+    except HFAccessError as e:
+        _finish(entry, "error", eta=None, error_code=e.kind, repo_url=repo_url,
+                error=ACCESS_ERRORS[e.kind].format(url=repo_url))
     except Exception as e:
-        with LOCK:
-            entry["state"] = "error"
-            entry["error"] = str(e)
+        _finish(entry, "error", eta=None, error=str(e))
 
 
 def start_download(model, engine, plan=None):
@@ -367,10 +566,13 @@ def start_download(model, engine, plan=None):
     with LOCK:
         if did in DOWNLOADS and DOWNLOADS[did].get("state") in ("queued", "resolving", "downloading"):
             return did, None
-        DOWNLOADS[did] = {"id": did, "model": model["name"], "engine": engine,
+        DOWNLOADS[did] = {"id": did, "model": model["name"], "model_id": model["id"], "engine": engine,
                           "state": "queued", "done": 0, "total": plan.get("size_bytes"),
                           "pct": 0, "speed": 0, "eta": None, "dest": plan.get("dest_dir"),
-                          "quant": model["recipes"][engine].get("download", {}).get("quant", "")}
+                          "quant": model["recipes"][engine].get("download", {}).get("quant", ""),
+                          "started": time.time(), "finished": None, "file": None,
+                          "files_done": 0, "files_total": sum(len(g["files"]) for g in plan.get("groups", [])),
+                          "resumed_bytes": 0}
     threading.Thread(target=download_worker, args=(did, model, engine), daemon=True).start()
     return did, None
 
@@ -388,9 +590,16 @@ def cancel_download(did):
 
 
 def snapshot():
+    """Public view of every download; live transfers get speed/eta recomputed
+    against the current time so a stalled connection decays toward 0."""
+    now = time.monotonic()
     with LOCK:
-        return {did: {k: v for k, v in e.items() if k != "cancel"}
-                for did, e in DOWNLOADS.items()}
+        out = {}
+        for did, e in DOWNLOADS.items():
+            if e.get("state") == "downloading" and e.get("_samples"):
+                _refresh(e, now)
+            out[did] = {k: v for k, v in e.items() if k != "cancel" and not k.startswith("_")}
+        return out
 
 
 def cancel_all():

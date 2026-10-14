@@ -39,9 +39,10 @@ class TestGpus(unittest.TestCase):
         self.assertEqual(cli.parse_gpus("0,1"), [0, 1])
         self.assertEqual(cli.parse_gpus("both"), [0, 1])
         self.assertEqual(cli.parse_gpus("dual"), [0, 1])
+        self.assertEqual(cli.parse_gpus("2,3"), [2, 3])  # four-card hosts
 
     def test_parse_rejects(self):
-        for bad in ("2", "0,2", "0,0", "", "x", "0,1,2"):
+        for bad in ("8", "0,0", "", "x", "-1", "1,1,2"):
             with self.assertRaises(SystemExit):
                 cli.parse_gpus(bad)
 

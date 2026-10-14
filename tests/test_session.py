@@ -30,7 +30,7 @@ try:
 except ImportError:
     from tests import support_env
 
-from b70launcher import builders, catalog, http_api, runtime, scan
+from b70launcher import builders, catalog, harness, http_api, paths, runtime, scan
 
 TMP = support_env.TMPROOT
 LauncherStateCase = support_env.LauncherStateCase
@@ -267,6 +267,68 @@ class TestRecipeFileMismatch(LauncherStateCase):
         det, reason = scan.detect_status(catalog.find_model("ornith-35b-gguf"), "llamacpp")
         self.assertIsNone(det)
         self.assertIn("not downloaded", reason)
+
+
+class TestAgentOpenModel(LauncherStateCase):
+    """Opening an agent for a ready session starts it on the engine-served
+    name — what /v1/models reported at ready time — with nothing to pick:
+
+    - pi/omp take `--model b70/<served_name>` and the synced provider file
+      lists exactly that id;
+    - droid selects its stable custom id whose synced entry carries the
+      served name;
+    - codex gets `-m <served_name>` plus the provider overrides;
+    - deepseek's --patch overlay pins the served model as the web default.
+
+    A served_name that drifted from the launch-time model_name must win."""
+
+    def _open_line(self, client, entry):
+        """The exact line /api/harness would hand to a terminal, without a
+        display or binary check — HeadlessError carries it."""
+        with mock.patch.object(harness, "_installed", return_value=True), \
+                mock.patch.object(harness, "_display_ok", return_value=False):
+            try:
+                return harness.open_harness({"id": entry["id"], "harness": client},
+                                            dict(entry))["line"]
+            except harness.HeadlessError as exc:
+                return exc.line
+
+    def test_every_agent_opens_on_the_served_name(self):
+        catalog.SETTINGS["sync_clients"] = True
+        for folder in (".pi/agent", ".omp/agent", ".factory"):
+            (support_env.FAKE_HOME / folder).mkdir(parents=True, exist_ok=True)
+        entry = _entry("agent-open", "running", support_env.free_port(),
+                       pid=os.getpid(), served_name="served-Qwen38",
+                       model_name="launch-name", model="launch-name", ctx=8192)
+        runtime.RUNNING[entry["id"]] = entry
+
+        for client in ("pi", "omp"):
+            line = self._open_line(client, entry)
+            self.assertIn("--model b70/served-Qwen38", line, client)
+            self.assertNotIn("launch-name", line, client)
+        pi_models = json.loads(
+            (support_env.FAKE_HOME / ".pi/agent/models.json").read_text())
+        self.assertEqual(pi_models["providers"]["b70"]["models"][0]["id"],
+                         "served-Qwen38")
+
+        line = self._open_line("droid", entry)
+        self.assertIn("--model custom:Desktop-B70-Loaded-Model-0", line)
+        droid = json.loads(
+            (support_env.FAKE_HOME / ".factory/settings.json").read_text())
+        self.assertEqual(droid["customModels"][0]["model"], "served-Qwen38")
+
+        line = self._open_line("codex", entry)
+        self.assertIn("-m served-Qwen38", line)
+        self.assertIn('model_provider="b70"', line)
+        self.assertNotIn("launch-name", line)
+
+        self._open_line("deepseek", entry)
+        overlay = (paths.DATA / "dsh" / "gateway.yml").read_text()
+        self.assertIn('id: "served-Qwen38"', overlay)
+        self.assertIn("- id: agent-default-model", overlay)
+        self.assertIn('model: "served-Qwen38"', overlay)
+        self.assertIn("provider: b70-gateway", overlay)
+        self.assertNotIn("launch-name", overlay)
 
 
 if __name__ == "__main__":

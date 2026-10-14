@@ -234,12 +234,12 @@ class Bld:
         if gpus is None:
             gpus = default_gpus(recipe)
         if not isinstance(gpus, list) or not gpus or len(gpus) != len(set(map(str, gpus))) \
-                or any(type(g) is not int or g not in (0, 1) for g in gpus):
-            raise BuildError("Select one or two distinct GPU indices (0 or 1).")
+                or any(type(g) is not int or not 0 <= g < 8 for g in gpus):
+            raise BuildError("Select one or more distinct GPU indices (0-7).")
         needed = recipe.get("gpus") or []
         if len(needed) > 1 and len(gpus) < len(needed):
-            raise BuildError(f"This recipe needs {len(needed)} GPUs (it is sized for both cards). "
-                             "Select GPUs 0 and 1, or choose a single-card recipe.")
+            raise BuildError(f"This recipe needs {len(needed)} GPUs. "
+                             f"Select {len(needed)} cards, or choose a single-card recipe.")
         self.gpus = gpus
         self.kind = recipe.get("kind", "")
         self.max_gpus = MAX_GPUS.get(self.kind, 1)
@@ -257,7 +257,15 @@ class Bld:
         preflight = hardware.hardware_preflight() if not IS_WIN else {"devices": []}
         self.preflight = preflight
         devices = preflight["devices"]
+        if devices and any(g >= len(devices) for g in self.gpus):
+            raise BuildError(f"GPU {max(self.gpus)} is not present; this computer has {len(devices)} GPU(s).")
         selected = [devices[g] for g in self.gpus if g < len(devices)]
+        links = [d.get("pcie") or {} for d in selected]
+        if len(selected) > 1 and all(p.get("gen") for p in links):
+            names = [f"GPU {g}: PCIe {p['gen']}.0 x{p['width']}" for g, p in zip(self.gpus, links)]
+            if len({(p["gen"], p["width"]) for p in links}) > 1 or any(p["gen"] < 4 or p["width"] < 8 for p in links):
+                warns.append("Cards on different or narrow PCIe links (" + ", ".join(names)
+                             + "): multi-card traffic runs at the slowest link.")
         self.render_nodes = [d["render"] for d in selected]
         self.card_nodes = [f"/dev/dri/{d['card']}" for d in selected
                            if re.fullmatch(r"card\d+", str(d.get("card") or ""))]

@@ -266,12 +266,38 @@ class TestBuildValidation(LauncherStateCase):
         self.assertIn("error", builders.build(cfg(model_id="qwen36-35b",
                         engine="llamacpp", port="xyz")))
 
+    @staticmethod
+    def _cards(*links):
+        """Fake preflight with one B70 per (gen, width) link."""
+        devs = [{"render": f"/dev/dri/renderD{128 + i}", "card": f"card{i}", "pci": f"0000:{11 + 4 * i:02x}:00.0",
+                 "b70": True, "accessible": True, "label": "Arc Pro B70",
+                 "pcie": {"gen": g, "width": w, "source": "sysfs"}} for i, (g, w) in enumerate(links)]
+        pre = {"devices": devs, "blockers": [], "notes": [], "profile": {"b70_count": len(devs), "cards": []},
+               "blockers_by_kind": {"native": [], "docker": [], "exl3": []}, "default": {"gpus": [0]}}
+        from unittest import mock
+        return mock.patch.object(hardware, "hardware_preflight", return_value=pre)
+
     def test_gpu_selection_rules(self):
         base = dict(model_id="qwen36-35b", engine="llamacpp")
-        for bad in ([0, 0], [2], [], "0", [0, 1, 1], [-1]):
-            self.assertIn("error", builders.build(cfg(gpus=bad, **base)), bad)
-        ok = builders.build(cfg(gpus=[0], **base))
-        self.assertNotIn("error", ok)
+        with self._cards((4, 8), (4, 8)):
+            for bad in ([0, 0], [2], [], "0", [0, 1, 1], [-1], [8]):
+                self.assertIn("error", builders.build(cfg(gpus=bad, **base)), bad)
+            self.assertNotIn("error", builders.build(cfg(gpus=[0], **base)))
+
+    def test_any_present_card_pair_and_link_warning(self):
+        """A four-card host can split across cards 2 and 3; a narrow or uneven
+        PCIe link pair is named in the warnings, a matched x8 pair is not."""
+        base = dict(model_id="qwen36-35b", engine="llamacpp")
+        with self._cards((4, 8), (4, 8), (4, 4), (3, 16)):
+            b = builders.build(cfg(gpus=[2, 3], **base))
+            self.assertNotIn("error", b)
+            links = lambda build: [w for w in build["warnings"] if "PCIe links (" in w]
+            warn = links(b)
+            self.assertEqual(len(warn), 1, b["warnings"])
+            self.assertIn("GPU 2: PCIe 4.0 x4", warn[0])
+            self.assertIn("GPU 3: PCIe 3.0 x16", warn[0])
+            self.assertFalse(links(builders.build(cfg(gpus=[0, 1], **base))))
+            self.assertIn("error", builders.build(cfg(gpus=[4], **base)))
 
     def test_bad_extra_env_name(self):
         b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",

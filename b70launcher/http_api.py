@@ -62,9 +62,9 @@ def state_response():
 
 
 def _settings(cfg):
-    allowed = {'scan_dirs', 'models_dir', 'open_with', 'sync_clients', 'meter_clients'}
+    allowed = {'scan_dirs', 'models_dir', 'open_with', 'sync_clients', 'meter_clients', 'pcie_links'}
     if not cfg or set(cfg) - allowed:
-        raise ValueError('Only model folders, download folder, default client, client sync and agent metering may be changed here.')
+        raise ValueError('Only model folders, download folder, default client, client sync, agent metering and PCIe link overrides may be changed here.')
     values = {}
     if 'scan_dirs' in cfg:
         roots = cfg['scan_dirs']
@@ -97,10 +97,17 @@ def _settings(cfg):
             if not isinstance(cfg[key], bool):
                 raise ValueError(f'{key} must be true or false.')
             values[key] = cfg[key]
+    if 'pcie_links' in cfg:
+        # merged onto the stored map so a UI can post one card at a time
+        values['pcie_links'] = hardware.clean_pcie_links(cfg['pcie_links'],
+                                                         catalog.SETTINGS.get('pcie_links'))
     with LOCK:
         catalog.SETTINGS.update(values)
         catalog.save_override(tuple(values))
-    scan.start_scan_async(force=True)
+    if set(values) - {'pcie_links'}:
+        scan.start_scan_async(force=True)
+    if 'pcie_links' in values:
+        hardware.PREFLIGHT_CACHE["ts"] = 0   # next /api/state recomputes the link
     return dict(values, ok=True)
 
 

@@ -5,6 +5,18 @@ listed here is observed in the shipped catalog or read by the `b70launcher/`
 package — unknown keys are ignored by the backend (the UI may still read some;
 see "Inert fields" below).
 
+## Add a recipe
+
+1. **Copy an existing entry** in `recipes.json` matching the target model architecture and engine (`vllm`, `llamacpp`, `openvino`, or `exl3`).
+2. **Fill fields** according to the schema below (weights, prompt template, context window, arguments, and recommended hardware).
+3. **Run recipe tests** to verify catalog integrity:
+   ```bash
+   python3 -m unittest tests.test_recipes
+   ```
+4. **Open a PR** with your changes to `recipes.json`.
+
+Alternatively, request a new recipe via the [Recipe Request issue form](https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook/issues/new?template=recipe-request.yml).
+
 ## Top level
 
 ```json

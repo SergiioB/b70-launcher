@@ -84,7 +84,7 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0}
 
 /* ---- library ---- */
-.library{position:sticky;top:12px;display:flex;flex-direction:column;max-height:calc(100vh - 24px)}
+.library{position:sticky;top:12px;display:flex;flex-direction:column;max-height:calc(100vh - 96px)}
 .library h2{margin-block-end:8px}
 .search{width:100%}
 .library-tools{display:flex;align-items:center;gap:10px;margin-block:10px;flex-wrap:wrap}
@@ -118,7 +118,9 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .state .dot{width:7px;height:7px;border-radius:50%;flex:none;border:1px solid var(--subtle);background:transparent}
 .st-ok .dot,.st-run .dot{border-color:var(--ok);background:var(--ok)}
 .st-run{color:var(--ok)}
-.st-hold .dot{border-color:var(--warn)}
+.st-hold .dot,.st-need .dot{border-color:var(--warn)}
+.st-need{color:var(--warn)}
+.st-dlg{color:var(--link)}.st-dlg .dot{border-color:var(--link);background:var(--link)}
 .head-logo{width:26px;height:26px;flex:none;border-radius:4px;object-fit:contain}
 .vbar{display:inline-block;width:38px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;flex:none;margin-inline:6px 4px}
 .vbar i{display:block;height:100%;background:var(--ok)}
@@ -130,6 +132,13 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .download-row{padding:8px 0;border-block-start:1px solid var(--border);font-size:var(--small)}
 .download-row:first-child{border-block-start:0}
 progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-block:6px}
+.download-row .loadbar{display:block;margin-block:6px}
+.download-row .loadbar i,.avail.dlg .loadbar i{background:var(--link)}
+.download-row .actions button{min-height:28px;padding:2px 10px;font-size:var(--caption)}
+.credit{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--caption);color:var(--subtle);margin:6px 0 0}
+.credit img{flex:none;opacity:.8}
+.linkish{border:0;background:none;min-height:24px;padding:0 4px;color:var(--link);text-decoration:underline;font-size:inherit;font-weight:400}
+.linkish:hover{background:none;color:var(--text)}
 /* ---- workspace ---- */
 #run{padding:20px 24px}
 .kicker{display:flex;align-items:center;gap:8px;font-size:var(--caption);letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);font-weight:600;margin-block-end:4px}
@@ -153,8 +162,10 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
   padding:10px 12px;margin-block:14px 0;background:var(--bg);flex-wrap:wrap}
 .avail .lead{display:inline-flex;align-items:center;gap:7px;font-weight:600;white-space:nowrap}
 .avail .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.avail.ok{border-color:var(--ok)}.avail.dl,.avail.hold{border-color:var(--warn)}.avail.bad{border-color:var(--err)}
-.avail.ok .dot{background:var(--ok)}.avail.dl .dot,.avail.hold .dot{background:var(--warn)}.avail.bad .dot{background:var(--err)}
+.avail.ok{border-color:var(--ok)}.avail.dl,.avail.hold{border-color:var(--warn)}.avail.bad{border-color:var(--err)}.avail.dlg{border-color:var(--link)}
+.avail.ok .dot{background:var(--ok)}.avail.dl .dot,.avail.hold .dot{background:var(--warn)}.avail.bad .dot{background:var(--err)}.avail.dlg .dot{background:var(--link)}
+.avail.dlg .loadbar{display:block;margin-block:8px 6px;height:6px}
+.avail.dlg .loadbar i{height:100%}
 @supports(color:color-mix(in oklab,red,blue)){
   .avail.ok{border-color:color-mix(in oklab,var(--ok) 45%,var(--border))}
   .avail.dl,.avail.hold{border-color:color-mix(in oklab,var(--warn) 45%,var(--border))}
@@ -254,7 +265,7 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 .primary-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .primary{background:var(--accent);border-color:var(--accent);color:#fff;min-width:200px;font-size:var(--title)}
 .primary:hover{background:var(--accent);filter:brightness(1.12)}
-.primary:disabled{filter:none}
+.primary:disabled{filter:none;background:var(--raised);border-color:var(--input-border);color:var(--muted);opacity:1}
 #launch-status{margin-block-start:6px}
 
 /* toast + dialog */
@@ -264,10 +275,25 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
   padding:22px;width:min(760px,calc(100vw - 32px));max-height:85vh;overflow:auto;overscroll-behavior:contain}
 .dialog::backdrop{background:rgb(0 0 0/.6)}
 .dialog.narrow{width:min(600px,calc(100vw - 32px))}
+.dialog.wide{width:min(980px,calc(100vw - 32px))}
 .dialog-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-block-end:14px}
 .dialog-head h2{margin:0}
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .divider{margin-block:14px;border-block-start:1px solid var(--border);padding-block-start:14px}
+.cookbook-banner{display:flex;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg);color:var(--text);text-decoration:none;margin-block-end:14px}
+.cookbook-banner:hover{border-color:var(--accent)}
+.cookbook-banner img{flex:none}
+.steps{margin:12px 0;padding-inline-start:22px;display:flex;flex-direction:column;gap:8px}
+.button-link{display:inline-flex;align-items:center;min-height:40px;padding:8px 12px;border:1px solid var(--input-border);border-radius:6px;color:var(--text);text-decoration:none}
+.button-link:hover{background:var(--border)}
+table.hw th[scope=row]{font-weight:600;white-space:nowrap}
+table.hw td,table.hw th{vertical-align:top}
+table.hw select{min-height:32px;padding:3px 30px 3px 8px;font-size:var(--small)}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--subtle);margin-inline-end:6px}
+.status-dot.ok{background:var(--ok)}.status-dot.busy{background:var(--warn)}.status-dot.bad{background:var(--err)}
+button.chip{min-height:0;font-weight:400;cursor:pointer}
+button.chip:hover{border-color:var(--input-border);color:var(--text);background:var(--bg)}
 .wrap{overflow-wrap:anywhere}
 .lines{white-space:pre-line}
 .warn-list{margin:0;padding-inline-start:18px;font-size:var(--small);color:var(--muted);display:flex;flex-direction:column;gap:6px;max-width:80ch}
@@ -343,6 +369,9 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
       <div id="download-rows"></div>
     </div>
     <p class="meta" id="scan-status" role="status"></p>
+    <p class="credit"><img src="/assets/github.svg" alt="" width="14" height="14">
+      <span>Recipes from the <a href="https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook" target="_blank" rel="noopener">B70 Inference Cookbook</a> by SergiioB</span>
+      <button type="button" class="linkish" data-welcome>About</button></p>
   </aside>
 
   <section class="panel" id="run" tabindex="-1" aria-labelledby="recipe-name">
@@ -419,6 +448,7 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
         <button id="confirm-download" type="button">Download files</button>
         <button id="cancel-confirm" type="button">Cancel</button>
         <button id="change-folder" type="button">Change folder</button>
+        <a id="download-terms" class="button-link" href="#" target="_blank" rel="noopener" hidden>Open the model page on Hugging Face</a>
       </div>
     </div>
 
@@ -505,9 +535,28 @@ const engIcon=id=>ENG_ICON[id]||'eng-generic.svg';
 const CLIENTS=[['pi','Pi'],['omp','OMP'],['droid','Droid'],['codex','Codex'],['deepseek','DeepSeek'],['webui','Web UI'],['none','No app (endpoint only)']];
 const clientLabel=id=>CLIENTS.find(c=>c[0]===id)?.[1]||id;
 const shortQuant=q=>String(q||'').split(' (')[0].split(' — ')[0].trim();
-const gpuCount=r=>(r.gpus?.length||r.tp===2)?(r.gpus?.length||2):1;
+const gpuCount=r=>r.gpus?.length||(r.tp>1?r.tp:1);
 const validatedCtx=r=>r.ctx_safe||null;
-const defaultGpus=r=>{if(r.gpus?.length)return r.gpus;if(r.tp===2)return[0,1];return S.state?.preflight.default.gpus||[0];};
+const defaultGpus=r=>{if(r.gpus?.length)return r.gpus;if(r.tp>1)return[...Array(r.tp).keys()];return S.state?.preflight.default.gpus||[0];};
+
+/* ---------- cards and PCIe links ---------- */
+const devAt=i=>{const d=deviceList()[i];return d?{...d,index:i}:null;};
+const linkText=p=>p&&p.gen&&p.width?`PCIe ${p.gen}.0 x${p.width}`:'PCIe link unknown';
+const linkSlow=p=>Boolean(p&&p.gen&&p.width&&(p.width<8||p.gen<4));
+function cardsCheck(r){const need=gpuCount(r);const cards=deviceList().map((d,i)=>({...d,index:i})).filter(d=>d.b70);
+  const usable=cards.filter(d=>d.accessible);
+  return{need,cards,usable,free:usable.filter(d=>!d.busy),enough:!S.state||usable.length>=need};}
+const selectedGpus=()=>$('gpu').value?$('gpu').value.split(',').map(Number):[];
+
+/* ---------- downloads ---------- */
+const ACTIVE_DL=['queued','resolving','downloading'];
+const dlFor=(modelId,engine)=>S.downloads[`${modelId}-${engine}`]||null;
+function dlLine(dl){if(dl.state!=='downloading')return dl.state==='queued'?'Waiting to start':'Checking the files on Hugging Face';
+  const parts=[`${Math.round(dl.pct||0)}%`,dl.total?`${bytes(dl.done)} of ${bytes(dl.total)}`:bytes(dl.done)];
+  if(dl.speed)parts.push(`${bytes(dl.speed)}/s`);
+  if(dl.eta!=null&&dl.speed)parts.push(`about ${elapsed(dl.eta)} left`);
+  return parts.join(' · ');}
+const dlFile=dl=>dl.file?`File ${(dl.files_done||0)+1} of ${dl.files_total||1}: ${dl.file}`:'';
 const recipeKey=()=>`${S.model}:${S.engine}`;
 function cfg(){const g=$('gpu').value;return{model_id:S.model,engine:S.engine,port:Number($('port').value),
   ctx:Number($('context').value),kv:$('kv').value,gpus:g?g.split(',').map(Number):[],
@@ -536,16 +585,21 @@ function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
 }
 
 /* ---------- library ---------- */
-function availability(mt,r){mt=mt||{};if(mt.detected)return['ok','On disk'];
-  if(r.operator_hold)return['hold','Held'];
+function diskState(mt,r){mt=mt||{};if(mt.detected)return['ok','On disk'];
   if(r.download?.repo)return['dl','Download'];
   if(String(mt.reason||'').startsWith('incompatible'))return['bad','Incompatible'];
   return['none','Not on disk'];}
-const engineState=(m,eng)=>availability(S.scan?.matches[m.id]?.[eng],m.recipes[eng]);
+/* What a library row or engine button says: held and missing cards win over disk state. */
+function availability(mt,r){if(r.operator_hold)return['hold','Held'];
+  const cc=cardsCheck(r);if(!cc.enough)return['need',`Needs ${cc.need} GPUs`];
+  return diskState(mt,r);}
+const engineState=(m,eng)=>{const dl=dlFor(m.id,eng);
+  if(dl&&ACTIVE_DL.includes(dl.state))return['dlg',dl.state==='downloading'?`${Math.round(dl.pct||0)}%`:'Starting'];
+  return availability(S.scan?.matches[m.id]?.[eng],m.recipes[eng]);};
 function modelState(m){if(liveEngine(m))return['run','Running'];
-  const st=Object.keys(m.recipes).map(e=>engineState(m,e)[0]);
-  if(st.includes('ok'))return['ok','On disk'];if(st.includes('dl'))return['dl','Download'];
-  if(st.includes('hold'))return['hold','Held'];return['none','Not on disk'];}
+  const st=Object.keys(m.recipes).map(e=>engineState(m,e));
+  for(const k of['dlg','ok','dl','need','hold']){const x=st.find(s=>s[0]===k);if(x)return x;}
+  return['none','Not on disk'];}
 function libraryModels(){const words=$('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const onDisk=$('on-disk').checked;const out=[];
   for(const m of S.state?.recipes.models||[]){const prov=getProvider(m);const fam=familyOf(m);
@@ -564,8 +618,8 @@ function toggleCompany(id){S.collapsed.has(id)?S.collapsed.delete(id):S.collapse
 const CHEVRON='<svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5"/></svg>';
 function modelRow(x,focusable){const m=x.m;const[cls,label]=modelState(m);
   const engs=Object.keys(m.recipes).sort((a,b)=>(b===m.recommended_engine)-(a===m.recommended_engine));
-  const twoCards=Object.values(m.recipes).some(r=>gpuCount(r)>1);
-  const sub=[engs.map(engineShort).join(' · '),twoCards?'2 GPUs':''].filter(Boolean).join(' · ');
+  const cards=Math.max(...Object.values(m.recipes).map(gpuCount));
+  const sub=[engs.map(engineShort).join(' · '),cards>1?`${cards} GPUs`:''].filter(Boolean).join(' · ');
   const update=engs.some(e=>S.state?.recipe_notices?.[`${m.id}:${e}`]);
   const selected=m.id===S.model;
   return`<button class="model" type="button" role="radio" aria-checked="${selected}" tabindex="${focusable?0:-1}"
@@ -602,6 +656,18 @@ function renderLibrary(){const rows=libraryModels();const searching=Boolean($('s
     :`${rows.length} model${rows.length===1?'':'s'} · ${onDisk} on disk · ${(S.scan?.roots||[]).length} folders`;}
 
 /* ---------- workspace ---------- */
+/* Engine buttons for the selected model; rebuilt only when a state changes so keyboard focus survives polling. */
+function renderEngineSwitch(){const m=model();if(!m)return;
+  const engs=Object.keys(m.recipes).sort((a,b)=>(b===m.recommended_engine)-(a===m.recommended_engine));
+  const states=engs.map(e=>engineState(m,e));
+  const sig=JSON.stringify([m.id,S.engine,states]);if(sig===S.sig.engines)return;S.sig.engines=sig;
+  const hadFocus=$('engine-switch').contains(document.activeElement);
+  $('engine-switch').innerHTML=engs.map((e,i)=>{const rr=m.recipes[e];const[cls,label]=states[i];const on=e===S.engine;
+    return`<button type="button" role="radio" aria-checked="${on}" tabindex="${on?0:-1}" data-switch-engine="${esc(e)}"
+      title="${esc(`${engineLabel(e)} · ${rr.download?.quant||rr.kind} · ${label}`)}">
+      <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
+      <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
+  if(hadFocus)$('engine-switch').querySelector('[aria-checked="true"]')?.focus();}
 function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
   const prov=getProvider(m);
   $('recipe-kicker').innerHTML=`<span>${esc(prov.label)}</span><span aria-hidden="true">·</span><span>${esc(familyOf(m))}</span>`;
@@ -610,19 +676,14 @@ function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)
   img.src=`/assets/${prov.logo}`;img.alt='';img.className='head-logo';
   h1.append(img,document.createTextNode(m.name));
   $('recipe-purpose').textContent=m.arch||m.subtitle||'';
-  const engs=Object.keys(m.recipes).sort((a,b)=>(b===m.recommended_engine)-(a===m.recommended_engine));
-  $('engine-switch').innerHTML=engs.map(e=>{const rr=m.recipes[e];const[cls,label]=engineState(m,e);const on=e===S.engine;
-    return`<button type="button" role="radio" aria-checked="${on}" tabindex="${on?0:-1}" data-switch-engine="${esc(e)}"
-      title="${esc(`${engineLabel(e)} · ${rr.download?.quant||rr.kind} · ${label}`)}">
-      <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
-      <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
+  renderEngineSwitch();
   const notice=S.state?.recipe_notices?.[`${S.model}:${S.engine}`];
   $('recipe-notice').hidden=!notice;
   $('recipe-notice').innerHTML=notice?`<span class="tag upd">Recipe update ${esc(notice.remote_ver)}</span>`+
     (notice.can_apply?'<button id="recipe-update" type="button">Apply update</button>':''):'';
   $('recipe-meta').innerHTML=[
     validatedCtx(r)?`<span class="fact"><b>Validated ctx</b> ${fmt(validatedCtx(r))}</span>`:'',
-    `<span class="fact"><b>GPUs</b> ${gpuCount(r)}</span>`,
+    `<span class="fact"><b>GPUs</b> ${gpuCount(r)}${r.tp>1?' · tensor parallel':gpuCount(r)>1?' · split by layer':''}</span>`,
     r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:''
   ].filter(Boolean).join('');
   renderContext();renderKv();renderGpus();renderClients();renderAvailability();renderCookbook();}
@@ -644,21 +705,37 @@ function renderKv(){const r=recipe();
   const preferred=r.kv&&options.includes(r.kv)?r.kv:options[0];
   $('kv').innerHTML=options.map(k=>`<option value="${esc(k)}"${k===preferred?' selected':''}>${esc(k)}</option>`).join('');}
 
-function renderGpus(){const r=recipe();if(!r)return;const devices=deviceList();
-  const sig=JSON.stringify([devices.map(d=>[d.label,d.busy,d.busy_by,d.accessible,d.b70]),recipeKey()]);
-  const values=devices.map((d,i)=>({value:String(i),label:`GPU ${i}${d.label?' · '+d.label.replace(' · ',' '):''}${d.busy?` — in use (${d.busy_by||'unknown'})`:!d.accessible?' — check access':''}`,
-    disabled:!d.b70||!d.accessible||Boolean(d.busy)}));
-  if(devices.length>=2)values.push({value:'0,1',label:'GPUs 0 and 1 (tensor split)',disabled:values.slice(0,2).some(v=>v.disabled)});
-  const none=values.every(v=>v.disabled);
-  if(none){$('gpu').innerHTML='<option value="" selected>No free GPU</option>';$('gpu-hint').textContent='Every card is in use or inaccessible. Stop a session or check GPU access.';return;}
+/* Card choices: single cards, plus every combination of the size a multi-card recipe needs (or pairs for
+   single-card recipes, which can split a model across two cards). Labels carry each card's PCIe link. */
+function gpuChoices(r){const devices=deviceList();const need=gpuCount(r);
+  const why=d=>!d.b70?'not a B70':!d.accessible?'check access':d.busy?`in use (${d.busy_by||'unknown'})`:'';
+  const combos=k=>{const out=[];const walk=(start,acc)=>{if(acc.length===k){out.push(acc.slice());return;}
+    for(let i=start;i<devices.length&&out.length<64;i++){acc.push(i);walk(i+1,acc);acc.pop();}};walk(0,[]);return out;};
+  const sizes=need>1?[need]:devices.length>=2?[1,2]:[1];
+  return sizes.flatMap(k=>combos(k)).map(ix=>{const ds=ix.map(devAt);const reasons=ds.map(why).filter(Boolean);
+    const links=ds.map(d=>d.pcie?.gen?`${d.pcie.gen}.0 x${d.pcie.width}`:'?');
+    const label=ix.length===1
+      ?`GPU ${ix[0]}${ds[0].label?' · '+ds[0].label.replace(' · ',' '):''}${ds[0].pcie?.gen?' · '+linkText(ds[0].pcie):''}`
+      :`GPUs ${ix.join(' + ')} · PCIe ${links.join(' + ')}${need===1?' · split across cards':''}`;
+    return{value:ix.join(','),label:reasons.length?`${label} — ${reasons.join(', ')}`:label,disabled:reasons.length>0};});}
+function renderGpus(){const r=recipe();if(!r)return;const devices=deviceList();const need=gpuCount(r);
+  const sig=JSON.stringify([devices.map(d=>[d.label,d.busy,d.busy_by,d.accessible,d.b70,d.pcie]),recipeKey()]);
+  const values=gpuChoices(r);const cc=cardsCheck(r);
+  if(!values.length||values.every(v=>v.disabled)){S.sig.gpus='';
+    $('gpu').innerHTML=`<option value="" selected>${cc.enough?'No free GPU':`Needs ${need} GPUs`}</option>`;
+    $('gpu-hint').textContent=!cc.enough?`This recipe runs on ${need} Arc Pro B70 cards; this computer has ${cc.usable.length} you can use.`
+      :'Every card is in use or inaccessible. Stop a session or check GPU access.';return;}
   const draft=S.gpuDraft[recipeKey()];
   const wanted=draft&&values.some(v=>v.value===draft&&!v.disabled)?draft:defaultGpus(r).join(',');
   if(sig!==S.sig.gpus){S.sig.gpus=sig;
     $('gpu').innerHTML=values.map(v=>`<option value="${v.value}"${v.disabled?' disabled':''}>${esc(v.label)}</option>`).join('');}
   $('gpu').value=wanted;
-  if(!$('gpu').value)$('gpu').value=values.find(v=>!v.disabled)?.value||'';
-  $('gpu-hint').textContent=gpuCount(r)>1&&$('gpu').value!=='0,1'
-    ?'This recipe is sized for both cards; a single card may not fit.':'Only free, accessible cards can launch.';}
+  if(!$('gpu').value||$('gpu').selectedOptions[0]?.disabled)$('gpu').value=values.find(v=>!v.disabled)?.value||'';
+  const sel=selectedGpus().map(devAt).filter(Boolean);
+  const slow=sel.length>1&&(sel.some(d=>linkSlow(d.pcie))||new Set(sel.map(d=>linkText(d.pcie))).size>1);
+  $('gpu-hint').textContent=need>1?(slow?'The cards trade data on every token, so the slowest PCIe link sets the speed.'
+    :`Uses ${need} cards. Each one's PCIe link is shown; set it under Hardware if it is wrong.`)
+    :sel.length>1?'Splits the model across both cards. One card is enough for this recipe.':'Only free, accessible cards can launch.';}
 
 function renderClients(){const c=clients();const prev=$('client').value;
   $('client').innerHTML=CLIENTS.map(([id,label])=>{
@@ -672,30 +749,55 @@ function renderClients(){const c=clients();const prev=$('client').value;
   $('client-hint').textContent=msg;
   $('client-hint').hidden=!msg;}
 
+/* Rebuilt only when its inputs change, so focus on its buttons survives the 2.5 s poll. */
 function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
   const box=$('availability');const rows=[];
-  const[cls,label]=availability(mt,r);
-  if(cls==='ok'){
-    rows.push(`<div class="avail ok"><span class="lead"><span class="dot"></span>On disk</span>
-      <span class="detail">${esc(mt.found_name||mt.path?.split('/').pop()||'artifact')}${mt.size_mib?` · ${mib(mt.size_mib)}`:''}<br>
+  const dl=dlFor(S.model,S.engine);const cc=cardsCheck(r);
+  const sel=selectedGpus();const used=(sel.length===cc.need?sel:defaultGpus(r)).map(devAt).filter(Boolean);
+  const sig=JSON.stringify([recipeKey(),mt,dl,S.scan?.free_gb,S.plan?.variant,cc.usable.length,used.map(d=>[d.index,d.pcie,d.busy])]);
+  if(sig===S.sig.avail&&box.childElementCount)return;S.sig.avail=sig;
+  const[cls]=diskState(mt,r);
+  const freeDisk=S.scan?.free_gb==null?'':` · ${S.scan.free_gb} GiB free disk`;
+  if(dl&&ACTIVE_DL.includes(dl.state)){const pct=Math.min(100,dl.pct||0);
+    rows.push(`<div class="avail dlg"><span class="lead"><span class="dot"></span>Downloading</span>
+      <span class="detail numbers"><span aria-live="off">${esc(dlLine(dl))}</span>${dlFile(dl)?`<br><span class="meta">${esc(dlFile(dl))}</span>`:''}
+        <span class="loadbar${dl.state==='downloading'?'':' unknown'}" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct.toFixed(1)}%"></i></span>
+        <span class="meta">Saving to <code>${esc(dl.dest||'')}</code>. You can keep using the launcher; closing it pauses the download.</span></span>
+      <span class="actions"><button type="button" data-download="${esc(dl.id)}">Cancel</button></span></div>`);}
+  else if(cls==='ok'){const fresh=dl?.state==='done'&&dl.started&&dl.finished;
+    rows.push(`<div class="avail ok"><span class="lead"><span class="dot"></span>${fresh?'Downloaded':'On disk'}</span>
+      <span class="detail">${esc(mt.found_name||mt.path?.split('/').pop()||'artifact')}${mt.size_mib?` · ${mib(mt.size_mib)}`:''}${fresh?` · took ${elapsed(dl.finished-dl.started)}`:''}<br>
       <code title="${esc(mt.path)}">${esc(mt.path)}</code></span>
       <span class="actions"><button type="button" data-copy="${esc(mt.path)}">Copy path</button></span></div>`);}
+  else if(dl?.state==='done'){
+    rows.push(`<div class="avail dlg"><span class="lead"><span class="dot"></span>Checking files</span>
+      <span class="detail">Download complete. Looking for the new files in <code>${esc(dl.dest||'')}</code>…</span></div>`);}
+  else if(cls==='dl'&&dl&&['error','cancelled'].includes(dl.state)){
+    rows.push(`<div class="avail ${dl.state==='error'?'bad':'dl'}"><span class="lead"><span class="dot"></span>${dl.state==='error'?'Download stopped':'Download paused'}</span>
+      <span class="detail numbers">${dl.state==='error'?`${esc(dl.error||'Unknown error')}<br>`:''}${dl.done?`${bytes(dl.done)} of ${bytes(dl.total)} kept. Resuming continues where it stopped${freeDisk}.`:`Nothing was downloaded yet${freeDisk}.`}</span>
+      ${dl.error_code==='gated'&&dl.repo_url?`<span class="actions"><a class="button-link" href="${esc(dl.repo_url)}" target="_blank" rel="noopener">Accept the terms</a></span>`:''}</div>`);}
   else if(cls==='bad'){
     rows.push(`<div class="avail bad"><span class="lead"><span class="dot"></span>Incompatible</span>
       <span class="detail">${esc(mt.reason||'No compatible artifact found.')}
       <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
   else if(cls==='dl'){
     rows.push(`<div class="avail dl"><span class="lead"><span class="dot"></span>Download required</span>
-      <span class="detail"><code>${esc(r.download.repo)}</code>${r.download.revision?` @ ${esc(r.download.revision)}`:''} · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk${
+      <span class="detail">${esc(shortQuant(r.download.quant)||'Model files')} from <code>${esc(r.download.repo)}</code>${freeDisk}${
         String(mt?.reason||'').startsWith('incompatible')?`<br><span class="meta">Found a related file this engine cannot load: ${esc(mt.reason.replace('incompatible: ',''))}</span>`:''}</span></div>`);}
-  else if(cls==='hold'){
-    rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
-      <span class="detail">${esc(r.operator_hold)}</span></div>`);}
   else{
     rows.push(`<div class="avail"><span class="lead"><span class="dot"></span>Not on disk</span>
       <span class="detail">No verified download for this recipe.
       <span class="actions"><button type="button" id="open-folders">Model folders</button></span></span></div>`);}
-  if(r.operator_hold&&cls!=='hold'){
+  if(cc.need>1&&!cc.enough){
+    rows.push(`<div class="avail bad"><span class="lead"><span class="dot"></span>Needs ${cc.need} GPUs</span>
+      <span class="detail">This recipe runs on ${cc.need} Arc Pro B70 cards. This computer has ${cc.usable.length} you can use${cc.cards.length>cc.usable.length?` (${cc.cards.length-cc.usable.length} without access)`:''}. Install or power on the other card, then reload.
+      <span class="actions"><button type="button" data-hardware>Hardware</button></span></span></div>`);}
+  else if(cc.need>1){const slow=used.some(d=>linkSlow(d.pcie))||new Set(used.map(d=>linkText(d.pcie))).size>1;
+    rows.push(`<div class="avail ${slow?'dl':'ok'} cards"><span class="lead"><span class="dot"></span>${cc.need} GPUs</span>
+      <span class="detail numbers">${used.map(d=>`GPU ${d.index} · ${esc(linkText(d.pcie))}${d.pcie?.gbps?` · about ${d.pcie.gbps} GB/s`:''}${d.pcie?.source==='user'?' · set by you':''}${d.busy?' · in use':''}`).join('<br>')}
+        ${slow?`<br><span class="meta">${r.tp>1?'Tensor parallel':'The layer split'} sends data between the cards on every token, so the slowest link sets the speed.</span>`:''}</span>
+      <span class="actions"><button type="button" data-hardware>PCIe links</button></span></div>`);}
+  if(r.operator_hold){
     rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Launch held</span>
       <span class="detail">${esc(r.operator_hold)}</span></div>`);}
   if(cls==='ok'&&mt.path&&r.download?.quant&&S.plan?.variant){
@@ -751,9 +853,11 @@ function gpuStats(e){const devices=deviceList();
   return(e.gpus||[]).map(g=>{const d=devices[g]||{};const p=S.power.find(x=>x.pci&&x.pci===d.pci)||{};
     const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
     const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
+    const vram=used!=null?`${used.toFixed(1)}${total?` / ${Math.round(total)}`:''} GiB`:null;const watts=p.watts!=null?`${Math.round(p.watts)} W`:null;
+    if((e.gpus||[]).length>2)return vram||watts?[[`GPU ${g}`,[vram,watts].filter(Boolean).join(' · ')]]:[];
     const rows=[];
-    if(used!=null)rows.push([`GPU ${g} VRAM`,`${used.toFixed(1)}${total?` / ${Math.round(total)}`:''} GiB`]);
-    if(p.watts!=null)rows.push([`GPU ${g} power`,`${Math.round(p.watts)} W`]);
+    if(vram)rows.push([`GPU ${g} VRAM`,vram]);
+    if(watts)rows.push([`GPU ${g} power`,watts]);
     return rows;}).flat();}
 const statList=rows=>rows.length?`<dl class="stats">${rows.map(([k,v])=>`<div class="stat"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`:'';
 function agentRows(e){return Object.entries(e.clients||{}).filter(([,c])=>c&&typeof c==='object')
@@ -853,29 +957,66 @@ function renderOtherSessions(){const rows=S.servers.filter(e=>e.status!=='stoppe
         <button type="button" data-copy="${esc(e.endpoint)}">Copy endpoint</button></div>`;}).join('');}}
 
 /* ---------- downloads ---------- */
-function renderDownloads(){const rows=Object.values(S.downloads).filter(e=>!['done','cancelled'].includes(e.state));
+function renderDownloads(){const rows=Object.values(S.downloads).filter(e=>ACTIVE_DL.includes(e.state)||(e.state==='error'&&!S.dismissed?.has(`${e.id}:${e.started}`)));
   $('downloads').hidden=!rows.length;
+  const sig=JSON.stringify(rows);if(sig===S.sig.downloads)return;S.sig.downloads=sig;
   $('download-rows').innerHTML=rows.map(e=>`<div class="download-row">
     <strong>${esc(e.model)} · ${esc(engineShort(e.engine))}</strong>
-    <p class="meta numbers">${esc(e.state)} · ${bytes(e.done)} / ${bytes(e.total)}${e.speed?` · ${bytes(e.speed)}/s`:''}</p>
-    <progress max="100" value="${e.pct||0}"></progress>
-    ${e.error?`<p class="error">${esc(e.error)}</p>`:''}
-    <button type="button" data-download="${esc(e.id)}" ${['queued','resolving','downloading'].includes(e.state)?'':'disabled'}>Cancel</button>
+    <p class="meta numbers">${esc(e.state==='error'?`Stopped: ${e.error||'unknown error'}`:dlLine(e))}</p>
+    <span class="loadbar${e.state==='downloading'?'':' unknown'}" aria-hidden="true"><i style="width:${Math.min(100,e.pct||0).toFixed(1)}%"></i></span>
+    <div class="actions">${e.model_id?`<button type="button" data-show-download="${esc(e.model_id)}" data-engine="${esc(e.engine)}">Show</button>`:''}
+      ${ACTIVE_DL.includes(e.state)?`<button type="button" data-download="${esc(e.id)}">Cancel</button>`:`<button type="button" data-dismiss="${esc(`${e.id}:${e.started}`)}">Dismiss</button>`}</div>
   </div>`).join('');}
 
 /* ---------- hardware ---------- */
-function renderHardware(power=S.power){const devices=deviceList();
-  $('hardware').innerHTML=devices.map((d,i)=>{const p=power.find(x=>x.pci===d.pci)||{};
-    const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
-    const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
-    const cls=d.busy?'busy':d.accessible?'ok':'bad';
-    const hot=used!=null&&total?used/total>0.8:false;
-    const state=d.busy?`in use${d.busy_by?' — '+d.busy_by:''}`:d.accessible?'free':'check access';
-    const telemetry=[p.watts!=null?`${Math.round(p.watts)} W`:'',p.temp_c!=null?`${Math.round(p.temp_c)} °C`:''].filter(Boolean).join(' · ');
-    const vbar=used!=null&&total?`<span class="vbar"><i style="width:${Math.min(100,Math.round(used/total*100))}%"></i></span>`:'';
-    return`<span class="chip ${cls}${hot?' hot':''}" title="GPU ${i} · ${esc(d.label||d.pci)} · ${esc(state)}${telemetry?` · ${telemetry}`:''} · cap ${esc(p.cap_w??d.power_cap_w??'?')} W${p.util_pct!=null?` · clock ${Math.round(p.util_pct)}%`:''}${used!=null?` · ${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB VRAM`:''}">
-      <span class="dot"></span>GPU ${i}${telemetry?` · <b>${telemetry}</b>`:''} ${vbar}${used!=null?`${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB`:` · ${esc(state)}`}</span>`;}).join('')
-    +`<span class="chip" title="Free space on the model download disk">Disk ${S.scan?.free_gb==null?'?':S.scan.free_gb} GiB free</span>`;}
+/* One chip per card. With more than two cards the chips drop the text readings (they stay in the tooltip and
+   the Hardware dialog) so any number of cards fits the header. */
+function cardReading(d,i,power=S.power){const p=power.find(x=>x.pci===d.pci)||{};
+  const used=p.vram_used_gb??(d.vram_used_mib==null?null:d.vram_used_mib/1024);
+  const total=p.vram_total_gb??(d.vram_total_mib==null?null:d.vram_total_mib/1024);
+  const state=d.busy?`in use${d.busy_by?' by '+d.busy_by:''}`:!d.b70?'not a B70':d.accessible?'free':'check access';
+  return{p,used,total,state,cls:d.busy?'busy':d.accessible&&d.b70?'ok':'bad',
+    watts:p.watts!=null?`${Math.round(p.watts)} W`:'',temp:p.temp_c!=null?`${Math.round(p.temp_c)} °C`:'',
+    vram:used!=null?`${used.toFixed(1)}/${total?.toFixed(0)||'?'} GiB`:''};}
+function renderHardware(power=S.power){const devices=deviceList();const compact=devices.length>2;
+  const html=devices.map((d,i)=>{const c=cardReading(d,i,power);
+    const hot=c.used!=null&&c.total?c.used/c.total>0.8:false;
+    const telemetry=[c.watts,c.temp].filter(Boolean).join(' · ');
+    const vbar=c.used!=null&&c.total?`<span class="vbar"><i style="width:${Math.min(100,Math.round(c.used/c.total*100))}%"></i></span>`:'';
+    const title=[`GPU ${i}`,d.label||d.pci,c.state,linkText(d.pcie),telemetry,c.vram?c.vram+' VRAM':'',
+      `cap ${c.p.cap_w??d.power_cap_w??'?'} W`].filter(Boolean).join(' · ');
+    return`<button type="button" class="chip ${c.cls}${hot?' hot':''}" data-hardware title="${esc(title)}" aria-label="${esc(title)}">
+      <span class="dot"></span>GPU ${i}${compact?'':telemetry?` · <b>${telemetry}</b>`:''} ${vbar}${compact?(c.watts?`<b>${c.watts}</b>`:''):c.vram||` · ${esc(c.state)}`}</button>`;}).join('')
+    +`<span class="chip" title="Free space on the model download disk">Disk ${S.scan?.free_gb==null?'?':S.scan.free_gb} GiB free</span>`;
+  if(html!==S.sig.hw){S.sig.hw=html;$('hardware').innerHTML=html;}
+  if(S.dialogKind==='hardware'&&$('dialog').open)renderHardwareTable();}
+
+/* Hardware dialog: every card with its live readings and its PCIe link, which the user can correct. */
+const LINK_CHOICES=[[5,16],[5,8],[4,16],[4,8],[4,4],[3,16],[3,8],[3,4],[3,1]];
+function hardwareRows(){return deviceList().map((d,i)=>{const c=cardReading(d,i);const p=d.pcie||{};
+  const det=p.source==='user'?p.detected:p;
+  const opts=[`<option value="">Auto (${esc(det?.gen?`${det.gen}.0 x${det.width}`:'unknown')})</option>`,
+    ...LINK_CHOICES.map(([g,w])=>`<option value="${g}x${w}"${p.source==='user'&&p.gen===g&&p.width===w?' selected':''}>PCIe ${g}.0 x${w}</option>`)].join('');
+  return`<tr><th scope="row">GPU ${i}<br><span class="meta">${esc(d.label||d.pci)}</span></th>
+    <td><span class="status-dot ${c.cls}"></span>${esc(c.state)}</td>
+    <td class="numbers">${esc(c.vram||'—')}</td><td class="numbers">${esc([c.watts,c.temp].filter(Boolean).join(' · ')||'—')}</td>
+    <td class="numbers">${esc(linkText(p))}${p.gbps?`<br><span class="meta">about ${p.gbps} GB/s${p.source==='user'?` · set by you, detected ${det?.gen?`${det.gen}.0 x${det.width}`:'unknown'}`:p.max_gen?` · card supports ${p.max_gen}.0 x${p.max_width}`:''}</span>`:''}</td>
+    <td><label class="sr" for="link-${i}">PCIe link for GPU ${i}</label><select id="link-${i}" data-link-pci="${esc(d.pci)}">${opts}</select></td></tr>`;}).join('');}
+function renderHardwareTable(){const body=$('hardware-body');if(!body)return;
+  if(body.contains(document.activeElement))return;  // do not rebuild a select the user is using
+  const html=hardwareRows();if(html!==S.sig.hwTable){S.sig.hwTable=html;body.innerHTML=html;}}
+function showHardware(){const devices=deviceList();
+  openDialog('Hardware',`<p class="hint">${devices.filter(d=>d.b70).length} Arc Pro B70 card${devices.filter(d=>d.b70).length===1?'':'s'} found. Multi-card recipes send data between the cards, so each card's PCIe link matters. The launcher reads the link the card trained at; choose a value only if it is wrong.</p>
+    <div class="table-wrap"><table class="nums hw"><thead><tr><th scope="col">Card</th><th scope="col">Status</th><th scope="col">VRAM</th>
+    <th scope="col">Power · temp</th><th scope="col">PCIe link</th><th scope="col">Set link</th></tr></thead><tbody id="hardware-body">${hardwareRows()}</tbody></table></div>
+    <div class="actions divider"><button type="button" class="primary" id="save-links">Save links</button></div>`);
+  S.dialogKind='hardware';$('dialog').classList.add('wide');
+  $('save-links').onclick=async()=>{const links={};
+    for(const s of $('dialog-content').querySelectorAll('[data-link-pci]')){const[g,w]=s.value?s.value.split('x').map(Number):[];
+      links[s.dataset.linkPci]=s.value?{gen:g,width:w}:null;}
+    try{await api('/api/settings',{pcie_links:links});await poll();S.sig.gpus='';S.sig.avail='';renderGpus();renderAvailability();
+      closeDialog();toast('PCIe links saved');}
+    catch(ex){error('dialog-error',ex.message);}};}
 
 /* ---------- primary action ---------- */
 function renderAction(){const r=recipe();const button=$('primary');
@@ -890,12 +1031,16 @@ function renderAction(){const r=recipe();const button=$('primary');
       status=`${e.phase||'Starting'} · ${elapsed(nowS()-(e.launch_ts||e.started_at||nowS()))}${exp?` of about ${elapsed(exp)}`:''}`;button.disabled=true;}
     else if(e?.status==='running'){text=$('client').value==='none'?'Copy endpoint':`Open ${clientLabel($('client').value)}`;S.action='open';
       status=`Ready on ${e.endpoint}`;button.disabled=false;}
-    else if(dl&&['queued','resolving','downloading'].includes(dl.state)){text='Downloading files';button.disabled=true;
-      status=dl.state==='downloading'?`${Math.round(dl.pct||0)}% · ${bytes(dl.speed)}/s`:'Checking files';}
+    else if(dl&&ACTIVE_DL.includes(dl.state)){text='Downloading';button.disabled=true;status=dlLine(dl);}
     else if(r.operator_hold){text='Launch held';status=r.operator_hold;button.disabled=true;}
+    else if(!cardsCheck(r).enough){const cc=cardsCheck(r);text=`Needs ${cc.need} GPUs`;button.disabled=true;
+      status=`${cc.usable.length} of ${cc.need} Arc Pro B70 cards found`;}
     else if(mt?.reason?.startsWith('incompatible')&&!r.download?.repo){text='Incompatible';status=mt.reason;button.disabled=true;}
-    else if(!mt?.detected){if(r.download?.repo){text='Review download';S.action='download';
-      status=`Download required · ${S.scan?.free_gb==null?'?':S.scan.free_gb+' GiB'} free disk`;}
+    else if(!mt?.detected&&dl?.state==='done'){text='Checking files';button.disabled=true;status='Download complete. Looking for the new files.';}
+    else if(!mt?.detected){if(r.download?.repo){const resume=dl&&['error','cancelled'].includes(dl.state)&&dl.done>0;
+      text=resume?'Resume download':'Download model';S.action='download';
+      status=resume?`${bytes(dl.done)} of ${bytes(dl.total)} already downloaded`
+        :`Shows the size and free space before anything downloads${S.scan?.free_gb==null?'':` · ${S.scan.free_gb} GiB free`}`;}
       else{text='Choose model file';S.action='browse';status='No verified download for this recipe';}}
     else if(blockers.length){text='Review setup';status=blockers.join(' ');S.action='setup';}
     else if(!selected.length||selected.some(g=>deviceList()[g]?.busy)){text='No free GPU';button.disabled=true;
@@ -915,7 +1060,10 @@ async function refreshPlan(){if(!S.model)return;const seq=S.selection;
 async function refreshScan(){S.scan=await api('/api/scan');S.sig.library='';renderLibrary();renderHardware();renderAction();}
 async function poll(){if(S.polled)return;S.polled=true;
   try{const state=await api('/api/state');S.state=state;S.servers=state.running||[];
-    S.downloads=await api('/api/downloads');
+    const prevDl=S.downloads;S.downloads=await api('/api/downloads');
+    for(const[id,d]of Object.entries(S.downloads)){const before=prevDl[id];
+      if(before&&ACTIVE_DL.includes(before.state)&&d.state==='done')toast(`${d.model} downloaded. Launch it when the files are found.`);
+      if(before&&ACTIVE_DL.includes(before.state)&&d.state==='error')toast(`${d.model} download stopped: ${d.error||'unknown error'}`);}
     $('version').textContent=`v${state.version}`;document.title=`B70 Launcher ${state.version}`;
     error('connection-error','');
     if(!S.model){await refreshScan();
@@ -925,8 +1073,9 @@ async function poll(){if(S.polled)return;S.polled=true;
         $('client').value=state.settings.open_with||'pi';}}
     else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
     const power=await api('/api/power');S.power=power.power||[];
-    renderLibrary();renderDownloads();renderClients();renderGpus();renderAction();renderHardware();
-    renderUpdate(state.update);}
+    renderLibrary();renderEngineSwitch();renderDownloads();renderClients();renderGpus();renderAvailability();renderAction();renderHardware();
+    renderUpdate(state.update);
+    if(!S.welcomeChecked){S.welcomeChecked=true;maybeWelcome();}}
   catch(e){error('connection-error',S.restarting?restartText():`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
   finally{S.polled=false;}}
 
@@ -971,6 +1120,37 @@ function renderUpdate(update,force=false){const chip=$('update-chip');const inst
   $('dialog-content').innerHTML=updateBody(update);
   if(hadFocus)($('dialog-content').querySelector('[data-update]')||$('close-dialog')).focus();}
 
+/* ---------- welcome ---------- */
+const COOKBOOK_URL='https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook';
+const RECIPE_REQUEST_URL=`${COOKBOOK_URL}/issues/new?template=recipe-request.yml`;
+const RECIPE_FORMAT_URL='https://github.com/SergiioB/b70-launcher/blob/main/docs/recipe-format.md';
+const WELCOME_KEY='b70-welcome-1';
+function welcomeDone(){try{localStorage.setItem(WELCOME_KEY,'done');}catch(e){}}
+function maybeWelcome(){let seen=false;try{seen=localStorage.getItem(WELCOME_KEY)==='done';}catch(e){}
+  if(!seen&&!S.servers.some(live)&&!$('dialog').open)showWelcome();}
+function showWelcome(){const cards=deviceList().filter(d=>d.b70);
+  const links=[...new Set(cards.map(d=>linkText(d.pcie)))];
+  const hw=cards.length?`This computer has ${cards.length} Arc Pro B70 card${cards.length===1?'':'s'}${links.length===1&&cards[0].pcie?.gen?` on ${links[0]}`:''}.`
+    :'No Arc Pro B70 was found yet. You can still browse recipes and preview their commands.';
+  const models=S.state?.recipes.models.length||0;
+  openDialog('Welcome to B70 Launcher',`
+    <a class="cookbook-banner" href="${COOKBOOK_URL}" target="_blank" rel="noopener">
+      <img src="/assets/github.svg" alt="" width="36" height="36">
+      <span><strong>Intel Arc Pro B70 Inference Cookbook</strong><br>
+      <span class="meta">by SergiioB · github.com/SergiioB</span></span></a>
+    <p>Every recipe for these ${models} models comes from the cookbook: pinned engine images, exact commands, and context sizes measured on real B70 cards.</p>
+    <p class="hint numbers">${esc(hw)}</p>
+    <ol class="steps">
+      <li><strong>Pick a model</strong> from the model list. <span class="meta">“On disk” means it is ready to launch.</span></li>
+      <li><strong>Download it</strong> if needed. <span class="meta">You see the size and free space first, then speed and time left.</span></li>
+      <li><strong>Launch</strong>, then open Pi, OMP, Droid, Codex or DeepSeek on it.</li>
+    </ol>
+    <p class="hint">Want a model that is not here? <a href="${RECIPE_REQUEST_URL}" target="_blank" rel="noopener">Request a recipe on GitHub</a>
+      or add one with a pull request that follows the <a href="${RECIPE_FORMAT_URL}" target="_blank" rel="noopener">recipe format</a>.</p>
+    <div class="actions divider"><button type="button" class="primary" id="welcome-start">Get started</button>
+      <a href="${COOKBOOK_URL}" target="_blank" rel="noopener" class="button-link">Open the cookbook</a></div>`);
+  S.dialogKind='welcome';$('dialog').classList.add('narrow');$('welcome-start').focus();}
+
 /* ---------- usage ---------- */
 const usageRows=o=>Object.entries(o&&typeof o==='object'?o:{}).filter(([,v])=>v&&typeof v==='object')
   .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));
@@ -994,11 +1174,11 @@ async function showUsage(){openDialog('Usage','<p class="hint">Loading…</p>');
   catch(ex){if(S.dialogKind==='usage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
 
 /* ---------- dialogs, copy, logs ---------- */
-function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').classList.remove('narrow');
+function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').classList.remove('narrow','wide');
   if(!$('dialog').open)S.trigger=document.activeElement;
   $('dialog-title').textContent=title;$('dialog-content').innerHTML=html;error('dialog-error','');
   if(!$('dialog').open)$('dialog').showModal();}
-function closeDialog(){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').close();S.trigger?.focus();}
+function closeDialog(){if(S.dialogKind==='welcome')welcomeDone();clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').close();S.trigger?.focus();}
 async function copy(text){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Copied');return;}
   catch(e){/* WebKit may require the fallback inside the user gesture. */}}
   const input=document.createElement('textarea');input.value=text;input.setAttribute('aria-label','Copy text');
@@ -1041,11 +1221,16 @@ async function primaryAction(){if(S.request)return;error('action-error','');
     else if(S.action==='download'){const seq=S.selection;
       const plan=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:false});
       if(seq!==S.selection)return;S.downloadPlan=plan;
-      $('download-plan').textContent=`Download ${bytes(plan.size_bytes)} to ${plan.dest_dir||'an unavailable destination'}`;
-      $('download-space').textContent=`${bytes(plan.free_bytes)} free. ${plan.error||'Includes the model and declared sidecar files.'}`;
+      const left=plan.remaining_bytes??plan.size_bytes;const have=plan.partial_bytes||0;
+      $('download-plan').textContent=have>0
+        ?`${bytes(have)} of ${bytes(plan.size_bytes)} is already on disk. ${bytes(left)} left to download into ${plan.dest_dir||'an unavailable destination'}.`
+        :`${bytes(plan.size_bytes)} into ${plan.dest_dir||'an unavailable destination'}.${(plan.groups||[]).length>1?` ${plan.groups.length} parts: ${plan.groups.map(g=>g.label).join(', ')}.`:''}`;
+      $('download-space').textContent=plan.error||`${bytes(plan.free_bytes)} free on that disk. When it finishes, Launch recipe is ready.`;
       $('confirm-download').disabled=!plan.enough;
-      $('confirm-download').textContent=`Download ${bytes(plan.size_bytes)}`;
-      $('download-confirm').hidden=false;}
+      $('download-terms').hidden=!(plan.gated&&plan.repo_url);if(plan.repo_url)$('download-terms').href=plan.repo_url;
+      $('confirm-download').textContent=have>0?`Resume · ${bytes(left)}`:`Download ${bytes(plan.size_bytes)}`;
+      $('download-confirm').hidden=false;$('download-confirm').scrollIntoView({block:'center'});
+      (plan.enough?$('confirm-download'):plan.gated&&plan.repo_url?$('download-terms'):$('change-folder')).focus({preventScroll:true});}
     else if(S.action==='open'){const e=currentSession();if(!e)return;
       if($('client').value==='none'){await copy(e.endpoint);return;}
       try{const result=await api('/api/harness',{id:e.id,harness:$('client').value});
@@ -1070,6 +1255,13 @@ $('preview').onclick=async()=>{await refreshPlan();if(!S.plan)return;
   $('copy-command').onclick=()=>copy(S.plan.cmd||'').catch(e=>error('dialog-error',e.message));};
 document.addEventListener('click',async e=>{
   const cp=e.target.closest('[data-copy]');if(cp){copy(cp.dataset.copy).catch(ex=>toast(ex.message));return;}
+  const hw=e.target.closest('[data-hardware]');if(hw){showHardware();return;}
+  const dc=e.target.closest('[data-download]');if(dc){dc.disabled=true;
+    try{await api('/api/download/cancel',{id:dc.dataset.download});await poll();}catch(ex){toast(ex.message);}return;}
+  const sd=e.target.closest('[data-show-download]');if(sd){choose(sd.dataset.showDownload,sd.dataset.engine);$('run').focus();return;}
+  const dm=e.target.closest('[data-dismiss]');if(dm){(S.dismissed||=new Set()).add(dm.dataset.dismiss);renderDownloads();return;}
+  const wl=e.target.closest('[data-welcome]');if(wl){showWelcome();return;}
+  const ws=e.target.closest('#welcome-start');if(ws){welcomeDone();closeDialog();$('recipe-list').querySelector('.model[aria-checked="true"]')?.focus();return;}
   const sw=e.target.closest('[data-switch-engine]');if(sw){const eng=sw.dataset.switchEngine;choose(S.model,eng);
     $('engine-switch').querySelector(`[data-switch-engine="${CSS.escape(eng)}"]`)?.focus();return;}
   const ss=e.target.closest('[data-switch-session]');if(ss){
@@ -1118,14 +1310,12 @@ $('usage').onclick=()=>showUsage();
 $('close-dialog').onclick=closeDialog;
 $('dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
 $('cancel-confirm').onclick=()=>{$('download-confirm').hidden=true;S.downloadPlan=null;};
-$('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;
+$('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('confirm-download').disabled=true;
   try{const result=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:true});
     if(result.error)throw new Error(result.error);
-    $('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started');}
-  catch(e){error('action-error',e.message);}};
-$('download-rows').addEventListener('click',async e=>{const b=e.target.closest('[data-download]');if(!b)return;
-  try{await api('/api/download/cancel',{id:b.dataset.download});await poll();}catch(ex){toast(ex.message);}});
-function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAction();refreshPlan();}
+    $('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started. Speed and time left show above.');}
+  catch(e){$('confirm-download').disabled=false;error('action-error',e.message);}};
+function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAvailability();renderAction();refreshPlan();}
 for(const id of['port','kv','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
 $('context').addEventListener('input',renderContext);
 $('context').addEventListener('change',()=>{renderContext();renderAction();refreshPlan();});

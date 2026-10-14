@@ -80,7 +80,7 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "recipes":  "merged catalog: recipes.json + recipes-remote.json overlay + recipe_overrides",
   "settings": "merged settings.json + settings-override.json",
   "running":  ["server entries, see POST /api/launch"],
-  "version":  "0.6.8",
+  "version":  "0.6.9",
   "is_win":   false,
   "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
 "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
@@ -111,6 +111,16 @@ one exception — the engine reports it at first ready).
 Preflight is cached for 10 s (`hardware.PREFLIGHT_CACHE`); `runtime.preflight()`
 re-runs `enrich_busy` on top so the `busy`/`busy_by` fields are current. A B70 is
 identified by PCI ID `8086:e223` + subsystem `8086:1701`.
+
+Each `preflight.devices[]` entry carries `pcie: {gen, width, gt_s, max_gen,
+max_width, gbps, source, detected}`. `gen`/`width` are the link the card
+trained at, read from the root port above it (the B70's internal switch
+reports a virtual 2.5 GT/s x1 below that and is ignored); `max_gen`/`max_width`
+are the card's own maximum from its uplink; `gbps` is the approximate one-way
+bandwidth. `source` is `sysfs`, `user` (a `pcie_links` override, with the sysfs
+values kept in `detected`), or `unknown` (all null). The UI shows the link on
+every GPU choice and warns when a multi-card recipe would run over a narrower
+or uneven link; `POST /api/build` adds the same warning.
 
 ### `GET /api/scan`
 
@@ -153,11 +163,18 @@ phase, and token counters as a side effect.
 
 ### `GET /api/downloads`
 
-`{"<model_id>-<engine>": {"id", "model", "engine", "state", "done", "total",
-"pct", "speed", "eta", "dest", "quant", "note"?, "error"?}}` — `state` is
+`{"<model_id>-<engine>": {"id", "model_id", "model", "engine", "state", "done", "total",
+"pct", "speed", "eta", "dest", "quant", "started", "finished", "file",
+"files_done", "files_total", "resumed_bytes", "note"?, "error"?}}` — `state` is
 `queued | resolving | downloading | done | cancelled | error`. `total` is the
-planned byte size; `note` names a draft/sidecar group when one is being
-fetched. The internal cancel flag is not exposed.
+planned byte size and `done` includes bytes already on disk when the transfer
+began (`resumed_bytes`). `speed` is bytes/s averaged over the last 5 s across
+files (0 until 1 s of samples); `eta` is seconds left or null. `file` is the
+file in transfer, `started`/`finished` are epoch seconds. Finished entries stay
+listed until the daemon restarts. `note` names a draft/sidecar group when one
+is being fetched. A 401/403 from Hugging Face stops at once (no retries, the
+`.part` stays) with `error_code` `gated` or `auth` plus `repo_url`. The internal
+cancel flag is not exposed.
 
 ### `GET /api/metrics`
 
@@ -303,9 +320,18 @@ always publish on `127.0.0.1` only.
 `{"model_id", "engine", "confirm"?}`.
 
 - Without `confirm`: the plan —
-  `{"size_bytes", "dest_dir", "free_bytes", "enough", "error", "groups"}` with
-  `groups: [{"repo", "dest_dir", "files", "size_bytes", "label"}]` (an
+  `{"size_bytes", "partial_bytes", "remaining_bytes", "dest_dir", "free_bytes", "enough", "error", "groups"}` with
+  `groups: [{"repo", "dest_dir", "files", "size_bytes", "partial_bytes", "label"}]` (an
   `exl3`/`vllm-dflash` recipe can have a `main` and a `draft` group).
+  `partial_bytes` counts complete files of the right size plus `.part` files
+  already on disk; `enough` compares free space with `remaining_bytes` × 1.05, so
+  a paused download can resume on a nearly full disk. Cancelling keeps the
+  `.part` files and the next start resumes them. `gated` (`false|"auto"|"manual"`),
+  `hf_token` (a Hugging Face token was found: `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`,
+  `$HF_HOME/token`, then `~/.cache/huggingface/token`) and `repo_url` describe
+  access. A gated repo without a token is refused at plan time with the steps to
+  fix it. The token is sent only to `huggingface.co`, never across a redirect to
+  another host, and never appears in a response or log.
 - With `confirm: true` and a usable plan → `{"id", "error": null}` and a
   background worker; a rejected plan (space, unknown size, operator hold, repo
   not in `HF_APPROVED_REPOS`, pinned filename missing, unsafe paths) → `409`.
@@ -315,9 +341,10 @@ always publish on `127.0.0.1` only.
 `download.revision` is validated as `[A-Za-z0-9._-]+`. `kind=file` fetches
 `name` + `extra_files` into `models_dir`; `kind=snapshot` fetches the repo into
 `ovms_repo` (openvino) or `models_dir` (others), under the repo basename or
-`download.dest`. Files stream via `.part` (4 attempts); existing files are reused
-only when sizes match. Free space must cover `size × 1.05`, and an unknown
-remote size refuses the download. Completion triggers a rescan.
+`download.dest`. Files stream via `.part` (4 attempts for network errors, none
+for 401/403); existing files are reused only when sizes match. Free space must
+cover the remaining bytes × 1.05, and an unknown remote size refuses the
+download. Completion triggers a rescan.
 
 ### `POST /api/download/cancel`
 
@@ -413,13 +440,19 @@ a rescan. See `docs/recipe-format.md`.
 
 ```json
 {"scan_dirs"?: ["..."], "models_dir"?: "...", "open_with"?: "pi|omp|droid|codex|deepseek|webui|none",
- "sync_clients"?: true, "meter_clients"?: true}
+ "sync_clients"?: true, "meter_clients"?: true,
+ "pcie_links"?: {"<pci>": {"gen": 1-6, "width": 1|2|4|8|16} | null} | null}
 ```
 
 Any other key, or an empty body, → `400`. `scan_dirs`: at most 8 absolute,
 existing directories; `/` and the home directory are refused. `models_dir`: one
 absolute, existing directory (same refusals). Persists into
-`settings-override.json` (other keys preserved) and starts a rescan. No other
+`settings-override.json` (other keys preserved) and starts a rescan.
+`pcie_links` sets a card's PCIe link by PCI address (`0000:0b:00.0`) when the
+detected value is wrong. It is merged onto the stored map, so one card can be
+posted at a time; a `null` entry removes that override and a `null` map clears
+all of them. Invalid values → `400`. It invalidates the cached preflight and
+does not rescan unless other keys are posted with it. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
 `exl3_data_root`, `agent_dir`, and `recipe_overrides`.
 

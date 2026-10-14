@@ -108,7 +108,9 @@ Flags → API fields (`docs/api.md`): `--ctx`→`ctx` · `--port`→`port` ·
 `custom_path` (`model_id=__custom__`).
 
 GPU defaulting follows the recipe: `gpus`/`tp`/dual-card kinds send `[0,1]`,
-everything else `[0]`. `--gpus` accepts `0`, `1`, `0,1`, `both`.
+everything else `[0]`. `--gpus` accepts card numbers (`0`, `1`, `0,1`, `2,3` on a
+four-card host; 0-7) or `both`. Multi-card launches warn when the cards sit on
+different or narrow PCIe links (see `pcie_links` in `docs/api.md`).
 
 A launch waits until the daemon reports the engine's `/v1/models` answering
 (the same readiness probe the UI uses), showing the current load phase from

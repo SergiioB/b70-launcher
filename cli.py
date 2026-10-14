@@ -358,9 +358,9 @@ def parse_gpus(val):
     try:
         gpus = [int(x) for x in v.split(",") if x.strip() != ""]
     except ValueError:
-        die(f"invalid --gpus value: {val!r} (use 0, 1, or 0,1)", code=2)
-    if not gpus or any(g not in (0, 1) for g in gpus) or len(set(gpus)) != len(gpus):
-        die(f"invalid --gpus value: {val!r} (only distinct indices 0 and 1)", code=2)
+        die(f"invalid --gpus value: {val!r} (use card numbers like 0, 1 or 0,1)", code=2)
+    if not gpus or any(not 0 <= g < 8 for g in gpus) or len(set(gpus)) != len(gpus):
+        die(f"invalid --gpus value: {val!r} (distinct card numbers 0-7)", code=2)
     return gpus
 
 
