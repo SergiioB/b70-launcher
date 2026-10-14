@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-14",
+ "catalog_ver": "2026-10-14.2",
  "engines": [
   {
    "id": "openvino",
@@ -481,12 +481,13 @@
      "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261014@sha256:933eda54bb51a2e8a6669a70f5a2d7696fabd12a5f8b7c469df02fdfecc79d3a",
      "docker_sock": "/run/b70-exl3-docker.sock",
      "inner_port": 8100,
-     "ctx": 65536,
-     "ctx_max": 65536,
-     "ctx_safe": 16384,
-     "ctx_note": "configured max_model_len 65,536 @ gmu 0.90 (fp8 KV, FULL_DECODE_ONLY graphs, MTP3); checked to 8,162-token prompts and a 4-turn prefix-cache session up to 15,600 tokens — longer is unverified",
+     "ctx": 131072,
+     "ctx_max": 168000,
+     "ctx_safe": 131072,
+     "ctx_note": "SC5 (20.09 GiB): fp8 KV pool is one shared token budget (max_num_seqs 16); pool capacity != context. Engine budget at gmu 0.90: max seq len 168,000 (6.23 GiB KV); top 167,424 client timeout unverified. Validated 2026-10-14: 131,072 configured; 130,872 occupied (prompt/output/followup), 2327 MiB free (safe default); capacity scope observed to 196,438 occupied at gmu 0.94 (1069 MiB free = observation class, not a recommendation); 206,400 is the gmu-0.94 budget ceiling; 240K+/262K/270K not achievable on SC5. Plain 4bpw (14.9 GiB) is a separate route: native 262,144 (proven 261,920-tok completion). Cache counters absent on this image — cold cells zero-hit by construction only.",
+     "gmu": "0.90",
      "power": 230,
-     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts",
+     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts; 131K context validated",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -509,8 +510,8 @@
       ],
       "note": "Branch SC_5.00bpw_H6 of the same repo; it downloads into its own directory (dest) so it never mixes with the plain 4.00bpw snapshot."
      },
-     "recipe_note": "New: Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7) — quality pick over plain 4.00bpw at ~0.89x decode on a single B70.",
-     "recipe_ver": "2026-10-14",
+     "recipe_note": "Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7): safe default 131K context at gmu 0.90 (130,872 occupied verified with 2.3 GiB free VRAM); engine budget ceiling 168K unverified.",
+     "recipe_ver": "2026-10-14.2",
      "ver": "2026-10-13"
     }
    },
@@ -522,8 +523,7 @@
     "~20 GB",
     "EXL3 SC5"
    ],
-   "recommended_engine": "exl3",
-   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, checked to 15.6K-token multi-turn sessions."
+   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, safe default 131K context with 2.3 GiB free VRAM."
   },
   {
    "id": "nemotron-35",

@@ -430,6 +430,29 @@ class TestLoadPhases(LauncherStateCase):
         self.assertGreaterEqual(items["ready1"]["load_s"], 29)
 
 
+class TestExl3Builder(LauncherStateCase):
+    def test_exl3_sc5_retains_gmu_090_at_long_ctx(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=131072))
+        self.assertIsNone(b.get("error"))
+        t = b["tokens"]
+        self.assertIn("vllm.gpu_memory_utilization=0.90", t)
+        self.assertIn("vllm.max_model_len=131072", t)
+        self.assertFalse(any("clamping" in w for w in b.get("warnings", [])))
+
+    def test_exl3_sc5_warns_above_validated_ctx(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=150000))
+        self.assertIsNone(b.get("error"))
+        t = b["tokens"]
+        self.assertIn("vllm.gpu_memory_utilization=0.90", t)
+        self.assertIn("vllm.max_model_len=150000", t)
+        self.assertTrue(any("exceeds the 131,072 validated ceiling" in w for w in b.get("warnings", [])))
+
+    def test_exl3_plain_uses_gmu_094_at_long_ctx(self):
+        b = builders.build(cfg(model_id="qwen38-27b", engine="exl3", ctx=131072))
+        self.assertIsNone(b.get("error"))
+        t = b["tokens"]
+        self.assertIn("vllm.gpu_memory_utilization=0.94", t)
+        self.assertIn("vllm.max_model_len=131072", t)
 
 if __name__ == "__main__":
     unittest.main()

@@ -71,6 +71,14 @@ class TestCatalogUpdates(support_env.LauncherStateCase):
         self.assertIsNotNone(error)
         self.assertEqual(json.dumps(catalog.RECIPES, sort_keys=True), before)
 
+    def test_stale_overlay_does_not_regress_newer_local_recipe(self):
+        sc5 = catalog.find_model('qwen38-27b-sc5')['recipes']['exl3']
+        local_ctx = sc5['ctx']
+        stale_doc = {'catalog_ver': '2026-10-13.2', 'models': [{'id': 'qwen38-27b-sc5', 'recipes': {
+            'exl3': {'ctx': 65536, 'recipe_ver': '2026-10-13.2'}}}]}
+        paths.REMOTE_RECIPES_PATH.write_text(json.dumps(stale_doc))
+        catalog._load_remote_overlay()
+        self.assertEqual(catalog.find_model('qwen38-27b-sc5')['recipes']['exl3']['ctx'], local_ctx)
 
 if __name__ == '__main__':
     unittest.main()

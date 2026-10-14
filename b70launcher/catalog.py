@@ -42,7 +42,7 @@ REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtyp
                         "draft_device", "tensor_split", "split_mode",
                         "offload_tensors", "tool_parser", "reasoning_parser",
                         "cim_long_ctx", "search_name", "inner_port", "tp",
-                        "perf", "topology", "recipe_ver")
+                        "perf", "topology", "recipe_ver", "gmu")
 _MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
@@ -181,7 +181,12 @@ def apply_recipe_doc(doc, catalog_ver=""):
                     continue
                 rr = _sanitize_remote_recipe(r)
                 _stamp_ver(rr, catalog_ver)
-                local["recipes"][eng].update(rr)
+                local_r = local["recipes"][eng]
+                r_ver = rr.get("recipe_ver") or catalog_ver
+                local_ver = local_r.get("recipe_ver")
+                if local_ver and r_ver and _ver_key(local_ver) > _ver_key(r_ver):
+                    continue
+                local_r.update(rr)
                 applied += 1
         _apply_recipe_overrides(USER_RECIPE_OVERRIDES)
     return applied, needs_app, None
@@ -192,7 +197,11 @@ def _load_remote_overlay():
         doc = json.loads(paths.REMOTE_RECIPES_PATH.read_text())
     except Exception:
         return
-    apply_recipe_doc(doc.get("payload") or doc, doc.get("catalog_ver") or "")
+    cver = doc.get("catalog_ver") or ""
+    local_cver = RECIPES.get("catalog_ver") or ""
+    if local_cver and cver and _ver_key(local_cver) > _ver_key(cver):
+        return
+    apply_recipe_doc(doc.get("payload") or doc, cver)
 
 
 def _ver_key(v):

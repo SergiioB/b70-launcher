@@ -33,7 +33,12 @@ def build_exl3(b):
         # previews never touch dockerd — bring-up is a launch-time step only
         warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
     inner_port = int(recipe.get("inner_port", 8100))
-    gmu = "0.94" if b.ctx >= 131072 else "0.90"
+    if recipe.get("gmu"):
+        gmu = str(recipe["gmu"])
+    elif model.get("id") == "qwen38-27b-sc5":
+        gmu = "0.90"
+    else:
+        gmu = "0.94" if b.ctx >= 131072 else "0.90"
     cname = common.cname_for(model["id"], "exl3", b.port)
     tokens = docker_cmd + ["run", "--rm", "--name", cname] + common.labels_for(cfg, b.port)
     tokens += common.dri_args(b) + [
@@ -61,7 +66,10 @@ def build_exl3(b):
         "--set", "vllm.tool_call_parser=qwen3_coder"]
     tokens += recipe.get("fixed_flags", []) + b.extra
     warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu} "
-                 "(0.94 required at ≥128K ctx); first load ~5-8 min for kernel compile.")
+                 "(0.90 for SC5 / 0.94 at ≥128K on plain 4bpw); first load ~5-8 min for kernel compile.")
+    if model.get("id") == "qwen38-27b-sc5" and b.ctx > 131072:
+        warns.append(f"ctx {b.ctx} exceeds the 131,072 validated ceiling for SC5 (tested with ≥2 GiB free VRAM); "
+                     "values up to the 168,000 engine pool budget are unverified.")
     if b.slots > 1:
         warns.append("EXL3 manages concurrency internally; slots is advisory here.")
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
