@@ -33,16 +33,24 @@ def build_exl3(b):
         # previews never touch dockerd — bring-up is a launch-time step only
         warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
     inner_port = int(recipe.get("inner_port", 8100))
-    # Context profile validated dispatch:
-    # Long context (> 131,072) dispatches to gmu 0.94 for the 190K+ single-request capacity scope (up to 206,400 max len).
-    # Shorter context (<= 131,072) defaults to gmu 0.90 for >=2 GiB high-reserve margin (2,327 MiB free).
-    # Explicit recipe or operator override gmu is honored when compatible with b.ctx.
-    if recipe.get("gmu"):
+    # Context profile dispatch:
+    # 1. Explicit user/operator override in cfg or recipe takes precedence.
+    # 2. If recipe defines gmu_safe (e.g. "0.90") and ctx <= ctx_safe (e.g. 131,072),
+    #    dispatches to gmu_safe for the >=2 GiB high-reserve cell.
+    # 3. Otherwise uses recipe["gmu"] (e.g. "0.94" for long-ctx single-request profile).
+    # 4. Fallback when neither is defined: 0.94 if ctx >= 131072 else 0.90.
+    # 5. Guard: if ctx > 168000, gmu must be at least 0.94 to avoid container pool aborts.
+    user_override = recipe.get("override_gmu") or cfg.get("gmu")
+    if user_override:
+        gmu = str(user_override)
+    elif recipe.get("gmu_safe") and b.ctx <= recipe.get("ctx_safe", 131072):
+        gmu = str(recipe["gmu_safe"])
+    elif recipe.get("gmu"):
         gmu = str(recipe["gmu"])
-        if b.ctx > 168000 and float(gmu) < 0.94:
-            gmu = "0.94"
     else:
         gmu = "0.94" if b.ctx >= 131072 else "0.90"
+    if b.ctx > 168000 and float(gmu) < 0.94:
+        gmu = "0.94"
     cname = common.cname_for(model["id"], "exl3", b.port)
     tokens = docker_cmd + ["run", "--rm", "--name", cname] + common.labels_for(cfg, b.port)
     tokens += common.dri_args(b) + [
@@ -71,9 +79,13 @@ def build_exl3(b):
     tokens += recipe.get("fixed_flags", []) + b.extra
     warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu}; "
                  "first load ~5-8 min for kernel compile.")
-    if recipe.get("ctx_safe") and b.ctx > recipe["ctx_safe"]:
-        warns.append(f"ctx {b.ctx} operates with low VRAM headroom (observation class, ~1.1 GiB free under load); "
-                     f"sized for single-client capacity scope. Safe high-reserve alternate is {recipe['ctx_safe']}.")
+    if recipe.get("gmu_safe"):
+        if b.ctx > recipe.get("ctx_safe", 131072):
+            warns.append(f"ctx {b.ctx} operates with low VRAM headroom (observation class, ~1.1 GiB free under load); "
+                         f"sized for single-client capacity scope. Safe high-reserve alternate is {recipe.get('ctx_safe', 131072)} at gmu {recipe['gmu_safe']}.")
+        elif float(gmu) >= 0.94:
+            warns.append(f"gmu {gmu} operates with low VRAM headroom (~1.1 GiB free under load, observation class); "
+                         f"high-reserve alternate requires gmu {recipe['gmu_safe']}.")
     if recipe.get("ctx_max") and b.ctx > 196608:
         warns.append(f"ctx {b.ctx} exceeds the 196,608 tested profile (unverified budget ceiling up to {recipe['ctx_max']}).")
     if b.slots > 1:

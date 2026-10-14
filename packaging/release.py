@@ -65,6 +65,35 @@ def safe_rel(rel: str) -> bool:
     return bool(rel) and not rel.startswith("/") and ".." not in rel.split("/")
 
 
+def release_notes(readme: str, version: str) -> list:
+    """Plain-text bullets of README's `## What is new in <version>` section.
+
+    Each note is the bullet's bold lead plus the next sentence, with Markdown
+    bold, code and link markup removed, so the update dialog stays short."""
+    lines = readme.splitlines()
+    heading = f"## What is new in {version}"
+    if heading not in (line.strip() for line in lines):
+        return []
+    start = [line.strip() for line in lines].index(heading) + 1
+    notes = []
+    for line in lines[start:]:
+        if line.startswith("#"):
+            break
+        if not line.startswith("- "):
+            continue
+        text = line[2:].strip()
+        lead = re.match(r"\*\*(.+?)\*\*\s*", text)
+        rest = text[lead.end():] if lead else text
+        # first sentence: up to ". " / "! " / "? " followed by a capital or a quote mark
+        rest = re.split(r"(?<=[.!?])\s+(?=[A-Z`\"“(])", rest, maxsplit=1)[0]
+        note = f"{lead.group(1)} {rest}".strip() if lead else rest
+        note = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", note)
+        note = note.replace("**", "").replace("`", "")
+        if note:
+            notes.append(note)
+    return notes
+
+
 def build(out_dir: Path) -> tuple:
     out_dir.mkdir(parents=True, exist_ok=True)
     archive = out_dir / f"{NAME}.tar.gz"
@@ -121,6 +150,7 @@ def build(out_dir: Path) -> tuple:
         "sha256": digest,
         "recipes_manifest_url": "https://xecores.com/downloads/recipes-manifest.json",
         "message": f"B70 Launcher v{VERSION} is available.",
+        "notes": release_notes((ROOT / "README.md").read_text(), VERSION),
     }
     (out_dir / "version.json").write_text(json.dumps(version_doc, indent=1) + "\n")
     return archive, digest

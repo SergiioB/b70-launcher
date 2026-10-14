@@ -23,7 +23,8 @@ from pathlib import Path
 from . import catalog, paths
 
 MAX_TARBALL = 64 << 20
-STATE = {"state": "idle", "version": "", "error": "", "log": ""}
+# step: what a running install is doing now: checking, downloading, verifying, installing.
+STATE = {"state": "idle", "step": "", "version": "", "error": "", "log": ""}
 _LOCK = threading.Lock()
 
 
@@ -59,7 +60,9 @@ def _plan():
 
 def _install(version, url, digest):
     with tempfile.TemporaryDirectory(prefix="b70-update-") as tmp:
+        STATE.update(step="downloading")
         data = _fetch(url, MAX_TARBALL)
+        STATE.update(step="verifying")
         if hashlib.sha256(data).hexdigest() != digest:
             raise ValueError("SHA256 mismatch: the download does not match version.json. Nothing was installed.")
         tgz = Path(tmp) / "launcher.tar.gz"
@@ -75,6 +78,7 @@ def _install(version, url, digest):
         src = next(Path(tmp).glob("b70-launcher-*-linux-source"), None)
         if not src or not (src / "packaging" / "install.sh").is_file():
             raise ValueError("Unexpected archive layout; nothing was installed.")
+        STATE.update(step="installing")
         res = subprocess.run(["sh", str(src / "packaging" / "install.sh")],
                              capture_output=True, text=True, timeout=300)
         log = (res.stdout + res.stderr)[-4000:]
@@ -85,9 +89,10 @@ def _install(version, url, digest):
 
 def _worker():
     try:
+        STATE.update(step="checking")
         version, url, digest = _plan()
         STATE.update(version=version)
-        STATE.update(state="done", log=_install(version, url, digest))
+        STATE.update(state="done", step="", log=_install(version, url, digest))
     except Exception as exc:
         STATE.update(state="failed", error=str(exc))
 
@@ -100,28 +105,34 @@ def start_install(_cfg=None):
     with _LOCK:
         if STATE["state"] == "running":
             return status()
-        STATE.update(state="running", version="", error="", log="")
+        STATE.update(state="running", step="checking", version="", error="", log="")
         threading.Thread(target=_worker, daemon=True).start()
     return status()
 
 
 def status(_cfg=None):
-    return {k: STATE[k] for k in ("state", "version", "error")}
+    return {k: STATE[k] for k in ("state", "step", "version", "error")}
 
 
 def restart(_cfg=None):
-    """POST /api/update/restart: start the new launcher once this one has exited."""
+    """POST /api/update/restart: start the new launcher once this one has exited.
+
+    Running engines keep running: the daemon exits without stopping them and
+    the new one adopts them. The new launcher gets this daemon's arguments, so
+    it opens its own window unless this one was started with --no-open; then
+    the user has to reopen it ("window": false tells the UI to say so)."""
     if STATE["state"] != "done":
         raise ValueError("No installed update to restart into.")
     exe = _launcher_bin()
     if not exe.is_file():
         raise ValueError(f"{exe} is missing; start B70 Launcher from the menu.")
+    args = sys.argv[1:]
     # Same arguments (port, --no-open) as this daemon; start once this PID is gone,
     # otherwise the new launcher would find the port busy and exit.
     waiter = 'while kill -0 "$1" 2>/dev/null; do sleep 0.5; done; shift; exec "$@"'
-    subprocess.Popen(["sh", "-c", waiter, "b70-restart", str(os.getpid()), str(exe), *sys.argv[1:]],
+    subprocess.Popen(["sh", "-c", waiter, "b70-restart", str(os.getpid()), str(exe), *args],
                      start_new_session=True, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     from . import runtime
     threading.Thread(target=runtime.graceful_shutdown, args=(False,), daemon=True).start()
-    return {"ok": True}
+    return {"ok": True, "window": "--no-open" not in args}

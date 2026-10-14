@@ -13,7 +13,7 @@ from . import paths
 from .locks import LOCK
 
 UPDATE_URL = None  # set by load(); env override honored there
-UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"}
+UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match", "notes": []}
 # Remote recipe catalog state: filled by the same background check as
 # UPDATE_INFO. entries maps "<model_id>:<engine>" -> {"ver", "note", "recommended"}.
 RECIPE_REMOTE = {"checked": False, "catalog_ver": "", "recipes_url": "", "entries": {}}
@@ -42,7 +42,7 @@ REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtyp
                         "draft_device", "tensor_split", "split_mode",
                         "offload_tensors", "tool_parser", "reasoning_parser",
                         "cim_long_ctx", "search_name", "inner_port", "tp",
-                        "perf", "topology", "recipe_ver", "gmu")
+                        "perf", "topology", "recipe_ver", "gmu", "gmu_safe")
 _MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
@@ -353,6 +353,21 @@ def check_recipe_manifest(version_doc):
     RECIPE_REMOTE["checked"] = True
 
 
+def _update_notes(raw, limit=8, width=300):
+    """Release-note bullets from version.json: plain strings only, at most
+    `limit` of them, each cut to `width` characters."""
+    if not isinstance(raw, list):
+        return []
+    notes = []
+    for item in raw:
+        text = " ".join(item.split()) if isinstance(item, str) else ""
+        if text:
+            notes.append(text if len(text) <= width else text[:width - 1].rstrip() + "…")
+        if len(notes) == limit:
+            break
+    return notes
+
+
 def check_for_updates():
     global UPDATE_INFO
     try:
@@ -366,7 +381,8 @@ def check_for_updates():
                     "has_update": True,
                     "latest_version": latest,
                     "message": data.get("message", f"B70 Launcher v{latest} is available."),
-                    "download_url": data.get("download_url", "https://xecores.com/match")
+                    "download_url": data.get("download_url", "https://xecores.com/match"),
+                    "notes": _update_notes(data.get("notes")),
                 }
             else:
                 UPDATE_INFO["checked"] = True

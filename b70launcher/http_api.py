@@ -10,7 +10,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from . import builders, catalog, downloads, hardware, harness, paths, runtime, scan, selfupdate, telemetry
+from . import builders, catalog, downloads, gateway, hardware, harness, paths, runtime, scan, selfupdate, telemetry
 from .locks import LOCK
 
 API_TOKEN = ''
@@ -84,8 +84,8 @@ def _settings(cfg):
             raise ValueError('Choose an existing download folder, not your home or filesystem root.')
         values['models_dir'] = str(p)
     if 'open_with' in cfg:
-        if cfg['open_with'] not in ('pi', 'omp', 'droid', 'none'):
-            raise ValueError('Choose Pi, omp, Droid or no client.')
+        if cfg['open_with'] not in harness.CLIENT_IDS:
+            raise ValueError('Choose Pi, OMP, Droid, Codex, DeepSeek, Web UI or no client.')
         values['open_with'] = cfg['open_with']
     if 'sync_clients' in cfg:
         if not isinstance(cfg['sync_clients'], bool):
@@ -173,7 +173,7 @@ GET_ROUTES = {
     '/api/servers': lambda: {'running': runtime.servers_snapshot(), 'scan': {'state': scan.SCAN.get('state'), 'ts': scan.SCAN.get('ts')}},
     '/api/downloads': downloads.snapshot,
     '/api/metrics': telemetry.metrics_snapshot,
-    '/api/usage': telemetry.usage_summary,
+    '/api/usage': lambda: dict(telemetry.usage_summary(), **gateway.summary()),
 }
 POST_ROUTES = {
     '/api/build': _preview,
@@ -227,7 +227,24 @@ class Handler(BaseHTTPRequestHandler):
         match = re.search(r'(?:^|;\s*)' + name + r'=([^;]+)', self.headers.get('Cookie', ''))
         return bool(match and self._token_ok(match.group(1)))
 
+    def _gateway(self, method):
+        if not self._host_ok():
+            self._json({'error': 'unauthorized request'}, 403)
+            return
+        try:
+            gateway.handle(self, method)
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+        except Exception as exc:
+            try:
+                self._json({'error': {'message': f'Launcher gateway failed: {exc}'}}, 500)
+            except OSError:
+                self.close_connection = True
+
     def do_GET(self):
+        if self.path.startswith('/gw/'):
+            self._gateway('GET')
+            return
         if not self._host_ok():
             self._json({'error': 'unauthorized request'}, 403)
             return
@@ -268,6 +285,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json({'error': str(exc)}, 400)
 
     def do_POST(self):
+        if self.path.startswith('/gw/'):
+            self._gateway('POST')
+            return
         port = self.server.server_port
         if (not self._host_ok() or not self._token_ok(self.headers.get('X-Launcher-Token', ''))
                 or self.headers.get('Origin') not in (None, f'http://127.0.0.1:{port}', f'http://localhost:{port}')

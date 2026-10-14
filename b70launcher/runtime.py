@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import socket
+import statistics
 import subprocess
 import threading
 import time
@@ -20,6 +21,56 @@ LIVE_STATES = frozenset(("starting", "running"))
 STOP_EVT = threading.Event()
 SERVER = None
 SHUTDOWN = {"started": False}
+# Last LOAD_HISTORY_KEEP successful load times (seconds) per "<model_id>:<engine>",
+# so a new load of the same recipe can show an expected time.
+LOAD_HISTORY_PATH = paths.DATA / "load-history.json"
+LOAD_HISTORY_KEEP = 5
+_LOAD_HISTORY = None  # lazily read cache of LOAD_HISTORY_PATH
+
+
+def _load_history():
+    global _LOAD_HISTORY
+    if _LOAD_HISTORY is None:
+        try:
+            raw = json.loads(LOAD_HISTORY_PATH.read_text())
+        except (OSError, ValueError):
+            raw = {}
+        rows = {}
+        if isinstance(raw, dict):
+            for key, vals in raw.items():
+                if isinstance(vals, list):
+                    good = [float(v) for v in vals
+                            if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
+                    if good:
+                        rows[str(key)] = good[-LOAD_HISTORY_KEEP:]
+        _LOAD_HISTORY = rows
+    return _LOAD_HISTORY
+
+
+def _recipe_key(entry):
+    if not entry.get("model_id") or not entry.get("engine"):
+        return None
+    return f"{entry['model_id']}:{entry['engine']}"
+
+
+def record_load(entry):
+    """Remember a successful load time for this recipe (the last 5 are kept)."""
+    key, secs = _recipe_key(entry), entry.get("load_s")
+    if not key or not isinstance(secs, (int, float)) or isinstance(secs, bool) or secs <= 0:
+        return
+    with STATE_LOCK:
+        hist = _load_history()
+        hist[key] = (hist.get(key, []) + [float(secs)])[-LOAD_HISTORY_KEEP:]
+        try:
+            paths.atomic_write(LOAD_HISTORY_PATH, json.dumps(hist, indent=1, sort_keys=True))
+        except OSError as exc:  # never break the monitor loop over a history file
+            print(f"load history not saved: {exc}")
+
+
+def expected_load_s(entry):
+    """Median of the recent successful loads of this recipe, or None."""
+    rows = _load_history().get(_recipe_key(entry) or "")
+    return round(statistics.median(rows), 1) if rows else None
 
 
 def docker_cmd(sock=""):
@@ -192,6 +243,7 @@ def _public(entry):
     # explicit readiness: the endpoint answered /v1/models with model ids.
     # App-open success is tracked separately (client_open), never by "ready".
     out["ready"] = out.get("status") == "running"
+    out["load_expected_s"] = expected_load_s(entry)
     return out
 
 
@@ -261,6 +313,7 @@ def servers_snapshot():
                 from .telemetry import _log_phase
                 e["phase"] = _log_phase(e.get("log", "")) or e.get("phase", "loading weights")
         if sync:
+            record_load(e)
             from .harness import sync_harness_configs
             sync_harness_configs(e["port"], e["served_name"], e.get("model_id"), e.get("engine"), e.get("ctx") or 32768)
         if test:

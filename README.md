@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.6.6 (Linux source)
+# B70 Launcher 0.6.7 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -33,8 +33,11 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 **How it works:** pick a model → pick an engine recipe (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command (dry-run preview) → launch. Running servers survive restarts and are re-adopted; recipe updates arrive over the release channel and apply as state overlays — your install is never rewritten.
 
-## What is new in 0.6.6
+## What is new in 0.6.7
 
+- **SC5 190K+ context tested with profile-validated dispatch.** Single-request inference context for Qwen3.8-27B SC5 is configured to 196,608 tokens (tested to 196,438 occupied tokens on exact retrieval and multi-turn @ gmu 0.94 with 1,069 MiB free VRAM; observation class, single-client capacity scope). The 131K alternate (131,072 @ gmu 0.90) provides the safe high-reserve operating cell with 2,327 MiB free VRAM (>=2 GiB recommendation margin). Profile-validated dispatch automatically selects gmu 0.90 when context is <= 131,072 and gmu 0.94 for >131,072, suppressing low-headroom warnings only when running in the high-reserve cell.
+
+## What is new in 0.6.6
 - **The app window stays open.** Opening the launcher while it was already running closed the new window about 3 seconds later. The window helper stopped waiting for the window after 3 seconds, so the parent process exited and took the window with it. It now waits until you close the window. Closing the window of a fresh start now also stops the daemon as intended; running engines keep running.
 - **Models grouped by company, then family.** The library lists each model once under its company (Qwen · Alibaba, NVIDIA, Meta, Community) and family (Qwen3.8, Qwen3.6, Nemotron 3.5…). Company groups collapse and remember their state. Each row shows one status: Running, On disk, Download or Held.
 - **Engine switch in the workspace.** The engines for a model (EXL3, llama.cpp, vLLM, OpenVINO) sit in one row of buttons with their quant and status; arrow keys move between them. Picking a model opens the engine you used last, then a running one, then the recommended one if it is on disk.
@@ -184,9 +187,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.6-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.6-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.6-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.7-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.7-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.7-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space. Containers see only the selected card(s). Some recipe images use mutable tags.
 

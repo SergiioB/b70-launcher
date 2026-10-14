@@ -444,8 +444,16 @@ class TestExl3Builder(LauncherStateCase):
         b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=131072))
         self.assertIsNone(b.get("error"))
         t = b["tokens"]
+        self.assertIn("vllm.gpu_memory_utilization=0.90", t)
         self.assertIn("vllm.max_model_len=131072", t)
         self.assertFalse(any("low VRAM headroom" in w for w in b.get("warnings", [])))
+
+    def test_exl3_sc5_safe_alternate_with_override_warns(self):
+        b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=131072, gmu="0.94"))
+        self.assertIsNone(b.get("error"))
+        t = b["tokens"]
+        self.assertIn("vllm.gpu_memory_utilization=0.94", t)
+        self.assertTrue(any("low VRAM headroom" in w for w in b.get("warnings", [])))
 
     def test_exl3_sc5_warns_above_tested_profile(self):
         b = builders.build(cfg(model_id="qwen38-27b-sc5", engine="exl3", ctx=200000))
