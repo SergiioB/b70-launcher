@@ -654,7 +654,7 @@
      "c": "violet"
     },
     {
-     "t": "64K context",
+     "t": "262K context",
      "c": "green"
     },
     {
@@ -672,8 +672,8 @@
       "GGML_SYCL_GROUPED_MAX_ROWS": "0"
      },
      "ctx": 65536,
-     "ctx_max": 65536,
-     "ctx_note": "65,536 configured; this image found the needle in a 32,019-token needle prompt (a native build of the same source also found one in a 59,976-token prompt). One-slot recipe (-np 1 is pinned); -b 8192 -ub 4096, FA on, KV q8_0/q4_1: 23.9 GiB VRAM on the native build",
+     "ctx_max": 262144,
+     "ctx_note": "65,536 default; up to 262,144 (the GGUF maximum) fits: 25.8 GiB resident loaded, 26.5 GiB after a 250K-token prompt (23.9 GiB at 65,536). This image found a needle in a 250,035-token prompt (prefill 950.6, decode 15.6 tok/s) and in a 32,019-token prompt. One-slot recipe (-np 1 is pinned); -b 8192 -ub 4096, FA on, KV q8_0/q4_1",
      "power": 230,
      "perf": "This image, C1, one card: 886-token prompt prefill about 850 tok/s, decode 26.3 tok/s; 32,019-token prompt prefill 1281.3 tok/s, decode 24.2 tok/s. A native build of the same source on host runtime 26.05 decodes 28.1 tok/s (about 6% faster; cause not isolated). No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it (native build). Self-reported, one host, not independently reproduced.",
      "fixed_flags": [
@@ -708,7 +708,7 @@
     }
    },
    "brand": "nvidia",
-   "subtitle": "MoE 74B (A9B) • 64K context",
+   "subtitle": "MoE 74B (A9B) • up to 262K context",
    "chips": [
     "LLM",
     "Vision",
