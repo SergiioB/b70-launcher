@@ -344,7 +344,7 @@
      "ctx_max": 262144,
      "ctx_note": "full 262K proven on one card — real 261,920-token prompt completed 2026-09-27 (fp8 KV pool 287K tok @ gmu 0.94)",
      "power": 230,
-     "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; +33-42% chunk-rate at 230W vs 150W",
+     "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; 63.6 tok/s at p512/g128 (recipe sampling, C1, 230 W); +25-29% token rate at 230 W vs 150 W",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -502,7 +502,7 @@
      "gmu_safe": "0.90",
      "gmu_safe_budget": 168000,
      "power": 230,
-     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts; 131K context validated",
+     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p512/g128 (0.89x); 56.82 vs 64.34 p8192/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts; 131K context validated",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
