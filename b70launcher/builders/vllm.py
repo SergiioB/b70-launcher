@@ -26,6 +26,16 @@ def _need_patches(wanted, patches_dir, label):
                                 + ", ".join(missing))
 
 
+def _cache_flag(b):
+    return "--enable-prefix-caching" if b.prefix_cache else "--no-enable-prefix-caching"
+
+
+def _cache_warn(b, spec):
+    """Speculative stacks used to ship with the cache off; say plainly it is on."""
+    if spec and b.prefix_cache and b.cache_default:
+        b.warns.append("prefix caching ON (default); use --cache off for benchmarks")
+
+
 def _artifact_dir(b, what):
     """Resolve the on-disk model dir for kinds that need a real artifact.
 
@@ -87,7 +97,7 @@ def build_tp2(b):
              "--port", str(b.port),
              "--max-num-seqs", str(b.slots),
              "--max-num-batched-tokens", "4096",
-             "--no-enable-prefix-caching",
+             _cache_flag(b),
              "--served-model-name", model["name"],
              "--language-model-only"]
     use_mtp = bool(recipe.get("spec_tokens") or recipe.get("speculative")) and cfg.get("mtp", True)
@@ -100,7 +110,8 @@ def build_tp2(b):
     script = "set -e; python /patch_affinity.py; exec " + " ".join(shlex.quote(a) for a in serve)
     tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
     if tp_size > 1:
-        warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL thresholds pinned; prefix caching OFF (XPU speculative-stack corruption guard).")
+        warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL thresholds pinned.")
+    _cache_warn(b, use_mtp)
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
             "native": False, "docker_sock": ""}
 
@@ -138,7 +149,7 @@ def build_mtp(b):
              "--port", str(b.port),
              "--max-num-seqs", str(b.slots),
              "--max-num-batched-tokens", "8192",
-             "--no-enable-prefix-caching",
+             _cache_flag(b),
              "--served-model-name", model["name"],
              "--language-model-only"]
     if use_mtp:
@@ -148,7 +159,8 @@ def build_mtp(b):
     script = "set -e; python /patch_mtp.py; python /patch_boundary.py; exec " + \
         " ".join(shlex.quote(a) for a in serve)
     tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
-    warns.append("cookbook MTP path: BF16 draft + FP8 KV + patched GDN boundary; prefix caching OFF (XPU speculative-stack corruption guard).")
+    warns.append("cookbook MTP path: BF16 draft + FP8 KV + patched GDN boundary.")
+    _cache_warn(b, use_mtp)
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
             "native": False, "docker_sock": ""}
 
@@ -209,12 +221,9 @@ def build_dflash(b):
              "--max-num-batched-tokens", "8192",
              "--gpu-memory-utilization", "0.90",
              "--language-model-only", "--async-scheduling",
-             "--host", "0.0.0.0", "--port", str(b.port)]
-    if recipe.get("prefix_caching"):
-        serve += ["--enable-prefix-caching"]
-    else:
-        serve += ["--no-enable-prefix-caching"]
-    serve += ["--kv-cache-dtype", kv]
+             "--host", "0.0.0.0", "--port", str(b.port),
+             _cache_flag(b),
+             "--kv-cache-dtype", kv]
     if spec_on:
         serve += ["--speculative-config", json.dumps(
             {"method": scfg.get("method", "dflash"),
@@ -226,7 +235,8 @@ def build_dflash(b):
     tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
     warns.append("Nemotron DFlash: grouped-topk router patch + SSU B8/W4 tuning"
                  + (f" + draft {Path(draft_dir).name} (n={scfg.get('num_speculative_tokens', 7)})"
-                    if draft_dir else "") + "; prefix caching off.")
+                    if draft_dir else "") + ".")
+    _cache_warn(b, spec_on)
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
             "native": False, "docker_sock": ""}
 
@@ -254,9 +264,7 @@ def build_generic(b):
                   "--dtype", recipe.get("dtype", "bfloat16"),
                   "--gpu-memory-utilization", "0.92",
                   "--max-model-len", str(b.ctx),
-                  # explicit, never implied: XPU quantized stacks ship with the
-                  # prefix cache OFF until the upstream corruption guard lands
-                  "--no-enable-prefix-caching",
+                  _cache_flag(b),
                   "--port", str(b.port)]
     if use_mtp:
         scfg = recipe.get("speculative") or {}
@@ -300,6 +308,7 @@ def build_generic(b):
         tokens += [recipe["image"]] + serve_args
     if recipe.get("kind") == "vllm-autoround" and "--enforce-eager" in recipe.get("fixed_flags", []):
         warns.append("recipe pins --enforce-eager (dt_bias crash guard on the BF16 path).")
+    _cache_warn(b, use_mtp)
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
             "native": False, "docker_sock": ""}
 

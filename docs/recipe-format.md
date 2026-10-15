@@ -89,6 +89,8 @@ current UI.
 | `ctx_note` | context hint line under the context field; used as the `ctx_source` label when no on-disk `config.json` value wins |
 | `kv_options` | list of KV choices the UI offers for this recipe. The UI falls back to `q8_0/q4_1`, `q8_0`, `q5_0/q4_1`, `f16` for `gguf`, `auto` for `ovms`, and `fp8` otherwise; the llama.cpp/vLLM/EXL3 builders validate a caller-supplied `kv` against the recipe list (or `q8_0/q4_1`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp16`, `bf16`, `auto`, `fp8`) and warn + fall back to the recipe `kv` or the first option when it is not listed. `ovms` does not read `kv` at all |
 | `prefill_options` | EXL3 only: prefill modes the UI offers (`int8`, `fp16`). `int8` is the engine default and adds nothing to the command; `fp16` adds `--set env.EXL3_INT8_PREFILL=0`. An unlisted value warns and falls back to `int8`; other engines warn that the option is ignored |
+| `prefix_caching` | every engine: prefix caching is on unless this is `false`. `false` makes off the recipe default (vLLM `--no-enable-prefix-caching`, EXL3 `--set vllm.enable_prefix_caching=false`, OVMS `--enable_prefix_caching false`, llama.cpp `--no-cache-prompt`); a caller `cache: "on"` (`--cache on`) still forces it on, with a warning. Set it only with a `prefix_caching_note` |
+| `prefix_caching_note` | why `prefix_caching` is `false` (for example a reproduced cache corruption); shown in the launch warnings, the Prefix cache hint and Recipe details |
 | `operator_hold` | non-empty text blocks the recipe: launches are refused and downloads are not authorized; only a dry run still renders, with a warning |
 | `power` | advisory watts hint: when it exceeds the selected card's current hwmon cap the plan warns; never applied, and no power-cap command is generated |
 | `perf` | throughput note shown in Recipe notes |
@@ -181,11 +183,9 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   cache, `ONEAPI_DEVICE_SELECTOR=level_zero:<sel>`; `--tensor-parallel-size`
   added when `gpus` has two entries.
 - `vllm-mtp`: mounts `patches/patch_mtp_nightly.py` + `patch_mtp_boundary.py`,
-  runs them before `vllm serve` (GPTQ, fp8 KV, prefix caching on). Requires
-  the artifact on disk.
+  runs them before `vllm serve` (GPTQ, fp8 KV). Requires the artifact on disk.
 - `vllm-arext`: AutoRound W4A16 path; also mounts
-  `patch_champion_stack_overlay.py`; prefix caching intentionally off; requires
-  the artifact on disk.
+  `patch_champion_stack_overlay.py`; requires the artifact on disk.
 - `vllm-tp2`: dual-card tensor parallel; mounts `patch_vllm_worker_affinity.py`,
   `--cap-add SYS_PTRACE`, `--ipc=host`, `--shm-size` (recipe `shm_size`,
   default `16g`), oneCCL threshold env; `tp` defaults 2.
@@ -193,9 +193,13 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   build fails), `quantization` (default `gptq`), `shm_size`, `draft`
   (directory mount; without a detected draft it serves without speculation and
   warns), `speculative` dict (`method`, `model`, `num_speculative_tokens`,
-  default 7), `prefix_caching` (on/off explicitly).
+  default 7).
 - `vllm-autoround`: generic path + `--enforce-eager` via `fixed_flags` and the
   FP16 crash-guard warning.
+
+Every `vllm*` kind passes `--enable-prefix-caching` by default and
+`--no-enable-prefix-caching` when the recipe sets `prefix_caching: false` or the
+caller passes `cache: "off"`.
 
 ### `kind: gguf` / `gguf-tiered` (engine `llamacpp`)
 
@@ -259,7 +263,8 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
      `tags`, `chips`, `brand`);
    - recipe fields are **field-merged** over the local recipe, limited to
      `REMOTE_RECIPE_FIELDS` (`ctx`, `ctx_max`, `ctx_note`, `ctx_safe`, `power`,
-     `dtype`, `kv`, `kv_options`, `prefill_options`, `download`, `spec_tokens`, `spec_p_min`,
+     `dtype`, `kv`, `kv_options`, `prefill_options`, `prefix_caching`, `prefix_caching_note`,
+     `download`, `spec_tokens`, `spec_p_min`,
      `speculative`, `draft_device`, `tensor_split`, `split_mode`,
      `offload_tensors`, `tool_parser`, `reasoning_parser`, `cim_long_ctx`,
      `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`) plus a
@@ -283,7 +288,7 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
 
 ## Caveats / inert fields
 
-- The UI sends `model_id`, `engine`, `port`, `ctx`, `kv`, `prefill` (EXL3), `gpus` (list of ints),
+- The UI sends `model_id`, `engine`, `port`, `ctx`, `kv`, `prefill` (EXL3), `cache`, `gpus` (list of ints),
   `harness`, and `no_test`; it never sends `slots`, `mtp`, `use_docker`,
   `power`, `extra`, `extra_env`, or `models_dir`. Dual-GPU recipes rely on
   recipe-level `tp`/`tensor_split`/`gpus`.

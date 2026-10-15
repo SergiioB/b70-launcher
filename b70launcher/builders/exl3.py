@@ -90,7 +90,7 @@ def build_exl3(b):
         "--model-path", "/mnt/exl3model",
         "--set", f"vllm.gpu_memory_utilization={gmu}",
         "--set", f"vllm.max_model_len={b.ctx}",
-        "--set", "vllm.enable_prefix_caching=true",
+        "--set", f"vllm.enable_prefix_caching={'true' if b.prefix_cache else 'false'}",
         # serve under the name the launcher hands to clients (default is the config id)
         "--set", f"served_model_name={json.dumps(model['name'])}",
         # same parsers as exl3xpu's published docker recipe: thinking goes to

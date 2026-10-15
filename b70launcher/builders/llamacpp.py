@@ -95,6 +95,8 @@ def build_llamacpp(b):
     # with, not the full .gguf path
     tokens += ["-m", model_arg, "--alias", Path(gpath).stem, "-ngl", "99", "--host", host, "--port", str(b.port),
                "-c", str(b.ctx), "--flash-attn", "on", "--metrics"]
+    if not b.prefix_cache:
+        tokens += ["--no-cache-prompt"]  # llama-server caches prompts by default
     if "--cache-type-k" not in recipe.get("fixed_flags", []):
         tokens += KV_MAP[kv]
     if len(b.gpus) > 1:

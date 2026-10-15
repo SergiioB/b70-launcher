@@ -255,6 +255,25 @@ class Bld:
         self.prefill = cfg.get("prefill") or "int8"
         if self.prefill == "fp16" and self.kind != "exl3":
             warns.append("prefill option applies to EXL3 recipes only; ignored")
+        # prefix caching: ON unless the recipe opts out (prefix_caching: false
+        # + prefix_caching_note) or the caller passes cache "off".
+        recipe_cache = recipe.get("prefix_caching", True) is not False
+        note = recipe.get("prefix_caching_note") or "recipe sets prefix_caching false"
+        cache = cfg.get("cache")
+        if isinstance(cache, bool):
+            cache = "on" if cache else "off"
+        if cache not in (None, "", "on", "off"):
+            warns.append(f"cache '{cache}' isn't on or off — using the recipe default.")
+            cache = None
+        self.prefix_cache = recipe_cache if not cache else cache == "on"
+        self.cache_default = not cache or self.prefix_cache == recipe_cache
+        if not recipe_cache and self.prefix_cache:
+            warns.append(f"prefix caching forced ON over this recipe's default: {note}.")
+        elif not recipe_cache:
+            warns.append(f"prefix caching OFF for this recipe: {note}. --cache on forces it.")
+        elif not self.prefix_cache:
+            warns.append("prefix caching OFF (--cache off): for testing and benchmarks; "
+                         "every turn re-reads the whole prompt.")
         self.env = {}
         self.native = False
         preflight = hardware.hardware_preflight() if not IS_WIN else {"devices": []}

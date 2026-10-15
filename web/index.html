@@ -421,6 +421,11 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
           <select id="prefill"></select>
         </div>
         <div class="field">
+          <label for="cache">Prefix cache</label>
+          <select id="cache"></select>
+          <p class="hint" id="cache-hint">Off is for testing and benchmarks.</p>
+        </div>
+        <div class="field">
           <label for="slots">Parallel slots</label>
           <input id="slots" type="number" min="1" max="128" step="1" value="1">
         </div>
@@ -563,7 +568,7 @@ function dlLine(dl){if(dl.state!=='downloading')return dl.state==='queued'?'Wait
 const dlFile=dl=>dl.file?`File ${(dl.files_done||0)+1} of ${dl.files_total||1}: ${dl.file}`:'';
 const recipeKey=()=>`${S.model}:${S.engine}`;
 function cfg(){const g=$('gpu').value;return{model_id:S.model,engine:S.engine,port:Number($('port').value),
-  ctx:Number($('context').value),kv:$('kv').value,prefill:$('prefill').value,gpus:g?g.split(',').map(Number):[],
+  ctx:Number($('context').value),kv:$('kv').value,prefill:$('prefill').value,cache:$('cache').value,gpus:g?g.split(',').map(Number):[],
   slots:Number($('slots').value)||1,mtp:$('mtp').checked,extra:$('extra').value,
   extra_env:$('extra-env').value,harness:$('client').value,no_test:false};}
 function sessionFor(modelId,engine,port){const rows=S.servers.filter(e=>e.model_id===modelId&&e.engine===engine&&e.status!=='stopped');
@@ -690,7 +695,7 @@ function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)
     `<span class="fact"><b>GPUs</b> ${gpuCount(r)}${r.tp>1?' · tensor parallel':gpuCount(r)>1?' · split by layer':''}</span>`,
     r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:''
   ].filter(Boolean).join('');
-  renderContext();renderKv();renderPrefill();renderGpus();renderClients();renderAvailability();renderCookbook();}
+  renderContext();renderKv();renderPrefill();renderCache();renderGpus();renderClients();renderAvailability();renderCookbook();}
 
 function renderContext(){const r=recipe(),mt=match();if(!r)return;
   const now=Number($('context').value);const safe=validatedCtx(r);
@@ -713,6 +718,10 @@ function renderPrefill(){const r=recipe();
   const options=Array.isArray(r.prefill_options)?r.prefill_options:[];
   $('prefill-field').hidden=!options.length;
   $('prefill').innerHTML=options.map(k=>`<option value="${esc(k)}">${esc(PREFILL_LABEL[k]||k)}</option>`).join('');}
+function renderCache(){const r=recipe(),on=r.prefix_caching!==false;
+  $('cache').innerHTML=[['on','On'+(on?' (default)':'')],['off','Off'+(on?'':' (recipe default)')]]
+    .map(([v,l])=>`<option value="${v}"${(v==='on')===on?' selected':''}>${l}</option>`).join('');
+  $('cache-hint').textContent=on?'Off is for testing and benchmarks.':`Off for this recipe: ${r.prefix_caching_note||'recipe default'}`;}
 
 /* Card choices: single cards, plus every combination of the size a multi-card recipe needs (or pairs for
    single-card recipes, which can split a model across two cards). Labels carry each card's PCIe link. */
@@ -827,6 +836,7 @@ function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return
     ['Recipe context',r.ctx?fmt(r.ctx):null],['Context ceiling',r.ctx_max?fmt(r.ctx_max):null],
     ['Context note',r.ctx_note],['KV options',Array.isArray(r.kv_options)?r.kv_options.join(', '):null],
     ['KV default',r.kv],['Prefill options',Array.isArray(r.prefill_options)?r.prefill_options.join(', '):null],
+    ['Prefix cache',r.prefix_caching===false?`off — ${r.prefix_caching_note||'recipe default'}`:null],
     ['Fixed flags',Array.isArray(r.fixed_flags)?r.fixed_flags.join(' '):r.fixed_flags],
     ['Speculative draft',r.draft_model?(r.spec_tokens?`${r.spec_tokens} tokens`:'yes'):null],
     ['Reasoning parser',r.reasoning_parser],['Tool parser',r.tool_parser],
@@ -1326,7 +1336,7 @@ $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('con
     $('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started. Speed and time left show above.');}
   catch(e){$('confirm-download').disabled=false;error('action-error',e.message);}};
 function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAvailability();renderAction();refreshPlan();}
-for(const id of['port','kv','prefill','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+for(const id of['port','kv','prefill','cache','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
 $('context').addEventListener('input',renderContext);
 $('context').addEventListener('change',()=>{renderContext();renderAction();refreshPlan();});
 $('gpu').addEventListener('change',()=>onConfigChange());

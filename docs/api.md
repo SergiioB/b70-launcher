@@ -255,7 +255,9 @@ directory; anything else → `404 {"error": "not found"}`.
 
 All bodies are JSON objects. `model_id` (or legacy `model`) + `engine` identify
 the recipe. Fields read by the shared `builders.build()` path: `model_id`,
-`engine`, `ctx`, `port`, `slots`, `kv`, `prefill` (EXL3: `int8` default or `fp16`), `gpus` (list of ints), `power`, `extra`
+`engine`, `ctx`, `port`, `slots`, `kv`, `prefill` (EXL3: `int8` default or `fp16`), `cache` (`on` or `off`; omitted =
+recipe default, which is `on` unless the recipe sets `prefix_caching: false`; any other value warns and uses the
+recipe default), `gpus` (list of ints), `power`, `extra`
 (raw engine flags string), `extra_env` (`NAME=value` lines), `mtp` (bool),
 `use_docker` (bool), `dry_run`, `models_dir`, `harness`, `harness_cmd`,
 `no_test`, and `custom_path` when `model_id` is `"__custom__"`.

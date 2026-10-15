@@ -33,7 +33,7 @@ def build_ovms(b):
         "--source_model", source_model,
         "--task", "text_generation",
         "--target_device", "GPU.0",  # only the selected card is mapped
-        "--enable_prefix_caching", "true"]
+        "--enable_prefix_caching", "true" if b.prefix_cache else "false"]
     if b.slots > 1:
         warns.append("OVMS manages concurrency internally — --slots is advisory.")
     if recipe.get("tool_parser"):
