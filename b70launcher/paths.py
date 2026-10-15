@@ -11,7 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.6.10"  # single authority — release.py asserts it matches
+VERSION = "0.6.11"  # single authority — release.py asserts it matches
 
 IS_WIN = os.name == "nt"
 

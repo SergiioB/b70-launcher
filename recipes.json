@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-14.3",
+ "catalog_ver": "2026-10-15.1",
  "engines": [
   {
    "id": "openvino",
@@ -594,7 +594,7 @@
      "patches": [
       "patches/patch_xpu_grouped_topk_native_v2.py"
      ],
-     "recipe_ver": "2026-10-13",
+     "recipe_ver": "2026-10-15",
      "ver": "2026-10-07",
      "dtype": "float16",
      "quantization": "gptq",
@@ -607,6 +607,8 @@
        "quant": "BF16 DFlash draft"
       }
      },
+     "prefix_caching": false,
+     "prefix_caching_note": "cache-on check on this host did not pass its answer tests (2026-10-15); --cache on forces it",
      "perf_note": "Earlier image measurements are retained in the cookbook. Do not use them as performance figures for v0.31.0."
     },
     "llamacpp": {
