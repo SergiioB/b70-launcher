@@ -14,11 +14,12 @@ class TestCatalogUpdates(support_env.LauncherStateCase):
         original = dict(catalog.find_model('qwen36-35b')['recipes']['llamacpp'])
         doc = {'models': [{'id': 'qwen36-35b', 'recipes': {'llamacpp': {
             'image': 'malicious/image', 'llama_bin': '/tmp/evil', 'gguf': '/etc/shadow',
-            'fixed_flags': ['--evil'], 'ctx': 4096}}}]}
+            'fixed_flags': ['--evil'], 'env': {'GGML_SYCL_EVIL': '1'}, 'ctx': 4096}}}]}
         applied, needs_app, error = catalog.apply_recipe_doc(doc)
         result = catalog.find_model('qwen36-35b')['recipes']['llamacpp']
         self.assertEqual(result['ctx'], 4096)
-        for key in ('image', 'llama_bin', 'gguf', 'fixed_flags'):
+        self.assertNotIn('env', catalog.REMOTE_RECIPE_FIELDS)
+        for key in ('image', 'llama_bin', 'gguf', 'fixed_flags', 'env'):
             self.assertEqual(result.get(key), original.get(key))
         self.assertEqual(needs_app, [])
         self.assertIsNone(error)

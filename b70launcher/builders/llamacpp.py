@@ -1,6 +1,7 @@
 """llama.cpp SYCL builder (gguf + gguf-tiered), container or native."""
 import glob
 import os
+import re
 from pathlib import Path
 
 from .. import catalog, scan
@@ -45,6 +46,12 @@ def build_llamacpp(b):
         llama_bin = str(Path(llama_bin).expanduser())
     effective_binary = recipe.get("image", "")
     cname = ""
+    # recipe env: engine tuning knobs only (GGML_SYCL_*). Local recipes.json only — the
+    # remote overlay never ships "env" (catalog.REMOTE_RECIPE_FIELDS); user extra_env wins.
+    recipe_env = recipe.get("env") or {}
+    for k in recipe_env:
+        if not re.fullmatch(r"GGML_SYCL_[A-Z0-9_]+", k):
+            raise common.BuildError(f"recipe env {k} is not a GGML_SYCL_* engine setting")
     if (llama_bin and Path(llama_bin).is_file()) and not cfg.get("use_docker"):
         if not det:
             warns.append("native binary will use the assumed models_dir path — "
@@ -56,6 +63,7 @@ def build_llamacpp(b):
             warns.append(f"local llama_bin from settings overrides the recipe's pinned image "
                          f"({recipe.get('image', '?')}) — running binary: {llama_bin}")
         model_arg = host_gpath
+        b.env.update({k: str(v) for k, v in recipe_env.items()})
         b.env.update(b.extra_env)
         # mask renumbers visible devices 0..n-1 -> selector is relative (H5)
         b.env.update(common.device_env(b.gpus))
@@ -88,7 +96,8 @@ def build_llamacpp(b):
         if not IS_WIN:
             tokens += common.dri_args(b)
         tokens += ["--ipc=host", "-v", f"{Path(str(mount_src)).expanduser()}:{mount_dst}:ro",
-                   "-p", f"127.0.0.1:{b.port}:{b.port}", "-e", "ZES_ENABLE_SYSMAN=1"] + b.envargs + [
+                   "-p", f"127.0.0.1:{b.port}:{b.port}", "-e", "ZES_ENABLE_SYSMAN=1"] + [
+            x for k, v in recipe_env.items() for x in ("-e", f"{k}={v}")] + b.envargs + [
             recipe["image"]]
         model_arg = gpath
     # --alias: /v1/models must report the short name the agents are configured

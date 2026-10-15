@@ -209,7 +209,14 @@ caller passes `cache: "off"`.
 `--cache-type-k/-v`), `kv_options`, `tensor_split`, `split_mode`,
 `offload_tensors` (`-ot`), `draft_model` (host path or bare basename resolved
 through the last scan), `draft_device` (default `SYCL1`), `spec_tokens`,
-`spec_p_min`.
+`spec_p_min`, `env` (engine settings as `{"NAME": "value"}`; only
+`GGML_SYCL_*` names are accepted, any other name fails the build; passed as
+`docker -e` before the caller's env or set in the native env, and a caller
+`extra_env` entry with the same name wins).
+
+The GGUF's folder is mounted at `/models`, so a sidecar downloaded next to it
+(`download.extra_files`) is referenced in `fixed_flags` as `/models/<name>`,
+for example `--mmproj /models/mmproj-<model>.gguf`.
 
 Native runs get `ONEAPI_DEVICE_SELECTOR`/`ZE_AFFINITY_MASK`/`SYCL_*` env, all
 `/opt/intel/oneapi/*/latest/lib` dirs prepended to `LD_LIBRARY_PATH`, and bind
@@ -270,7 +277,7 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
      `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`) plus a
      bare `draft_model` filename;
    - exec-shaping keys (`kind`, `image`, `llama_bin`, `docker_sock`,
-     `fixed_flags`, `serve_config`) and host paths (`model_path`, `gguf`,
+     `fixed_flags`, `serve_config`, `env`) and host paths (`model_path`, `gguf`,
      `source_model`) never come from the wire, so a catalog cannot swap the
      binary/image, pick a socket, append container argv, or remount host paths;
    - a model or engine this app does not ship is **refused**, not added: the

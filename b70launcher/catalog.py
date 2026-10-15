@@ -33,10 +33,10 @@ REMOTE_MODEL_FIELDS = ("recommended_engine", "recommendation", "badge", "blurb",
                        "subtitle", "tags", "chips", "brand")
 
 # recipe fields a published update may tune. Exec-shaping keys (image,
-# docker_sock, llama_bin, fixed_flags, serve_config, kind) and host-path keys
+# docker_sock, llama_bin, fixed_flags, serve_config, kind, env) and host-path keys
 # (model_path, gguf, source_model) never come from the wire: they would let a
-# catalog swap the binary/image, pick the docker socket, append container argv
-# or remount host paths. Everything else merges over the local recipe.
+# catalog swap the binary/image, pick the docker socket, append container argv,
+# set engine env or remount host paths. Everything else merges over the local recipe.
 REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtype",
                         "kv", "kv_options", "prefill_options", "prefix_caching", "prefix_caching_note",
                         "download", "spec_tokens", "spec_p_min", "speculative",

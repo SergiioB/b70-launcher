@@ -137,6 +137,23 @@ class TestBuildLlamaCppNative(LauncherStateCase):
         self.assertTrue(b["native"])
         self.assertEqual(b["tokens"][0], str(f))
 
+    def test_recipe_env_applied_and_user_env_wins(self):
+        recipe = catalog.find_model("qwen36-35b")["recipes"]["llamacpp"]
+        recipe["env"] = {"GGML_SYCL_GROUPED_MAX_ROWS": 0, "GGML_SYCL_DYNAMIC_PRECISION": "F16"}
+        b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",
+                               extra_env="GGML_SYCL_DYNAMIC_PRECISION=BF16"))
+        self.assertEqual(b["env"]["GGML_SYCL_GROUPED_MAX_ROWS"], "0")
+        self.assertEqual(b["env"]["GGML_SYCL_DYNAMIC_PRECISION"], "BF16")
+        d = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp", use_docker=True))
+        t = d["tokens"]
+        self.assertIn("GGML_SYCL_GROUPED_MAX_ROWS=0", t)
+        self.assertLess(t.index("GGML_SYCL_GROUPED_MAX_ROWS=0"), t.index(recipe["image"]))
+
+    def test_recipe_env_rejects_non_engine_names(self):
+        catalog.find_model("qwen36-35b")["recipes"]["llamacpp"]["env"] = {"LD_PRELOAD": "/tmp/x.so"}
+        b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp"))
+        self.assertIn("LD_PRELOAD", b["error"])
+
 
 class TestBuildDraftModel(LauncherStateCase):
     """draft_model resolves through the disk scan (0.4.7 feature)."""
