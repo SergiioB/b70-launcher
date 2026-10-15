@@ -667,15 +667,15 @@
      "kind": "gguf",
      "gguf": "/models/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
      "search_name": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
-     "image": "ghcr.io/sergiiob/llama.cpp-sycl-b70:b11669-bolt",
+     "image": "ghcr.io/sergiiob/llama.cpp-sycl-b70:b11669-bolt@sha256:c1b871ee87d2790e92605e89d8fa40c41a61afa128bdce55da0f9fba22e3d042",
      "env": {
       "GGML_SYCL_GROUPED_MAX_ROWS": "0"
      },
      "ctx": 65536,
      "ctx_max": 65536,
-     "ctx_note": "65,536 configured; a needle at 50% depth of a 59,976-token prompt was found. One-slot recipe (-np 1 is pinned); measured with -b 8192 -ub 4096, FA on, KV q8_0/q4_1: 23.9 GiB VRAM",
+     "ctx_note": "65,536 configured; this image found the needle in a 32,019-token needle prompt (a native build of the same source also found one in a 59,976-token prompt). One-slot recipe (-np 1 is pinned); -b 8192 -ub 4096, FA on, KV q8_0/q4_1: 23.9 GiB VRAM on the native build",
      "power": 230,
-     "perf": "C1, one card, 230 W cap, llama-bench 5-rep median: prefill 1357.2 tok/s at 2,048 tokens, 1430.7 at 8,192; decode 28.24 tok/s at depth 512, 25.58 at depth 32,768. llama-server: 8,022-token prompt 1230.8 prefill / 27.36 decode tok/s; 59,976-token prompt 1262.9 / 23.67. No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it. Self-reported, one host, not independently reproduced.",
+     "perf": "This image, C1, one card: 886-token prompt prefill about 850 tok/s, decode 26.3 tok/s; 32,019-token prompt prefill 1281.3 tok/s, decode 24.2 tok/s. A native build of the same source on host runtime 26.05 decodes 28.1 tok/s (about 6% faster; cause not isolated). No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it (native build). Self-reported, one host, not independently reproduced.",
      "fixed_flags": [
       "--mmproj",
       "/models/mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
