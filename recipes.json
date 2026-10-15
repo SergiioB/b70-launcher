@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-15.1",
+ "catalog_ver": "2026-10-15.2",
  "engines": [
   {
    "id": "openvino",
@@ -345,6 +345,7 @@
      "ctx_note": "full 262K proven on one card — real 261,920-token prompt completed 2026-09-27 (fp8 KV pool 287K tok @ gmu 0.94)",
      "power": 230,
      "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; 63.6 tok/s at p512/g128 (recipe sampling, C1, 230 W); +25-29% token rate at 230 W vs 150 W",
+     "perf_note": "Run one interactive agent per card. On real agent work, 4 agents at once on one card gave only 16 % more total tokens, and the slowest replies took 4x longer to start (2026-10-15). For two agents, run one on each card.",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -367,7 +368,7 @@
       ]
      },
      "ctx_safe": 131072,
-     "recipe_ver": "2026-10-13.2",
+     "recipe_ver": "2026-10-15",
      "ver": "2026-10-13"
     }
    },
@@ -503,6 +504,7 @@
      "gmu_safe_budget": 168000,
      "power": 230,
      "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p512/g128 (0.89x); 56.82 vs 64.34 p8192/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts; 131K context validated",
+     "perf_note": "Run one interactive agent per card. On real agent work with the plain 4.00bpw route, 4 agents at once on one card gave only 16 % more total tokens, and the slowest replies took 4x longer to start (2026-10-15). For two agents, run one on each card.",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -526,7 +528,7 @@
       "note": "Branch SC_5.00bpw_H6 of the same repo; it downloads into its own directory (dest) so it never mixes with the plain 4.00bpw snapshot."
      },
      "recipe_note": "Qwen3.8-27B EXL3 SC_5.00bpw_H6: 190K+ tested (196,438 occupied exact retrieval+multiturn; 196,608 configured inference profile @ gmu 0.94, 1,069 MiB free); safe high-reserve alternate 131K @ gmu 0.90 (2,327 MiB free); budget ceiling 206,000.",
-     "recipe_ver": "2026-10-14.3",
+     "recipe_ver": "2026-10-15",
      "ver": "2026-10-13"
     }
    },
@@ -594,7 +596,7 @@
      "patches": [
       "patches/patch_xpu_grouped_topk_native_v2.py"
      ],
-     "recipe_ver": "2026-10-15",
+     "recipe_ver": "2026-10-15.2",
      "ver": "2026-10-07",
      "dtype": "float16",
      "quantization": "gptq",
@@ -607,8 +609,6 @@
        "quant": "BF16 DFlash draft"
       }
      },
-     "prefix_caching": false,
-     "prefix_caching_note": "cache-on check on this host did not pass its answer tests (2026-10-15); --cache on forces it",
      "perf_note": "Earlier image measurements are retained in the cookbook. Do not use them as performance figures for v0.31.0."
     },
     "llamacpp": {
