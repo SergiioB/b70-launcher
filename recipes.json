@@ -644,6 +644,80 @@
    "recommendation": "High-speed MoE model offering ultra-fast interactive time-to-first-token on Arc Pro B70."
   },
   {
+   "id": "nemotron-35-bolt-74b",
+   "name": "Nemotron-3.5-Bolt-74B",
+   "arch": "MoE 74B (A9B)",
+   "blurb": "Hybrid Mamba-2 + MoE 74B model (about 9B active per token) with image input. Fits one B70 with no offload on a patched llama.cpp SYCL image.",
+   "tags": [
+    {
+     "t": "Single B70",
+     "c": "violet"
+    },
+    {
+     "t": "64K context",
+     "c": "green"
+    },
+    {
+     "t": "llama.cpp SYCL",
+     "c": "amber"
+    }
+   ],
+   "recipes": {
+    "llamacpp": {
+     "kind": "gguf",
+     "gguf": "/models/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+     "search_name": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+     "image": "ghcr.io/sergiiob/llama.cpp-sycl-b70:b11669-bolt",
+     "env": {
+      "GGML_SYCL_GROUPED_MAX_ROWS": "0"
+     },
+     "ctx": 65536,
+     "ctx_max": 65536,
+     "ctx_note": "65,536 configured; a needle at 50% depth of a 59,976-token prompt was found. One-slot recipe (-np 1 is pinned); measured with -b 8192 -ub 4096, FA on, KV q8_0/q4_1: 23.9 GiB VRAM",
+     "power": 230,
+     "perf": "C1, one card, 230 W cap, llama-bench 5-rep median: prefill 1357.2 tok/s at 2,048 tokens, 1430.7 at 8,192; decode 28.24 tok/s at depth 512, 25.58 at depth 32,768. llama-server: 8,022-token prompt 1230.8 prefill / 27.36 decode tok/s; 59,976-token prompt 1262.9 / 23.67. No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it. Self-reported, one host, not independently reproduced.",
+     "fixed_flags": [
+      "--mmproj",
+      "/models/mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+      "-np",
+      "1",
+      "-b",
+      "8192",
+      "-ub",
+      "4096",
+      "-t",
+      "8",
+      "--jinja",
+      "--fit",
+      "off"
+     ],
+     "download": {
+      "kind": "file",
+      "name": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+      "repo": "nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF",
+      "search": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB",
+      "match": "nemotron-3.5-bolt",
+      "quant": "NVFP4 Mamba + IQ2_XXS experts GGUF (20.5 GiB) + BF16 mmproj (1.6 GiB)",
+      "sha256": "91d63363e782c8a3d5f4be42816eba8e0d42dd2530bd07a7d0d2dc440599af75",
+      "extra_files": [
+       "mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf"
+      ]
+     },
+     "recipe_ver": "2026-10-15",
+     "ver": "2026-10-15"
+    }
+   },
+   "brand": "nvidia",
+   "subtitle": "MoE 74B (A9B) • 64K context",
+   "chips": [
+    "LLM",
+    "Vision",
+    "24 GB"
+   ],
+   "recommended_engine": "llamacpp",
+   "recommendation": "Single-card B70 recipe on a patched llama.cpp b11669 SYCL image (GGML_SYCL_F16=ON, grouped MoE GEMM). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."
+  },
+  {
    "id": "qwen36-27b-ar",
    "name": "Qwen3.6-27B AutoRound INT4",
    "arch": "Dense 27B",
