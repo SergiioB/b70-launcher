@@ -654,6 +654,10 @@
      "c": "violet"
     },
     {
+     "t": "Dual B70 vLLM TP2",
+     "c": "violet"
+    },
+    {
      "t": "262K context",
      "c": "green"
     },
@@ -785,7 +789,8 @@
    "chips": [
     "LLM",
     "Vision",
-    "24 GB"
+    "24 GB",
+    "Dual B70"
    ],
    "recommended_engine": "llamacpp",
    "recommendation": "Single-card B70 recipe on a patched llama.cpp b11669 SYCL image (GGML_SYCL_F16=ON, grouped MoE GEMM). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."
