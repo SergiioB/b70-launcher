@@ -654,6 +654,10 @@
      "c": "violet"
     },
     {
+     "t": "Dual B70 vLLM TP2",
+     "c": "violet"
+    },
+    {
      "t": "262K context",
      "c": "green"
     },
@@ -663,6 +667,80 @@
     }
    ],
    "recipes": {
+    "vllm": {
+     "kind": "vllm-tp2",
+     "entry": "tp2-entry.sh",
+     "patches": [
+      "patches/patch_vllm_worker_affinity.py",
+      "patches/patch_xpu_moe_topk_pad.py"
+     ],
+     "image": "vllm/vllm-openai-xpu@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
+     "model_path": "/models/Nemotron-3.5-Bolt-74B-A9B-AutoRound-W4A16-G128-sym",
+     "search_name": "Nemotron-3.5-Bolt-74B-A9B-AutoRound-W4A16-G128-sym",
+     "gpus": [
+      0,
+      1
+     ],
+     "tp": 2,
+     "dtype": "bfloat16",
+     "quantization": null,
+     "kv": "fp8",
+     "kv_options": [
+      "fp8"
+     ],
+     "ctx": 65536,
+     "ctx_max": 262144,
+     "ctx_note": "65,536 default; up to 262,144 (the model maximum) loads and works: KV cache 409,375 fp8 tokens at gmu 0.85, 20.0 GiB weights per card, and one needle at 50% depth in a 249,212-token prompt was found. A 250K prompt takes about 35 min to read, so 262,144 is opt-in. Prefix caching on with --mamba-cache-mode align.",
+     "network": "host",
+     "shm_size": "8g",
+     "gmu": "0.85",
+     "batched_tokens": 8192,
+     "max_num_seqs": 4,
+     "async_scheduling": false,
+     "language_model_only": false,
+     "env": {
+      "B70_WORKER_AFFINITY": "1",
+      "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+      "CCL_SYCL_ALLREDUCE_SIMPLE_THRESHOLD": "4294967296",
+      "CCL_SYCL_REDUCE_SCATTER_SIMPLE_THRESHOLD": "4294967296",
+      "CCL_SYCL_ALLGATHERV_SIMPLE_THRESHOLD": "4294967296",
+      "CCL_SYCL_ALLTOALL_TMP_BUF": "1",
+      "CCL_KVS_IFACE": "lo",
+      "FI_TCP_IFACE": "lo",
+      "VLLM_HOST_IP": "127.0.0.1",
+      "HF_HUB_OFFLINE": "1"
+     },
+     "fixed_flags": [
+      "--trust-remote-code",
+      "--attention-backend",
+      "TRITON_ATTN",
+      "--block-size",
+      "64",
+      "--limit-mm-per-prompt",
+      "{\"image\":1,\"video\":0}",
+      "--mamba-cache-mode",
+      "align"
+     ],
+     "perf": "C1, both cards capped at 180 W, graph mode, prefix caching on with zero cache hits (cold prompts), 128 out, greedy, thinking off, median of 5 after 1 warmup. 886-token prompt: prefill 2,925 tok/s, decode 60.5 tok/s. 8,192: 2,014 / 50.7. 32,000: 871 / 33.5. 64,000: 486 / 23.0. Self-reported, one host, two cards, not independently reproduced.",
+     "download": {
+      "kind": "snapshot",
+      "repo": "SergiioB/Nemotron-3.5-Bolt-74B-A9B-AutoRound-W4A16-G128-sym",
+      "search": "Nemotron-3.5-Bolt-74B-A9B-AutoRound",
+      "match": "nemotron-3.5-bolt",
+      "prefer": [
+       "autoround"
+      ],
+      "quant": "AutoRound W4A16 int4 G128 sym safetensors (41 GB)",
+      "quant_method": "gptq",
+      "verify": [
+       "config.json"
+      ]
+     },
+     "recipe_ver": "2026-10-16.2",
+     "ver": "2026-10-16",
+     "perf_note": "Needs both patches: patch_vllm_worker_affinity.py and patch_xpu_moe_topk_pad.py (Bolt routes 9 experts per token; the XPU kernel has no TopK 9, so it pads to 10 with router weight 0). tp2-entry.sh applies them and checks the markers. Host networking with loopback pinning (CCL_KVS_IFACE=lo, FI_TCP_IFACE=lo, VLLM_HOST_IP=127.0.0.1); without it the two ranks hung at startup. Load time depends on disk; about 12-15 min on our USB SSD. For vision, put the image before the text. Not tested yet: LiLiCorr DFlash drafter, tool calling, video, concurrency beyond 4, task benchmarks beyond GSM8K 200.",
+     "power": 180
+    },
     "llamacpp": {
      "kind": "gguf",
      "gguf": "/models/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
@@ -712,7 +790,8 @@
    "chips": [
     "LLM",
     "Vision",
-    "24 GB"
+    "24 GB",
+    "Dual B70"
    ],
    "recommended_engine": "llamacpp",
    "recommendation": "Single-card B70 recipe on a patched llama.cpp b11669 SYCL image (GGML_SYCL_F16=ON, grouped MoE GEMM). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."

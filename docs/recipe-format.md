@@ -186,9 +186,20 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   runs them before `vllm serve` (GPTQ, fp8 KV). Requires the artifact on disk.
 - `vllm-arext`: AutoRound W4A16 path; also mounts
   `patch_champion_stack_overlay.py`; requires the artifact on disk.
-- `vllm-tp2`: dual-card tensor parallel; mounts `patch_vllm_worker_affinity.py`,
-  `--cap-add SYS_PTRACE`, `--ipc=host`, `--shm-size` (recipe `shm_size`,
-  default `16g`), oneCCL threshold env; `tp` defaults 2.
+- `vllm-tp2`: dual-card tensor parallel; `--cap-add SYS_PTRACE`, `--ipc=host`,
+  `--shm-size` only when the recipe sets `shm_size`; `tp` defaults 2.
+  Default path: mounts `patch_vllm_worker_affinity.py`, runs it, sets the
+  oneCCL threshold env, then `vllm serve`. With `entry` (a script under
+  `patches/`): mounts `patches/` read-only at `/patches` and runs
+  `bash /patches/<entry> serve /model ...`; the wrapper applies its own
+  patches and checks. `patches[]` lists the files it needs (build fails if
+  any is missing), and only `env` plus the device env are passed. Other keys:
+  `env` (`CCL_*`, `FI_*`, `VLLM_*`, `B70_*`, `HF_HUB_*` only), `network: "host"`
+  (`--network host` instead of the port publish; adds `--host 127.0.0.1`),
+  `quantization` (default `fp8`; `null` omits the flag so vLLM reads
+  config.json), `gmu` (default `0.90`), `batched_tokens` (default 4096),
+  `max_num_seqs` (used when the caller sets no `slots`), `async_scheduling`
+  and `language_model_only` (both default true).
 - `vllm-dflash`: `patches[]` (each name must exist under `patches/`, else the
   build fails), `quantization` (default `gptq`), `shm_size`, `draft`
   (directory mount; without a detected draft it serves without speculation and

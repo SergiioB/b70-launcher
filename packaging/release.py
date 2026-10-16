@@ -40,7 +40,8 @@ FILES = sorted(
     "packaging/install.sh packaging/uninstall.sh packaging/b70-launcher.desktop "
     "patches/patch_champion_stack_overlay.py patches/patch_mtp_boundary.py "
     "patches/patch_mtp_nightly.py patches/patch_vllm_worker_affinity.py "
-    "patches/patch_xpu_grouped_topk_native_v2.py "
+    "patches/patch_xpu_grouped_topk_native_v2.py patches/patch_xpu_moe_topk_pad.py "
+    "patches/tp2-entry.sh "
     "web/index.html ".split()
     + [f"web/assets/{p.name}" for p in (ROOT / "web" / "assets").iterdir()]
     + [f"patches/ssu-b70-b8w4/{p.name}" for p in (ROOT / "patches" / "ssu-b70-b8w4").iterdir()]
@@ -49,7 +50,8 @@ FILES = sorted(
 
 for model in json.loads((ROOT / "recipes.json").read_text()).get("models", []):
     for recipe in model.get("recipes", {}).values():
-        for patch in recipe.get("patches", []):
+        entry = [f"patches/{recipe['entry']}"] if recipe.get("entry") else []
+        for patch in recipe.get("patches", []) + entry:
             if patch not in FILES:
                 raise ValueError(f"Recipe patch is absent from the release: {patch}")
 

@@ -1,5 +1,6 @@
 """vLLM builders: generic, tp2, arext (AutoRound), mtp, dflash."""
 import json
+import re
 import shlex
 from pathlib import Path
 
@@ -52,10 +53,27 @@ def _artifact_dir(b, what):
                          "a real launch is refused until the artifact exists.")
 
 
+_TP2_RECIPE_ENV = re.compile(r"(CCL|FI|VLLM|B70|HF_HUB)_[A-Z0-9_]+")
+
+
 def build_tp2(b):
+    """vLLM TP2 across two cards.
+
+    Default: inline worker-affinity patch, then `vllm serve`. A recipe with
+    `entry` instead runs that bundled wrapper (patches/ mounted at /patches),
+    which applies its own patches and checks; `patches` lists the files it
+    needs. `network: "host"` swaps the port publish for host networking."""
     cfg, model, recipe, warns = b.cfg, b.model, b.recipe, b.warns
     patches_dir = HERE / "patches"
-    _need_patches(["patch_vllm_worker_affinity.py"], patches_dir, "TP2")
+    entry = recipe.get("entry")
+    wanted = ([entry] + [Path(p).name for p in (recipe.get("patches") or [])]
+              if entry else ["patch_vllm_worker_affinity.py"])
+    _need_patches(wanted, patches_dir, "TP2")
+    # recipe env: collective/runtime knobs only; local recipes.json only (not a remote field)
+    recipe_env = recipe.get("env") or {}
+    for k in recipe_env:
+        if not _TP2_RECIPE_ENV.fullmatch(k):
+            raise common.BuildError(f"recipe env {k} is not a CCL_/FI_/VLLM_/B70_/HF_HUB_ setting")
     tp_size = len(b.gpus)
     if tp_size < recipe.get("tp", 2):
         warns.append(f"TP{recipe.get('tp', 2)} recipe forced onto {tp_size} GPU — "
@@ -66,40 +84,54 @@ def build_tp2(b):
         warns.append("model not detected on disk — preview mounts the models folder; a real launch needs the artifact.")
     kv = common.resolve_kv(b.kv, recipe, ("fp8",), warns)
     cname = common.cname_for(model["id"], "vllm", b.port)
+    host_net = recipe.get("network") == "host"
     tokens = _docker_run(b, cname)
-    tokens += common.dri_args(b) + [
-               "--cap-add", "SYS_PTRACE", "--ipc=host", "--workdir", "/",
-               "-v", f"{mount_src}:/model:ro",
-               "-v", f"{patches_dir / 'patch_vllm_worker_affinity.py'}:/patch_affinity.py:ro",
-               "-p", f"127.0.0.1:{b.port}:{b.port}",
-               "-e", "VLLM_TARGET_DEVICE=xpu",
-               "-e", "ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE",
-               "-e", "B70_MTP_BF16_DRAFT=1",
-               "-e", "VLLM_XPU_ENABLE_XPU_GRAPH=1",
-               "-e", "PYTORCH_ALLOC_CONF=expandable_segments:True",
-               "-e", "CCL_SYCL_ALLREDUCE_SIMPLE_THRESHOLD=4294967296",
-               "-e", "CCL_SYCL_REDUCE_SCATTER_SIMPLE_THRESHOLD=4294967296",
-               "-e", "CCL_SYCL_ALLGATHERV_SIMPLE_THRESHOLD=4294967296",
-               "-e", "CCL_SYCL_ALLTOALL_TMP_BUF=1"]
+    tokens += common.dri_args(b) + ["--cap-add", "SYS_PTRACE", "--ipc=host", "--workdir", "/"]
+    if recipe.get("shm_size"):
+        tokens += ["--shm-size", recipe["shm_size"]]
+    tokens += ["-v", f"{mount_src}:/model:ro"]
+    if entry:
+        tokens += ["-v", f"{patches_dir}:/patches:ro"]
+    else:
+        tokens += ["-v", f"{patches_dir / 'patch_vllm_worker_affinity.py'}:/patch_affinity.py:ro"]
+    tokens += ["--network", "host"] if host_net else ["-p", f"127.0.0.1:{b.port}:{b.port}"]
+    if not entry:
+        tokens += ["-e", "VLLM_TARGET_DEVICE=xpu",
+                   "-e", "ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE",
+                   "-e", "B70_MTP_BF16_DRAFT=1",
+                   "-e", "VLLM_XPU_ENABLE_XPU_GRAPH=1",
+                   "-e", "PYTORCH_ALLOC_CONF=expandable_segments:True",
+                   "-e", "CCL_SYCL_ALLREDUCE_SIMPLE_THRESHOLD=4294967296",
+                   "-e", "CCL_SYCL_REDUCE_SCATTER_SIMPLE_THRESHOLD=4294967296",
+                   "-e", "CCL_SYCL_ALLGATHERV_SIMPLE_THRESHOLD=4294967296",
+                   "-e", "CCL_SYCL_ALLTOALL_TMP_BUF=1"]
+    for k, v in recipe_env.items():
+        tokens += ["-e", f"{k}={v}"]
     # mask + RELATIVE selector (H4/H5): the mask renumbers cards, so the
     # selector addresses 0..n-1 even when the mask hides card 0
     for k, v in common.container_env(b).items():
         tokens += ["-e", f"{k}={v}"]
     tokens += b.envargs
-    serve = ["vllm", "serve", "/model",
-             "--quantization", recipe.get("quantization", "fp8"),
-             "--dtype", recipe.get("dtype", "bfloat16"),
-             "--tensor-parallel-size", str(tp_size),
-             "--max-model-len", str(b.ctx),
-             "--async-scheduling",
-             "--gpu-memory-utilization", "0.90",
-             "--kv-cache-dtype", kv,
-             "--port", str(b.port),
-             "--max-num-seqs", str(b.slots),
-             "--max-num-batched-tokens", "4096",
-             _cache_flag(b),
-             "--served-model-name", model["name"],
-             "--language-model-only"]
+    serve = ["/model"]
+    if host_net:
+        serve += ["--host", "127.0.0.1"]
+    if recipe.get("quantization", "fp8"):  # null: vLLM reads it from config.json
+        serve += ["--quantization", recipe.get("quantization", "fp8")]
+    slots = b.slots if cfg.get("slots") is not None else recipe.get("max_num_seqs", b.slots)
+    serve += ["--dtype", recipe.get("dtype", "bfloat16"),
+              "--tensor-parallel-size", str(tp_size),
+              "--max-model-len", str(b.ctx)]
+    if recipe.get("async_scheduling", True):
+        serve += ["--async-scheduling"]
+    serve += ["--gpu-memory-utilization", str(recipe.get("gmu", "0.90")),
+              "--kv-cache-dtype", kv,
+              "--port", str(b.port),
+              "--max-num-seqs", str(slots),
+              "--max-num-batched-tokens", str(recipe.get("batched_tokens", 4096)),
+              _cache_flag(b),
+              "--served-model-name", model["name"]]
+    if recipe.get("language_model_only", True):
+        serve += ["--language-model-only"]
     use_mtp = bool(recipe.get("spec_tokens") or recipe.get("speculative")) and cfg.get("mtp", True)
     if cfg.get("mtp") and not (recipe.get("spec_tokens") or recipe.get("speculative")):
         warns.append("recipe has no speculative-decoding config — --mtp ignored.")
@@ -107,10 +139,15 @@ def build_tp2(b):
         serve += ["--speculative-config",
                   json.dumps({"method": "mtp", "num_speculative_tokens": recipe.get("spec_tokens", 8)})]
     serve += recipe.get("fixed_flags", []) + b.extra
-    script = "set -e; python /patch_affinity.py; exec " + " ".join(shlex.quote(a) for a in serve)
-    tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
+    if entry:
+        tokens += ["--entrypoint", "bash", recipe["image"], f"/patches/{entry}", "serve"] + serve
+    else:
+        script = "set -e; python /patch_affinity.py; exec vllm serve " + " ".join(shlex.quote(a) for a in serve)
+        tokens += ["--entrypoint", "bash", recipe["image"], "-lc", script]
     if tp_size > 1:
-        warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL thresholds pinned.")
+        warns.append("vLLM TP2 dual-card: worker affinity patch + oneCCL thresholds pinned"
+                     + (f"; entry {entry} applies {', '.join(wanted[1:]) or 'no extra patches'}" if entry else "")
+                     + ".")
     _cache_warn(b, use_mtp)
     return {"tokens": tokens, "env": {}, "cname": cname, "served_name": model["name"],
             "native": False, "docker_sock": ""}

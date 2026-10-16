@@ -226,6 +226,40 @@ class TestBuildOtherEngines(LauncherStateCase):
                                gpus=[0, 1], mtp=False))
         self.assertNotIn("--speculative-config", " ".join(b["tokens"]))
 
+    def test_vllm_tp2_entry_wrapper(self):
+        # Bolt TP2: bundled entry script applies affinity + topk-pad patches
+        b = builders.build(cfg(model_id="nemotron-35-bolt-74b", engine="vllm",
+                               gpus=[0, 1], ctx=262144))
+        self.assertNotIn("error", b)
+        t = b["tokens"]
+        i = t.index("--entrypoint")
+        self.assertEqual(t[i + 1], "bash")
+        self.assertEqual(t[i + 3:i + 6], ["/patches/tp2-entry.sh", "serve", "/model"])
+        self.assertIn(f"{paths.HERE / 'patches'}:/patches:ro", t)
+        self.assertEqual(t[t.index("--network") + 1], "host")
+        self.assertNotIn("-p", t)
+        for env in ("CCL_KVS_IFACE=lo", "FI_TCP_IFACE=lo", "VLLM_HOST_IP=127.0.0.1",
+                    "B70_WORKER_AFFINITY=1", "ZE_AFFINITY_MASK=0,1"):
+            self.assertIn(env, t)
+        self.assertNotIn("B70_MTP_BF16_DRAFT=1", t)
+        serve = " ".join(t[i + 5:])
+        for flag in ("--tensor-parallel-size 2", "--kv-cache-dtype fp8", "--max-model-len 262144",
+                     "--enable-prefix-caching", "--mamba-cache-mode align", "--max-num-seqs 4",
+                     "--gpu-memory-utilization 0.85", "--max-num-batched-tokens 8192"):
+            self.assertIn(flag, serve)
+        for flag in ("--quantization", "--language-model-only", "--async-scheduling", "-lc"):
+            self.assertNotIn(flag, t)
+        self.assertTrue(any("patch_xpu_moe_topk_pad.py" in w for w in b["warnings"]))
+
+    def test_vllm_tp2_recipe_env_rejects_other_names(self):
+        recipe = catalog.find_model("nemotron-35-bolt-74b")["recipes"]["vllm"]
+        recipe["env"]["LD_PRELOAD"] = "/x.so"
+        try:
+            b = builders.build(cfg(model_id="nemotron-35-bolt-74b", engine="vllm", gpus=[0, 1]))
+        finally:
+            del recipe["env"]["LD_PRELOAD"]
+        self.assertIn("LD_PRELOAD", b.get("error", ""))
+
 
 
     def test_vllm_mtp_snapshot(self):
