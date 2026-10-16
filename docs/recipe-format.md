@@ -7,7 +7,7 @@ see "Inert fields" below).
 
 ## Add a recipe
 
-1. **Copy an existing entry** in `recipes.json` matching the target model architecture and engine (`vllm`, `llamacpp`, `openvino`, or `exl3`).
+1. **Copy an existing entry** in `recipes.json` matching the target model architecture and engine (`vllm`, `llamacpp`, `openvino`, `exl3`, or `strata`).
 2. **Fill fields** according to the schema below (weights, prompt template, context window, arguments, and recommended hardware).
 3. **Run recipe tests** to verify catalog integrity:
    ```bash
@@ -40,7 +40,7 @@ comparison splits on non-digits (`"2026-10-05"` → `[2026,10,5]`), so any
 ```
 
 `id` must match the recipe keys used under each model. Engine keys in use:
-`openvino`, `vllm`, `llamacpp`, `exl3`. `label` is the engine button text; `tag`,
+`openvino`, `vllm`, `llamacpp`, `exl3`, `strata`. `label` is the engine button text; `tag`,
 `tagline`, and `note` are shipped with the catalog but are not rendered by the
 current UI.
 
@@ -81,15 +81,15 @@ current UI.
 
 | field | meaning |
 |---|---|
-| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`, `gguf-tiered`, `exl3` |
+| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`, `gguf-tiered`, `exl3`, `strata` |
 | `image` | container image (ignored when a `llama_bin` native path exists) |
 | `ctx` | default context; clamped by `ctx_max` |
 | `ctx_max` | hard ceiling; user ctx above it is clamped with a warning |
 | `ctx_safe` | context the UI preselects ("Safe" preset); falls back to `ctx` when absent |
 | `ctx_note` | context hint line under the context field; used as the `ctx_source` label when no on-disk `config.json` value wins |
-| `kv_options` | list of KV choices the UI offers for this recipe. The UI falls back to `q8_0/q4_1`, `q8_0`, `q5_0/q4_1`, `f16` for `gguf`, `auto` for `ovms`, and `fp8` otherwise; the llama.cpp/vLLM/EXL3 builders validate a caller-supplied `kv` against the recipe list (or `q8_0/q4_1`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp16`, `bf16`, `auto`, `fp8`) and warn + fall back to the recipe `kv` or the first option when it is not listed. `ovms` does not read `kv` at all |
+| `kv_options` | list of KV choices the UI offers for this recipe. The UI falls back to `q8_0/q4_1`, `q8_0`, `q5_0/q4_1`, `f16` for `gguf`, `auto` for `ovms`, and `fp8` otherwise; the llama.cpp/vLLM/EXL3/Strata builders validate a caller-supplied `kv` against the recipe list (or `q8_0/q4_1`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp16`, `bf16`, `auto`, `fp8`, `int8`) and warn + fall back to the recipe `kv` or the first option when it is not listed. `ovms` does not read `kv` at all |
 | `prefill_options` | EXL3 only: prefill modes the UI offers (`int8`, `fp16`). `int8` is the engine default and adds nothing to the command; `fp16` adds `--set env.EXL3_INT8_PREFILL=0`. An unlisted value warns and falls back to `int8`; other engines warn that the option is ignored |
-| `prefix_caching` | every engine: prefix caching is on unless this is `false`. `false` makes off the recipe default (vLLM `--no-enable-prefix-caching`, EXL3 `--set vllm.enable_prefix_caching=false`, OVMS `--enable_prefix_caching false`, llama.cpp `--no-cache-prompt`); a caller `cache: "on"` (`--cache on`) still forces it on, with a warning. Set it only with a `prefix_caching_note` |
+| `prefix_caching` | every engine: prefix caching is on unless this is `false`. `false` makes off the recipe default (vLLM `--no-enable-prefix-caching`, EXL3 `--set vllm.enable_prefix_caching=false`, OVMS `--enable_prefix_caching false`, llama.cpp `--no-cache-prompt`, Strata `--prompt-cache 0 --conversation-cache-mib 0`); a caller `cache: "on"` (`--cache on`) still forces it on, with a warning. Set it only with a `prefix_caching_note` |
 | `prefix_caching_note` | why `prefix_caching` is `false` (for example a reproduced cache corruption); shown in the launch warnings, the Prefix cache hint and Recipe details |
 | `operator_hold` | non-empty text blocks the recipe: launches are refused and downloads are not authorized; only a dry run still renders, with a warning |
 | `power` | advisory watts hint: when it exceeds the selected card's current hwmon cap the plan warns; never applied, and no power-cap command is generated |
@@ -245,6 +245,58 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
 (`int8` default, `fp16` max quality). Every `extra_env` entry is passed both as `-e` and as
 `--set env.NAME="value"`, because the serve config's `env:` block overrides `docker -e`.
 
+### `kind: strata` (engine `strata`)
+
+Runs [Strata](https://github.com/Niko1221/Strata)'s server
+(`sycl/serve/server_intel.py`) and its SYCL engine from the user's own Strata
+checkout, in one container of the user's locally built image (`image`, default
+recipe value `strata-sycl-dev`, built by `docker build -t strata-sycl-dev
+sycl/tools` in the checkout). The launcher neither builds nor ships Strata, and
+runs none of Strata's setup. Linux only.
+
+Settings (`settings-override.json` only, like `llama_bin`): `strata_root` — the
+checkout, an absolute path; `strata_data` — the data folder Strata's setup
+writes (default `<strata_root>/../Strata-data`, setup's own default).
+
+Recipe paths, each relative and checked to stay inside its folder:
+`strata_bin` (default `build-sycl-aot/strata`), `strata_python` (default
+`.venv-sycl/bin/python`: a venv made with the image's Python, holding the
+server's packages), `expert_profile` (default `data/expert-profile-sycl.bin`)
+and `mtp_draft_vocab` (optional) inside the checkout; `strata_pack` (default
+`packs/iq3_xxs`) and `strata_mtp` (default `mtp/rt`) inside the data folder.
+
+Other fields: `kv` / `kv_options` (`--kv`, default option `int8`), `parallel`
+(the server config's `"parallel"`: requests decoded together, at most 8; a
+caller `slots` overrides it), `spec_tokens` (`--spec N` with the MTP draft
+layer; the caller sends `mtp:false` to run without), `spec_p_min`
+(`--spec-min-p`, default 0.5), `fixed_flags` (engine argv after the rendered
+ones), and `env` (`{"NAME": "value"}`; only `STRATA_*` names with single-line
+values are accepted, any other fails the build; passed as `docker -e` after
+`ONEAPI_DEVICE_SELECTOR=level_zero:*`, `SYCL_CACHE_PERSISTENT=0` and
+`ZES_ENABLE_SYSMAN=1`, and a caller `extra_env` entry with the same name wins).
+
+The detected artifact is shard 1 of a two-shard GGUF
+(`*-00001-of-00002.gguf`); shard 2 must sit next to it (a symlink is fine — each
+shard is mounted by its real path). A real launch is refused, with every missing
+piece named, when the checkout, engine binary, server venv, expert profile,
+pack, MTP draft layer (with MTP on), draft vocabulary or either shard is
+missing; a dry run renders with a warning instead.
+
+The command: `docker run --rm` with the selected cards' nodes only,
+`--cap-add SYS_PTRACE` on two cards (Level Zero IPC under Docker's default
+seccomp), `--ulimit memlock=-1`, `--oom-score-adj 1000`, `-p 127.0.0.1:<port>`,
+and read-only mounts at `/strata` (checkout), `/strata-data/pack`,
+`/strata-data/mtp` and `/models/<shard>`. The script writes the rendered
+server config to `/tmp/b70-strata/config.json` inside the container, tails the
+engine log into the container output (the launcher's server log), and execs
+the server with `--host 0.0.0.0 --port <port>`. The config carries `exe`,
+`cwd`, `tokenizer` (`<pack>/tokenizer`), `model_name` (the model's `name`),
+`gpu`, `parallel`, `log` and `args`: `--pack --native --ple-gguf`,
+`--expert-parallel-device 1` on two cards, `--expert-profile`,
+`--max-context <ctx>` (per slot), `--kv`, the MTP flags, then `fixed_flags`,
+the cache-off overrides and the caller's `extra` flags. The build result's
+`image_hint` replaces the `docker pull` advice when the image is missing.
+
 ## Custom artifacts (`model_id: "__custom__"`)
 
 `Browse… / Set Custom Path` in the UI posts `custom_path` with
@@ -288,9 +340,11 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
      `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`) plus a
      bare `draft_model` filename;
    - exec-shaping keys (`kind`, `image`, `llama_bin`, `docker_sock`,
-     `fixed_flags`, `serve_config`, `env`) and host paths (`model_path`, `gguf`,
-     `source_model`) never come from the wire, so a catalog cannot swap the
-     binary/image, pick a socket, append container argv, or remount host paths;
+     `fixed_flags`, `serve_config`, `env`, and the Strata paths `strata_bin`,
+     `strata_python`, `strata_pack`, `strata_mtp`, `expert_profile`,
+     `mtp_draft_vocab`) and host paths (`model_path`, `gguf`, `source_model`)
+     never come from the wire, so a catalog cannot swap the binary/image, pick
+     a socket, append container argv, or remount host paths;
    - a model or engine this app does not ship is **refused**, not added: the
      payload cannot carry its `kind`/`image`, and the response says it needs a
      newer launcher app;
@@ -319,4 +373,5 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
   `open_harness` probes terminals itself.
 - `POST /api/settings` can write only `scan_dirs`, `models_dir`, `open_with`,
   and `sync_clients`; `settings-override.json` also accepts `ovms_repo`,
-  `llama_bin`, `exl3_data_root`, and `recipe_overrides` when edited by hand.
+  `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, and
+  `recipe_overrides` when edited by hand.

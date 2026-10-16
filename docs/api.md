@@ -20,7 +20,7 @@ points, not implementation:
 | `scan.py` | disk scan, artifact detection/quant pinning, context resolution |
 | `hardware.py` | GPU preflight (device list, per-kind blockers, busy attribution), power/VRAM probes |
 | `downloads.py` | Hugging Face download plan / confirm / cancel / worker |
-| `builders/` | launch command construction: `common.py`, `ovms.py`, `vllm.py`, `llamacpp.py`, `exl3.py` |
+| `builders/` | launch command construction: `common.py`, `ovms.py`, `vllm.py`, `llamacpp.py`, `exl3.py`, `strata.py` |
 | `runtime.py` | server state machine, launch/stop/adopt, snapshots, preflight entry point |
 | `telemetry.py` | engine metrics scraping, token accounting, usage history |
 | `harness.py` | client config sync and terminal spawning |
@@ -190,7 +190,8 @@ Full telemetry snapshot for debug callers (the UI polls `/api/power` and
 }
 ```
 
-Per-server counters come from the engine's own Prometheus `/metrics`
+Per-server counters come from the engine's own Prometheus `/metrics`, asked
+for with `Accept: text/plain` (Strata answers JSON without it)
 (`metrics_source: "engine /metrics"`), falling back to log parsing
 (`"engine log"`). `tok_s` is a smoothed completion rate; `stats` is
 `docker stats` cpu/mem for container engines. `vram` is the first card's sysfs
@@ -278,13 +279,15 @@ is kept as an alias.
 {"cmd", "tokens", "env", "warnings", "operator_hold", "cname", "docker_sock",
  "endpoint", "served_name", "model_name", "engine", "kind", "rid", "gpus",
  "ctx", "ctx_source", "quant", "variant", "found_name", "custom", "recipe_ver",
- "detected", "detected_path", "native", "effective_binary", "artifact_mib",
- "harness_line"}
+ "detected", "detected_path", "native", "effective_binary", "image_hint",
+ "artifact_mib", "harness_line"}
 ```
 
 or `{"error", "warnings"}` (unknown model+engine, unknown recipe kind, or a
 rogue `models_dir`). `effective_binary` is the
-native binary when one is used, else the recipe image. `ctx_source` is
+native binary when one is used, else the recipe image. `image_hint` is how to
+get a missing image that is built locally rather than pulled (Strata), else
+`""`; a launch whose image is missing reports it instead of `docker pull`. `ctx_source` is
 `"config.json on disk"`, the recipe's `ctx_note`, or the built-in default label
 for that recipe kind. A recipe with `operator_hold` set only warns here; a real
 launch is refused.
@@ -427,8 +430,10 @@ testing; 8 MiB cap).
 The overlay is field-merged, not wholesale: model fields are limited to
 `REMOTE_MODEL_FIELDS`, recipe fields to `REMOTE_RECIPE_FIELDS`
 (`b70launcher/catalog.py`) — exec-shaping keys (`kind`, `image`, `llama_bin`,
-`docker_sock`, `fixed_flags`, `serve_config`) and host paths (`model_path`,
-`gguf`, `source_model`) never come from the wire. Models or engines this app
+`docker_sock`, `fixed_flags`, `serve_config`, `env`, and the Strata paths
+`strata_bin`, `strata_python`, `strata_pack`, `strata_mtp`, `expert_profile`,
+`mtp_draft_vocab`) and host paths (`model_path`, `gguf`, `source_model`) never
+come from the wire. Models or engines this app
 does not ship are refused, not added.
 
 Response `{"ok": true, "applied": <count>, "catalog_ver": "..."}` or
@@ -456,7 +461,8 @@ posted at a time; a `null` entry removes that override and a `null` map clears
 all of them. Invalid values → `400`. It invalidates the cached preflight and
 does not rescan unless other keys are posted with it. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
-`exl3_data_root`, `agent_dir`, and `recipe_overrides`.
+`exl3_data_root`, `strata_root`, `strata_data`, `agent_dir`, and
+`recipe_overrides`.
 
 ### `POST /api/shutdown`
 

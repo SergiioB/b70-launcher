@@ -8,6 +8,8 @@
   "models_dir": "~/models",
   "llama_bin": "",
   "exl3_data_root": "~/.local/share/b70-exl3",
+  "strata_root": "",
+  "strata_data": "",
   "pcie_links": {},
   "vllm_kv_options": [
     "recipe default",

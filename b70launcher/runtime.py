@@ -211,9 +211,10 @@ def _start(entry, built):
             found = subprocess.run(docker_cmd(entry["docker_sock"]) + ["image", "inspect", image],
                                    capture_output=True, text=True, timeout=15)
             if found.returncode:
-                # `docker run` would start a multi-GB pull with no disk-space check
-                raise RuntimeError(f"Engine image is not on this machine: {image}. "
-                                   f"Check free disk space, then run: docker pull {image}")
+                # `docker run` would start a multi-GB pull with no disk-space check;
+                # a locally built image (Strata) carries its own build hint
+                raise RuntimeError(f"Engine image is not on this machine: {image}. " + (
+                    built.get("image_hint") or f"Check free disk space, then run: docker pull {image}"))
         env = dict(os.environ)
         env.update(built.get("env") or {})
         with LOCK:

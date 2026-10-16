@@ -95,6 +95,7 @@ b70 launch qwen38-27b-sc5 -e exl3 --prefill fp16   # EXL3 max-quality prefill (s
 b70 launch qwen36-35b -e vllm --cache off  # prefix caching off: testing/benchmarks only
 b70 launch qwen38-27b-fp8-tp2              # recipe declares dual-card → gpus 0,1 auto
 b70 launch qwen38-flashnext --gpus 0,1     # same, manual
+b70 launch qwen38-flashnext-strata --dry-run  # Strata from your own checkout (README: Strata)
 b70 launch qwen36-35b -e vllm --slots 8 --no-mtp --extra "--async-scheduling"
 b70 launch /mnt/models/foo.gguf            # custom artifact, engine sniffed (.gguf → llamacpp)
 b70 launch /mnt/models/foo-dir -e openvino # custom OpenVINO IR dir
@@ -112,7 +113,7 @@ Flags → API fields (`docs/api.md`): `--ctx`→`ctx` · `--port`→`port` ·
 Prefix caching is on for every engine. `--cache off` turns it off for testing
 and benchmarks (vLLM `--no-enable-prefix-caching`, EXL3
 `--set vllm.enable_prefix_caching=false`, OVMS `--enable_prefix_caching false`,
-llama.cpp `--no-cache-prompt`). A recipe with `prefix_caching: false` defaults
+llama.cpp `--no-cache-prompt`, Strata `--prompt-cache 0 --conversation-cache-mib 0`). A recipe with `prefix_caching: false` defaults
 to off and says why in the warnings; `--cache on` forces it back on, with a
 warning.
 
