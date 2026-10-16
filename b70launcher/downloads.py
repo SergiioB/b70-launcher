@@ -62,6 +62,7 @@ HF_APPROVED_REPOS = {
     "unsloth/Muse-Glimmer-30B-GGUF",
     "ornith-ai/Ornith-1.0-35B-GGUF",
     "dzannotti/Qwen3.8-Flash-Next-MTP-GGUF",
+    "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
 }
 
 SPACE_HEADROOM = 1.05  # require free >= remaining bytes * 1.05

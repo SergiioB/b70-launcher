@@ -35,6 +35,13 @@
       "tag": "XeStrata",
       "tagline": "122.2 tok/s \u00b7 2\u00d7 B70 Expert Parallelism",
       "note": "Native SYCL/Level-Zero engine with host-mirror expert streaming, layer split / expert parallelism across 2\u00d7 B70s, and MTP 4 spec decoding."
+    },
+    {
+      "id": "strata",
+      "label": "Strata SYCL",
+      "tag": "Strata",
+      "tagline": "Expert-parallel MoE server \u00b7 your own build",
+      "note": "Runs Strata's server and SYCL engine from your own Strata checkout in your locally built strata-sycl-dev image. The launcher does not build or ship Strata."
     }
   ],
   "models": [
@@ -248,9 +255,9 @@
           "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
           "ctx": 262144,
           "ctx_max": 262144,
-          "ctx_note": "Full 262K context (IQ3_XXS, 2× B70 K=24 pipelined)",
+          "ctx_note": "Full 262K context (IQ3_XXS, 2\u00d7 B70 K=24 pipelined)",
           "power": 180,
-          "perf": "55.2–67.5 tok/s code/prose (up to 122 tok/s repetitive), 2,026 tok/s prefill at 32K",
+          "perf": "55.2\u201367.5 tok/s code/prose (up to 122 tok/s repetitive), 2,026 tok/s prefill at 32K",
           "gpus": [
             0,
             1
@@ -1059,6 +1066,187 @@
         "Instruct"
       ],
       "recommended_engine": "llamacpp"
+    },
+    {
+      "id": "qwen38-flashnext-strata",
+      "name": "Qwen3.8-Flash-Next IQ3_XXS",
+      "arch": "180B MoE (37B active) \u00b7 2\u00d7 B70 expert parallel",
+      "blurb": "Two B70s with Strata expert parallel: every expert in VRAM, MTP drafting, two 200K-context slots. Runs your own Strata build; the launcher does not ship it.",
+      "badge": "2\u00d7 B70 \u00b7 STRATA",
+      "tags": [
+        {
+          "t": "2\u00d7 B70 expert parallel",
+          "c": "violet"
+        },
+        {
+          "t": "200K \u00d7 2 slots",
+          "c": "green"
+        },
+        {
+          "t": "Strata SYCL + MTP",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "strata": {
+          "kind": "strata",
+          "image": "strata-sycl-dev",
+          "gpus": [
+            0,
+            1
+          ],
+          "ctx": 200000,
+          "ctx_max": 200000,
+          "ctx_safe": 200000,
+          "ctx_note": "200,000 tokens per slot, 2 slots (Strata's --max-context is per slot); measured on 2\u00d7 B70 32 GB with INT8 KV",
+          "kv": "int8",
+          "kv_options": [
+            "int8"
+          ],
+          "parallel": 2,
+          "spec_tokens": 4,
+          "spec_p_min": 0,
+          "strata_bin": "build-sycl-aot/strata",
+          "strata_python": ".venv-sycl/bin/python",
+          "strata_pack": "packs/iq3_xxs",
+          "strata_mtp": "mtp/rt",
+          "expert_profile": "data/expert-profile-sycl.bin",
+          "mtp_draft_vocab": "data/draft_vocab_en.bin",
+          "fixed_flags": [
+            "--ple-io",
+            "direct",
+            "--stream-experts",
+            "--expert-cache",
+            "auto",
+            "--vram-reserve-mib",
+            "1024",
+            "--prefill",
+            "12288",
+            "--no-prefill-borrow",
+            "--conversation-cache-mib",
+            "32768",
+            "--conversation-cache-slots",
+            "4",
+            "--suffix-draft",
+            "0",
+            "--lookup-chain",
+            "0",
+            "--mtp-max-t",
+            "4"
+          ],
+          "env": {
+            "STRATA_VERIFY_DEVICE_PLAN": "1",
+            "STRATA_VERIFY_NO_HOST": "1",
+            "STRATA_MIRROR_MIB": "0",
+            "STRATA_STAGE_TRIM": "1",
+            "STRATA_KV_WIDE_HOST": "0",
+            "STRATA_STAGER_THREADS": "12",
+            "STRATA_EP_PREFILL_REDUCE": "1",
+            "STRATA_OWNED_PRICE": "exact",
+            "STRATA_EP_PREFILL_PUSH": "1",
+            "STRATA_BATCH_MTP": "1",
+            "STRATA_BATCH_MTP_DEPTH": "2",
+            "STRATA_BATCH_MTP_PAIR_HEAD": "1",
+            "STRATA_BATCH_PREFILL_QUANTUM": "0",
+            "STRATA_PREFILL_FIRST": "0",
+            "STRATA_BATCH_MTP_PLE_PREFETCH_DIAG": "1",
+            "STRATA_BATCH_MTP_PLE_PREFETCH": "0",
+            "STRATA_TRACE": "1",
+            "STRATA_MMVQ_WIDE": "1",
+            "STRATA_MMVQ_WIDE_MIN": "0",
+            "STRATA_MMVQ_WIDE_MAXC": "8",
+            "STRATA_Q6_PACKED": "0",
+            "STRATA_MMVQ_WIDE_K": "1",
+            "STRATA_MMVQ_WIDE_K_RPW": "1",
+            "STRATA_HEAD_Q5K_RPW2": "0",
+            "STRATA_MMVQ_WIDE_RPW": "1",
+            "STRATA_MMVQ_A2": "1",
+            "STRATA_MMVQ_PF": "0",
+            "STRATA_Q6_CENTER": "1",
+            "STRATA_QSA_PREFILL_TILED": "1",
+            "STRATA_ATTN_VALUE_PIPELINE": "1",
+            "STRATA_PROMPT_ATTN_XMX": "0",
+            "STRATA_KV_ROT": "0",
+            "STRATA_EXPERT_SPLIT": "0",
+            "STRATA_GU_LANES": "8",
+            "STRATA_IQ2XS_MULTI": "1",
+            "STRATA_BATCH_MTP_PAIR_GRAPH": "1",
+            "STRATA_Q6_A4": "0",
+            "STRATA_BATCH_MTP_PAIR_SKIP_PROB": "0",
+            "STRATA_MTP_PARALLEL_ARGMAX": "1",
+            "STRATA_BATCH_MTP_OWNER_QUEUES": "0",
+            "STRATA_Q5_HEAD_RUNTIME_ONES": "0",
+            "STRATA_Q5_HEAD_RUNTIME_ONES_C6": "0",
+            "STRATA_GDN_COMMIT_LAYERS": "1",
+            "STRATA_QSA_COMMIT_GROUP_STEPS": "0",
+            "STRATA_ROPE_TABLE": "0",
+            "STRATA_GDN_SPLIT": "0",
+            "STRATA_GDN_COMMIT_SPLIT": "1",
+            "STRATA_DBG_GDN": "0",
+            "STRATA_HC_Q8": "1",
+            "STRATA_EP_PREFILL_GATHER_ALIAS": "1",
+            "STRATA_NIGHT_SH_LATE": "1",
+            "STRATA_NIGHT_EP_PSUM": "1",
+            "STRATA_NIGHT_EP_PLAN1": "1",
+            "STRATA_NIGHT_EP_ROWS": "2",
+            "STRATA_NIGHT_HC": "q8",
+            "STRATA_NIGHT_ATTN_BATCH": "1",
+            "STRATA_NIGHT_ATTN_VPIPE": "1",
+            "STRATA_NIGHT_ATTN_MERGE_ACTIVE": "1",
+            "STRATA_NIGHT_TOPK_SCAN": "1",
+            "STRATA_NIGHT_QSA_SCORES_T": "1",
+            "STRATA_NIGHT_MMVQ": "1",
+            "STRATA_NIGHT_PREFILL_EARLY": "1",
+            "STRATA_NIGHT_PREFILL_F16SUM": "1",
+            "STRATA_NIGHT_IQ": "1",
+            "STRATA_NIGHT_GDN_SLOTS": "1",
+            "STRATA_NIGHT_ADMIT_D2D": "1",
+            "STRATA_NIGHT_MMVQ2": "1",
+            "STRATA_NIGHT_MMVQ2_MASK": "2",
+            "STRATA_NIGHT_PREFILL_GROUPED": "1",
+            "STRATA_NIGHT_PATTN_XMX": "2",
+            "STRATA_NIGHT_TOPK10": "1",
+            "STRATA_NIGHT_GDN_AB": "1",
+            "STRATA_NIGHT_GDN_GRF": "1",
+            "STRATA_NIGHT_PARK_MOVE": "1",
+            "STRATA_NIGHT_SHEXP": "1",
+            "STRATA_NIGHT_PREFILL_HALVES": "1",
+            "STRATA_NIGHT_PREFILL_DDQ": "1",
+            "STRATA_NIGHT_PREFILL_DQ32": "1",
+            "STRATA_NIGHT_PREFILL_DQCACHE": "1",
+            "STRATA_NIGHT_BF16": "1",
+            "STRATA_MTP_SHARED_BRANCH": "0"
+          },
+          "perf": "Measured by the submitter, not on your hardware: 2\u00d7 Arc Pro B70 32 GB, Threadripper 1950X, 128 GB RAM, kernel 7.1, Compute Runtime 26.22.38646.4, oneAPI 2026.1, Strata b70-night-20261016 (1c360526) with these flags. One stream ~141 tok/s on fixed 512-token coding replies (152.6 on a 2,048-token code reply); localmaxxing canonical prompts 117.9 tok/s code-v1 and 122.2 reasoning-v1 (the verified run); two streams ~92 tok/s each; prompt reading ~2,200 tok/s at 4K and 32K. Other CPUs, RAM, PCIe slots and disks give other numbers.",
+          "search_name": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
+          "download": {
+            "kind": "file",
+            "name": "IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
+            "extra_files": [
+              "IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf"
+            ],
+            "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+            "revision": "ed59f92082b1e93c0e96d60a8b11aab089b52f09",
+            "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS",
+            "match": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002",
+            "quant": "GSQ-RCO IQ3_XXS (47.0 GB + 28.8 GB lookup shard)",
+            "note": "Shard 2 (the per-layer lookup table) is the same file for every GSQ-RCO size, so an IQ3_S copy can be linked in its place. The Strata pack and MTP draft layer come from Strata's setup, not from this download."
+          },
+          "recipe_note": "New: Qwen3.8-Flash-Next IQ3_XXS on two B70s through your own Strata build (expert parallel, MTP, 2 \u00d7 200K context).",
+          "recipe_ver": "2026-10-16"
+        }
+      },
+      "brand": "qwen",
+      "subtitle": "180B MoE (37B active)  \u2022  2\u00d7 B70 Strata expert parallel",
+      "chips": [
+        "LLM",
+        "Instruct",
+        "~76 GB",
+        "Strata",
+        "2\u00d7 B70"
+      ],
+      "recommended_engine": "strata",
+      "recommendation": "Two-card Strata route: ISTA-DASLab's GSQ-RCO IQ3_XXS with every expert in the two cards' VRAM. Needs a checkout of hotschmoe/Strata branch b70-night-20261016 (upstream Strata plus the unmerged expert-parallel PRs #1798 and #2205), its SYCL engine, the strata-sycl-dev image and the files Strata's setup writes (README: Strata). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."
     }
   ]
 }

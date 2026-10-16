@@ -511,7 +511,7 @@ const match=()=>S.scan?.matches[S.model]?.[S.engine];
 const clients=()=>S.state?.clients||{};
 const deviceList=()=>S.state?.preflight.devices||[];
 const engineLabel=id=>S.state?.recipes.engines.find(e=>e.id===id)?.label||id;
-const ENGINE_SHORT={openvino:'OpenVINO',vllm:'vLLM',llamacpp:'llama.cpp',exl3:'EXL3'};
+const ENGINE_SHORT={openvino:'OpenVINO',vllm:'vLLM',llamacpp:'llama.cpp',exl3:'EXL3',strata:'Strata'};
 const engineShort=id=>ENGINE_SHORT[id]||engineLabel(id);
 const PROVIDERS={
   qwen:{id:'qwen',label:'Qwen · Alibaba',logo:'qwen.svg',order:1},

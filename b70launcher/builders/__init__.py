@@ -20,7 +20,12 @@ from .ovms import build_ovms
 from .vllm import BUILDERS as VLLM_BUILDERS, build_generic
 from .llamacpp import build_llamacpp
 from .exl3 import build_exl3
-from .xestrata import build_xestrata
+7: from .xestrata import build_xestrata
+from .strata import build_strata
+8:     if kind == "xestrata":
+        return build_xestrata
+    if kind == "strata":
+        return build_strata
 CUSTOM_TEMPLATES = {
     "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
                  "ctx": 32768, "power": 150, "kv_options": list(common.KV_LLAMACPP),
@@ -120,8 +125,12 @@ def _kind_builder(kind):
         return build_llamacpp
     if kind == "exl3":
         return build_exl3
-    if kind == "xestrata":
+7: from .xestrata import build_xestrata
+from .strata import build_strata
+8:     if kind == "xestrata":
         return build_xestrata
+    if kind == "strata":
+        return build_strata
     return None
 
 
@@ -185,6 +194,7 @@ def build(cfg):
             "detected": bool(det), "detected_path": (det or {}).get("path"),
             "native": bool(out.get("native")),
             "effective_binary": out.get("effective_binary") or recipe.get("image", ""),
+            "image_hint": out.get("image_hint") or "",
             "artifact_mib": round(artifact_mib, 1) if artifact_mib else None,
         }
     except BuildError as e:

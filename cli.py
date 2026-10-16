@@ -2091,8 +2091,8 @@ download open ui env agent usage tokens doctor scan version recipes-update compl
             rids=$(b70 status --json 2>/dev/null | python3 -c \
                 'import json,sys; print(" ".join(e["id"] for e in json.load(sys.stdin)["running"]))' 2>/dev/null)
             COMPREPLY=( $(compgen -W "$rids ui" -- "$cur") ) ;;
-        -e|--engine) COMPREPLY=( $(compgen -W "openvino vllm llamacpp exl3" -- "$cur") ) ;;
-        --kv) COMPREPLY=( $(compgen -W "q8_0 q5_0/q4_1 q8_0/q4_1 f16 fp8" -- "$cur") ) ;;
+        -e|--engine) COMPREPLY=( $(compgen -W "openvino vllm llamacpp exl3 strata" -- "$cur") ) ;;
+        --kv) COMPREPLY=( $(compgen -W "q8_0 q5_0/q4_1 q8_0/q4_1 f16 fp8 int8" -- "$cur") ) ;;
         --prefill) COMPREPLY=( $(compgen -W "int8 fp16" -- "$cur") ) ;;
         --cache) COMPREPLY=( $(compgen -W "on off" -- "$cur") ) ;;
         --gpus) COMPREPLY=( $(compgen -W "0 1 0,1 both" -- "$cur") ) ;;
@@ -2185,13 +2185,13 @@ def build_parser():
 
     s = add("launch", help="launch a recipe (or an interactive picker)")
     s.add_argument("model", nargs="?", help="model id/name, or a path to a .gguf/IR artifact")
-    s.add_argument("-e", "--engine", help="openvino | vllm | llamacpp | exl3")
+    s.add_argument("-e", "--engine", help="openvino | vllm | llamacpp | exl3 | strata")
     s.add_argument("--path", help="custom artifact path (must be under a scan root)")
     s.add_argument("-c", "--ctx", type=parse_ctx,
                    help="context tokens, e.g. 64K or 65536 (default: the recipe's validated context)")
     s.add_argument("-p", "--port", type=int, help="endpoint port (default 8000)")
     s.add_argument("-g", "--gpus", help="0 | 1 | 0,1 | both (default: first free B70 or recipe topology)")
-    s.add_argument("--kv", help="KV cache dtype: q8_0 | q5_0/q4_1 | q8_0/q4_1 | f16 | fp8")
+    s.add_argument("--kv", help="KV cache dtype: q8_0 | q5_0/q4_1 | q8_0/q4_1 | f16 | fp8 | int8 (Strata)")
     s.add_argument("--prefill", choices=["int8", "fp16"],
                    help="EXL3 prefill mode: int8 (default, fast) | fp16 (max quality, slower cold prefill)")
     s.add_argument("--cache", choices=["on", "off"],

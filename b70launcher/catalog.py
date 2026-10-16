@@ -26,17 +26,20 @@ UA = {"User-Agent": f"b70-launcher/{paths.VERSION}"}
 
 # settings-override keys a user edit may set (everything else ships read-only)
 OVERRIDE_KEYS = ("scan_dirs", "models_dir", "ovms_repo", "llama_bin",
-                 "exl3_data_root", "open_with", "sync_clients", "pcie_links")
+                 "exl3_data_root", "strata_root", "strata_data", "open_with", "sync_clients",
+                 "pcie_links")
 
 # model-level fields a published recipe update may set (never "id"/"recipes")
 REMOTE_MODEL_FIELDS = ("recommended_engine", "recommendation", "badge", "blurb",
                        "subtitle", "tags", "chips", "brand")
 
 # recipe fields a published update may tune. Exec-shaping keys (image,
-# docker_sock, llama_bin, fixed_flags, serve_config, kind, env) and host-path keys
-# (model_path, gguf, source_model) never come from the wire: they would let a
-# catalog swap the binary/image, pick the docker socket, append container argv,
-# set engine env or remount host paths. Everything else merges over the local recipe.
+# docker_sock, llama_bin, fixed_flags, serve_config, kind, env, and the Strata
+# paths strata_bin, strata_python, strata_pack, strata_mtp, expert_profile,
+# mtp_draft_vocab) and host-path keys (model_path, gguf, source_model) never come
+# from the wire: they would let a catalog swap the binary/image, pick the docker
+# socket, append container argv, set engine env or remount host paths. Everything
+# else merges over the local recipe.
 REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtype",
                         "kv", "kv_options", "prefill_options", "prefix_caching", "prefix_caching_note",
                         "download", "spec_tokens", "spec_p_min", "speculative",
