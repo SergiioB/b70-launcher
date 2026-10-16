@@ -130,6 +130,7 @@ def docker_containers_status(cnames, docker_sock=""):
             obj = json.loads(line)
             state = obj.get("State", {})
             out[obj["Name"].lstrip("/")] = {"running": bool(state.get("Running")),
+                                                "status": state.get("Status") or "",
                                                 "exitcode": state.get("ExitCode"), "object": obj}
         except (ValueError, KeyError, TypeError):
             continue
@@ -276,7 +277,12 @@ def servers_snapshot():
         if not e.get("native"):
             st = statuses.get(e.get("docker_sock", ""))
             container = st.get(e.get("cname")) if st is not None else None
-            if container:
+            if container and container.get("status") == "created":
+                # created but not started yet (Running false, ExitCode 0 for a
+                # second or more with a big image): the attached `docker run`
+                # client decides, as before the container existed
+                pass
+            elif container:
                 alive, rc = container["running"], container["exitcode"]
             elif e.get("adopted") and st is not None:
                 alive, rc = False, None
