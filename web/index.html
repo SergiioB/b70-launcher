@@ -243,6 +243,7 @@ table.nums th{font-size:var(--caption);color:var(--subtle);font-weight:600}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:6px}
 .presets button{min-height:28px;padding:2px 10px;font-size:var(--caption);color:var(--muted)}
 .presets button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:var(--accent-soft)}
+.presets button:disabled{opacity:.45;cursor:not-allowed}
 .ctx-note{font-size:var(--small);color:var(--subtle);margin-block-start:6px;max-width:90ch}
 .subfield{display:flex;align-items:center;gap:10px;margin-block:26px 4px}
 .subfield input{width:auto;margin:0;min-height:0}
@@ -703,9 +704,15 @@ function renderContext(){const r=recipe(),mt=match();if(!r)return;
   add(safe,'Validated','Checked by the cookbook on a B70');
   add(r.ctx,'Default','Recipe default');
   add(r.ctx_max,'Ceiling','Largest context this recipe allows');
-  $('ctx-presets').innerHTML=presets.map(p=>`<button type="button" data-ctx="${p.v}" aria-pressed="${p.v===now}" title="${esc(p.title)}">${esc(p.label)} ${fmt(p.v)}</button>`).join('');
+  /* Fixed quick sizes (K = 1,024 tokens); a value already covered above keeps its semantic chip. */
+  const semantic=presets.map(p=>p.v);
+  for(const [v,k] of [[8192,'8K'],[16384,'16K'],[32768,'32K'],[65536,'64K'],[98304,'96K'],[131072,'128K'],[262144,'256K']])
+    if(!presets.some(p=>p.v===v))presets.push({v,k,title:fmt(v)+' tokens'});
+  const lo=Number($('context').min)||0,hi=Number($('context').max)||Infinity;
+  $('ctx-presets').innerHTML=presets.map(p=>{const off=p.v<lo||p.v>hi;
+    return `<button type="button" data-ctx="${p.v}" aria-pressed="${p.v===now&&!off}"${off?' disabled':''} title="${esc(off?"Outside this recipe's context range":p.title)}">${p.k?esc(p.k):esc(p.label)+' '+fmt(p.v)}</button>`;}).join('');
   const parts=[];
-  if(mt?.ctx_native&&!presets.some(p=>p.v===mt.ctx_native))parts.push(`Model native ${fmt(mt.ctx_native)}`);
+  if(mt?.ctx_native&&!semantic.includes(mt.ctx_native))parts.push(`Model native ${fmt(mt.ctx_native)}`);
   if(safe&&now>safe)parts.push(`Above the validated ${fmt(safe)}: not checked on a B70`);
   $('context-hint').textContent=parts.join(' · ');}
 
