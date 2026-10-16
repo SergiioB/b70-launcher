@@ -130,6 +130,7 @@ def docker_containers_status(cnames, docker_sock=""):
             obj = json.loads(line)
             state = obj.get("State", {})
             out[obj["Name"].lstrip("/")] = {"running": bool(state.get("Running")),
+                                                "status": state.get("Status") or "",
                                                 "exitcode": state.get("ExitCode"), "object": obj}
         except (ValueError, KeyError, TypeError):
             continue
@@ -211,9 +212,10 @@ def _start(entry, built):
             found = subprocess.run(docker_cmd(entry["docker_sock"]) + ["image", "inspect", image],
                                    capture_output=True, text=True, timeout=15)
             if found.returncode:
-                # `docker run` would start a multi-GB pull with no disk-space check
-                raise RuntimeError(f"Engine image is not on this machine: {image}. "
-                                   f"Check free disk space, then run: docker pull {image}")
+                # `docker run` would start a multi-GB pull with no disk-space check;
+                # a locally built image (Strata) carries its own build hint
+                raise RuntimeError(f"Engine image is not on this machine: {image}. " + (
+                    built.get("image_hint") or f"Check free disk space, then run: docker pull {image}"))
         env = dict(os.environ)
         env.update(built.get("env") or {})
         with LOCK:
@@ -275,7 +277,12 @@ def servers_snapshot():
         if not e.get("native"):
             st = statuses.get(e.get("docker_sock", ""))
             container = st.get(e.get("cname")) if st is not None else None
-            if container:
+            if container and container.get("status") == "created":
+                # created but not started yet (Running false, ExitCode 0 for a
+                # second or more with a big image): the attached `docker run`
+                # client decides, as before the container existed
+                pass
+            elif container:
                 alive, rc = container["running"], container["exitcode"]
             elif e.get("adopted") and st is not None:
                 alive, rc = False, None

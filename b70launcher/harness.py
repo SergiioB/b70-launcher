@@ -46,10 +46,11 @@ def client_endpoint(client, engine_port):
 
 
 def supports_tools(entry):
-    """Tool calls work when the engine was started with a tool parser, or for
-    llama.cpp (Jinja chat templates are on by default)."""
+    """Tool calls work when the engine was started with a tool parser, for
+    llama.cpp (Jinja chat templates are on by default), and for Strata (its
+    server always parses the model's tool calls)."""
     cmd = str(entry.get("cmd") or "")
-    if any(m in cmd for m in TOOL_MARKERS):
+    if any(m in cmd for m in TOOL_MARKERS) or entry.get("engine") == "strata":
         return True
     return entry.get("engine") == "llamacpp" and "--no-jinja" not in cmd
 

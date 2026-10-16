@@ -176,7 +176,10 @@ def _engine_prometheus(entry, timeout=3):
     if not port:
         return None
     try:
-        req = urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers=UA)
+        # Accept: text/plain is the Prometheus scrape ask; Strata's /metrics
+        # answers JSON without it (vLLM and llama.cpp send text either way)
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/metrics",
+                                     headers={**UA, "Accept": "text/plain"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if getattr(resp, "status", 200) != 200:
                 return None
