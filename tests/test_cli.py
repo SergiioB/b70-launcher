@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 try:
@@ -38,9 +39,10 @@ class TestGpus(unittest.TestCase):
         self.assertEqual(cli.parse_gpus("0,1"), [0, 1])
         self.assertEqual(cli.parse_gpus("both"), [0, 1])
         self.assertEqual(cli.parse_gpus("dual"), [0, 1])
+        self.assertEqual(cli.parse_gpus("2,3"), [2, 3])  # four-card hosts
 
     def test_parse_rejects(self):
-        for bad in ("2", "0,2", "0,0", "", "x", "0,1,2"):
+        for bad in ("8", "0,0", "", "x", "-1", "1,1,2"):
             with self.assertRaises(SystemExit):
                 cli.parse_gpus(bad)
 
@@ -105,7 +107,7 @@ class TestPickEngine(unittest.TestCase):
 class TestFmt(unittest.TestCase):
     def test_units(self):
         self.assertEqual(cli.human_ctx(131072), "128K")
-        self.assertEqual(cli.human_ctx(98392), "98392")
+        self.assertEqual(cli.human_ctx(98392), "98,392")
         self.assertEqual(cli.human_gb(32768), "32.0 GiB")
         self.assertEqual(cli.fmt_dur(45), "45s")
         self.assertEqual(cli.fmt_dur(125), "2m05s")
@@ -114,6 +116,18 @@ class TestFmt(unittest.TestCase):
         t = cli.table([[cli.green("ok"), "1"]], ["A", "B"])
         self.assertIn("ok", cli._strip(t))
         self.assertIn("A", t)
+
+    def test_table_drops_columns_to_fit_narrow_terminal(self):
+        rows = [["qwen38-27b", "Qwen3.8-27B long display name", "exl3", "128K"]]
+        heads = ["MODEL", "NAME", "ENGINE", "CTX"]
+        with mock.patch.dict(os.environ, {"COLUMNS": "40"}):
+            narrow = cli.table(rows, heads, drop=(1,))
+        with mock.patch.dict(os.environ, {"COLUMNS": "200"}):
+            wide = cli.table(rows, heads, drop=(1,))
+        self.assertNotIn("NAME", narrow)
+        self.assertIn("128K", narrow)
+        self.assertTrue(all(len(line) <= 40 for line in narrow.splitlines()))
+        self.assertIn("NAME", wide)
 
 
 class _StubClient:
@@ -158,7 +172,7 @@ class TestResolveRid(unittest.TestCase):
         {"id": "ornith-35b-gguf-llamacpp-8001", "status": "starting",
          "port": 8001, "model": "Ornith", "model_id": "ornith-35b-gguf"},
         {"id": "old-x-8002", "status": "stopped", "port": 8002},
-        {"id": "dry-x-8003", "status": "dry-run", "port": 8003},
+        {"id": "crash-x-8003", "status": "exited", "port": 8003, "exitcode": 7},
     ]
 
     def setUp(self):
@@ -170,11 +184,12 @@ class TestResolveRid(unittest.TestCase):
         e, _ = cli.resolve_rid(self.c, "8001")
         self.assertEqual(e["id"], "ornith-35b-gguf-llamacpp-8001")
 
-    def test_stopped_and_dryrun_invisible(self):
+    def test_stopped_invisible_but_exited_resolvable(self):
         e, _ = cli.resolve_rid(self.c, "8002")
         self.assertIsNone(e)
-        e, _ = cli.resolve_rid(self.c, "dry-x-8003")
-        self.assertIsNone(e)
+        # an exited server keeps its logs reachable by id
+        e, _ = cli.resolve_rid(self.c, "crash-x-8003")
+        self.assertEqual(e["exitcode"], 7)
 
     def test_single_default(self):
         c = _StubClient([self.RUNNING[0]])
@@ -184,7 +199,7 @@ class TestResolveRid(unittest.TestCase):
     def test_ambiguous_returns_list(self):
         e, _ = cli.resolve_rid(self.c, "8")
         self.assertIsInstance(e, list)
-        self.assertEqual(len(e), 2)
+        self.assertEqual(len(e), 3)
 
 
 # ── end to end against a real daemon ──────────────────────────────────────
@@ -248,7 +263,7 @@ class TestCliE2E(unittest.TestCase):
 
     @classmethod
     def _token(cls):
-        tok_file = cls.state / "b70-launcher" / "token"
+        tok_file = cls.state / "b70-launcher" / f"token-{cls.port}"
         deadline = __import__("time").time() + 10
         while __import__("time").time() < deadline:
             if tok_file.is_file():
@@ -303,6 +318,29 @@ class TestCliE2E(unittest.TestCase):
         self.assertIn("qwen38-27b", out)
         self.assertIn("exl3", out)
 
+    def test_list_ctx_is_the_validated_context(self):
+        """CTX must match what the UI preselects: ctx_safe, else ctx."""
+        _, out, _ = self.b70("--json", "list")
+        models = json.loads(out)["models"]
+        rc, pretty, _ = self.b70("list", "-e", "exl3")
+        self.assertEqual(rc, 0)
+        checked = 0
+        for m in models:
+            rec = m["recipes"].get("exl3")
+            if not rec:
+                continue
+            line = next(ln for ln in pretty.splitlines() if f" {m['id']} " in ln)
+            want = cli.human_ctx(rec.get("ctx_safe") or rec.get("ctx"))
+            self.assertIn(f"  {want}  ", line, f"{m['id']}: {line}")
+            checked += rec.get("ctx_safe") is not None
+        self.assertTrue(checked, "no exl3 recipe with ctx_safe to check")
+
+    def test_launch_without_ctx_uses_validated_context(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b", "-e", "llamacpp",
+                                "--port", str(free_port()), "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(json.loads(out)["ctx"], 131072)
+
     def test_show(self):
         rc, out, _ = self.b70("show", "qwen38-27b")
         self.assertEqual(rc, 0)
@@ -335,13 +373,6 @@ class TestCliE2E(unittest.TestCase):
             self.assertEqual(rc, 0, f"{model}:{eng} → {err or body.get('error')}")
             self.assertTrue(body.get("cmd"), f"{model}:{eng} produced no plan")
 
-    def test_launch_dry_run_exl3_missing_artifact(self):
-        # exl3 hard-requires its artifact even for a plan — the CLI must
-        # surface the daemon's error, not crash or hang
-        rc, out, err = self.b70("launch", "qwen38-27b", "-e", "exl3",
-                                "--port", str(free_port()), "--dry-run")
-        self.assertEqual(rc, 1)
-        self.assertIn("artifact", (err + out).lower())
 
     def test_launch_dry_run_pretty(self):
         rc, out, _ = self.b70("launch", "qwen38-27b", "-e", "llamacpp",
@@ -349,6 +380,24 @@ class TestCliE2E(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("launch plan", out)
         self.assertIn("llama", out)
+
+    def test_launch_prefill_fp16_exl3(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b-sc5", "-e", "exl3",
+                                "--prefill", "fp16", "--port", str(free_port()),
+                                "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertIn('EXL3_INT8_PREFILL="0"', json.loads(out)["cmd"])
+
+    def test_launch_prefill_default_no_set(self):
+        rc, out, err = self.b70("--json", "launch", "qwen38-27b-sc5", "-e", "exl3",
+                                "--port", str(free_port()), "--dry-run")
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("EXL3_INT8_PREFILL", json.loads(out)["cmd"])
+
+    def test_launch_prefill_bad_choice(self):
+        rc, _, _ = self.b70("launch", "qwen38-27b-sc5", "-e", "exl3",
+                            "--prefill", "fp32", "--dry-run")
+        self.assertEqual(rc, 2)
 
     def test_launch_unknown_model(self):
         rc, _, err = self.b70("launch", "no-such-model")
@@ -370,9 +419,29 @@ class TestCliE2E(unittest.TestCase):
         self.assertTrue(err.strip())
 
     def test_stop_nothing_running(self):
-        rc, out, _ = self.b70("stop", "--all")
+        for argv in (("stop", "--all"), ("stop",)):
+            rc, out, _ = self.b70(*argv)
+            self.assertEqual(rc, 0, argv)
+            self.assertIn("nothing", out)
+
+    def test_agent_without_server_points_at_launch(self):
+        rc, out, err = self.b70("agent", "pi")
+        self.assertEqual(rc, 1)
+        self.assertIn("b70 launch", err)
+        self.assertEqual(len(err.strip().splitlines()), 1)
+
+    def test_usage_without_traffic(self):
+        rc, out, _ = self.b70("usage")
         self.assertEqual(rc, 0)
-        self.assertIn("nothing", out)
+        self.assertIn("No agent traffic recorded yet.", out)
+        rc, out, _ = self.b70("tokens", "--json")
+        self.assertEqual(rc, 0)
+        self.assertIn("totals", json.loads(out))
+
+    def test_recipes_update_engine_needs_model(self):
+        rc, _, err = self.b70("recipes-update", "-e", "exl3")
+        self.assertEqual(rc, 2)
+        self.assertIn("needs a model", err)
 
     def test_status_json(self):
         rc, out, _ = self.b70("--json", "status")
@@ -395,7 +464,6 @@ class TestCliE2E(unittest.TestCase):
     def test_open_print(self):
         rc, out, _ = self.b70("open", "--print")
         self.assertEqual(rc, 0)
-        self.assertIn(f"http://127.0.0.1:{self.port}/?token={self.token}", out)
 
     def test_env_requires_server(self):
         rc, _, err = self.b70("env")

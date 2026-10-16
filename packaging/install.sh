@@ -44,6 +44,7 @@ for f in launcher.py cli.py webwindow.py appwindow.py recipes.json settings.json
          web/index.html packaging/b70-launcher.desktop; do
     [ -f "$root/$f" ] || die "missing bundle file: $f. Run this script as packaging/install.sh inside the extracted b70-launcher-*-linux-source directory."
 done
+[ -f "$root/b70launcher/paths.py" ] || die "missing backend package: b70launcher/paths.py"
 set -- "$root"/patches/*.py
 [ -f "$1" ] || die "missing bundle files: patches/*.py - the source archive looks incomplete."
 set -- "$root"/web/assets/*
@@ -96,6 +97,7 @@ fi
 mkdir -p "$app/web/assets" "$app/patches" "$bin" "$desktop_dir"
 cp "$root/launcher.py" "$root/cli.py" "$root/webwindow.py" "$root/appwindow.py" \
    "$root/recipes.json" "$root/settings.json" "$root/README.md" "$app/"
+cp -R "$root/b70launcher" "$app/"
 cp "$root"/patches/*.py "$app/patches/"
 cp -R "$root"/patches/ssu-b70-b8w4 "$app/patches/" 2>/dev/null || true
 cp "$root/web/index.html" "$app/web/"

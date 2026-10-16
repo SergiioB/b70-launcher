@@ -1,19 +1,19 @@
 {
- "catalog_ver": "2026-10-13",
+ "catalog_ver": "2026-10-15.2",
  "engines": [
   {
    "id": "openvino",
    "label": "OpenVINO (OVMS)",
    "tag": "OVMS",
-   "tagline": "Easiest · Intel's official server",
-   "note": "Official OpenAI-compatible server from Intel. Verified on B70 — supports tools, reasoning, and vision."
+   "tagline": "Intel's OpenAI-compatible server",
+   "note": "Serves OpenVINO IR models. Tool, reasoning and vision support depend on the selected recipe."
   },
   {
    "id": "vllm",
    "label": "vLLM XPU",
    "tag": "vLLM",
-   "tagline": "Fastest · many users at once",
-   "note": "Highest throughput when several apps or users connect at the same time. Runs in a pinned container image."
+   "tagline": "Batching and speculative decoding",
+   "note": "Runs in a pinned container image. Throughput and supported features depend on the model and engine version."
   },
   {
    "id": "llamacpp",
@@ -26,8 +26,8 @@
    "id": "exl3",
    "label": "EXL3 XPU",
    "tag": "EXL3",
-   "tagline": "Smallest download · longest context",
-   "note": "Trellis-compressed weights (~15.7 GiB) — the only single-card route to the full 262K context. Runs on the isolated b70-exl3 dockerd."
+   "tagline": "Trellis-compressed model weights",
+   "note": "Serves EXL3 models through exl3xpu on an isolated Docker daemon. The plain Qwen3.8-27B route has a completed 262K-context check."
   }
  ],
  "models": [
@@ -77,14 +77,22 @@
     },
     "vllm": {
      "kind": "vllm-mtp",
+     "kv_options": [
+      "fp8"
+     ],
      "model_path": "/models/Qwen3.6-35B-A3B-GPTQ-Int4",
      "search_name": "Qwen3.6-35B-A3B-GPTQ-Int4",
      "spec_tokens": 4,
      "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 131072,
-     "ctx_note": "128K native MTP4 (cookbook: 170.9 tok/s peak decode)",
+     "ctx_note": "128K configured; the current v0.31.0 image still needs a live context check",
      "power": 150,
-     "perf": "MTP4 p512/g128 170.9 tok/s client post-first (cookbook)",
+     "perf": "Current v0.31.0 image has no matched throughput measurement; historical cookbook numbers used an older engine.",
+     "fixed_flags": [
+      "--enable-auto-tool-choice",
+      "--tool-call-parser",
+      "qwen3_coder"
+     ],
      "download": {
       "kind": "snapshot",
       "repo": "llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GPTQ-Int4",
@@ -94,16 +102,23 @@
        "gptq"
       ],
       "quant": "GPTQ-INT4",
+      "quant_method": "gptq",
       "verify": [
        "config.json",
        "quantize_config.json"
       ]
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-14",
      "ver": "2026-10-07"
     },
     "llamacpp": {
      "kind": "gguf",
+     "kv_options": [
+      "q8_0/q4_1",
+      "q8_0",
+      "q5_0/q4_1",
+      "f16"
+     ],
      "gguf": "/models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
      "search_name": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
      "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
@@ -119,7 +134,7 @@
       "match": "qwen3.6-35b",
       "quant": "UD-Q4_K_XL (Unsloth Dynamic) ~21 GB"
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
     }
    },
@@ -137,9 +152,9 @@
   {
    "id": "qwen38-flashnext",
    "name": "Qwen3.8-Flash-Next",
-   "arch": "180B MoE (37B active) · 3-Tiered Memory",
-   "blurb": "Maximum intelligence tier on 2× B70. Active layers in 64GB VRAM (split 49/51%), Engram memory table in host RAM, zero-copy NVMe weights streaming.",
-   "badge": "MAXIMUM INTELLIGENCE · 2× B70 TIERED",
+   "arch": "180B MoE (37B active)",
+   "blurb": "Historical dual-card llama.cpp fallback. The research route now uses single-card Strata, which is not distributed by this launcher.",
+   "badge": "LEGACY DUAL-CARD RECIPE",
    "tags": [
     {
      "t": "Top tier 180B",
@@ -162,9 +177,9 @@
      "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 8192,
      "ctx_max": 131072,
-     "ctx_note": "8K standard (up to 128K near-boundary validated on 2× B70)",
+     "ctx_note": "8K configured; historical longer-context checks used other binaries and do not validate this launch",
      "power": 195,
-     "perf": "30.7–33.3 tok/s decode matched (37.4 tok/s wired MTP) on 2× B70",
+     "perf": "No throughput claim for the effective binary. Historical llama.cpp results do not transfer across builds; the research route was replaced by Strata (ADR-0011).",
      "gpus": [
       0,
       1
@@ -173,6 +188,16 @@
      "split_mode": "layer",
      "offload_tensors": "per_layer_token_embd=CPU,blk.([0-5]|4[2-7]).ffn_(up|gate|down)_exps.weight=CPU",
      "draft_model": "Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf",
+     "draft": {
+      "search": "Qwen3.8-Flash-Next-MTP",
+      "download": {
+       "kind": "file",
+       "name": "Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf",
+       "repo": "dzannotti/Qwen3.8-Flash-Next-MTP-GGUF",
+       "revision": "0b2551d191548168d3254ddea4ab943a5ef4f809",
+       "quant": "MTP draft Q4_K_M (~2.5 GB)"
+      }
+     },
      "draft_device": "SYCL1",
      "spec_tokens": 3,
      "spec_p_min": 0.75,
@@ -208,7 +233,7 @@
       "quant": "AP-Q4_K_XL (95 GB) + MTP draft (2.5 GB)",
       "note": "The MTP draft Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf is published separately in dzannotti/Qwen3.8-Flash-Next-MTP-GGUF."
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
     }
    },
@@ -218,10 +243,10 @@
     "LLM",
     "Instruct",
     "~95 GB",
-    "High performance"
+    "Legacy fallback"
    ],
    "recommended_engine": "llamacpp",
-   "recommendation": "Maximum intelligence tier. Requires 2× B70: the 3-Tiered Memory Architecture spans dual B70 VRAM, host RAM, and NVMe."
+   "recommendation": "Historical two-card llama.cpp fallback, not the current research recommendation. Check the effective binary and memory budget before launching."
   },
   {
    "id": "qwen38-27b",
@@ -247,46 +272,6 @@
     }
    ],
    "recipes": {
-    "vllm": {
-     "kind": "vllm-arext",
-     "model_path": "~/models/Qwen3.8-27B-GPTQ-Int4-sym-G128-MTP-BF16",
-     "search_name": "b70-autoround-qwen38-w4a16",
-     "spec_tokens": 4,
-     "fixed_flags": [
-      "--language-model-only",
-      "--trust-remote-code"
-     ],
-     "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
-     "ctx": 65536,
-     "ctx_max": 102400,
-     "ctx_note": "102400 is the single-card vLLM ceiling; fp8 KV",
-     "power": 180,
-     "perf": "W4A16+MTP4 ~14-15 chunk-rate @150W; arithmetic canary FAILS (30 vs 14)",
-     "download": {
-      "kind": "snapshot",
-      "repo": "SergiioB/Qwen3.8-27B-GPTQ-Int4-sym-G128-MTP-BF16",
-      "search": "Qwen3.8-27B-GPTQ-Int4-sym-G128-MTP-BF16",
-      "match": [
-       "qwen3.8-27b-gptq",
-       "w4a16",
-       "autoround-qwen38"
-      ],
-      "prefer": [
-       "w4a16",
-       "gptq",
-       "int4",
-       "autoround"
-      ],
-      "quant": "GPTQ-INT4 sym G128 + MTP (BF16 base)",
-      "verify": [
-       "config.json",
-       "quantize_config.json"
-      ]
-     },
-     "ctx_safe": 98304,
-     "recipe_ver": "2026-10-07",
-     "ver": "2026-10-07"
-    },
     "llamacpp": {
      "kind": "gguf",
      "gguf": "/models/Qwen3.8-27B-UD-Q4_K_M.gguf",
@@ -342,6 +327,13 @@
     },
     "exl3": {
      "kind": "exl3",
+     "kv_options": [
+      "fp8"
+     ],
+     "prefill_options": [
+      "int8",
+      "fp16"
+     ],
      "model_path": "~/models/Qwen3.8-27B-exl3",
      "search_name": "qwen3.8-27b exl3 4bpw",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
@@ -352,7 +344,8 @@
      "ctx_max": 262144,
      "ctx_note": "full 262K proven on one card — real 261,920-token prompt completed 2026-09-27 (fp8 KV pool 287K tok @ gmu 0.94)",
      "power": 230,
-     "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; +33-42% chunk-rate at 230W vs 150W",
+     "perf": "EXL3 4bpw + native MTP3 + fp8 KV: clean canary, 6/6 exact-answer, 3/3 visual battery; 63.6 tok/s at p512/g128 (recipe sampling, C1, 230 W); +25-29% token rate at 230 W vs 150 W",
+     "perf_note": "Run one interactive agent per card. On real agent work, 4 agents at once on one card gave only 16 % more total tokens, and the slowest replies took 4x longer to start (2026-10-15). For two agents, run one on each card.",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -364,6 +357,7 @@
        "4bpw"
       ],
       "quant": "EXL3 4.00bpw trellis",
+      "quant_method": "exl3",
       "verify": [
        "quantization_config.json",
        "config.json"
@@ -374,7 +368,7 @@
       ]
      },
      "ctx_safe": 131072,
-     "recipe_ver": "2026-10-13",
+     "recipe_ver": "2026-10-15",
      "ver": "2026-10-13"
     }
    },
@@ -392,25 +386,29 @@
    "id": "qwen38-27b-fp8-tp2",
    "name": "Qwen3.8-27B FP8 TP2",
    "arch": "Dense 27B · Dual B70 TP2",
-   "blurb": "Official 29 GB FP8 model on sata-tforce running across dual B70s with vLLM tensor parallelism.",
-   "badge": "DUAL B70 TENSOR PARALLEL",
+   "blurb": "Experimental FP8 tensor-parallel diagnostic. This route is held; two independent card services remain the dual-card default.",
+   "badge": "RESEARCH HOLD",
    "tags": [
     {
      "t": "Dual B70 TP2",
      "c": "violet"
     },
     {
-     "t": "FP8 Native",
+     "t": "FP8 weight format",
      "c": "amber"
     },
     {
-     "t": "High decode ~73 tok/s",
+     "t": "Launch held",
      "c": "green"
     }
    ],
    "recipes": {
     "vllm": {
      "kind": "vllm-tp2",
+     "kv_options": [
+      "fp8"
+     ],
+     "operator_hold": "Stock TP2 and remote-atomics-dependent collectives are not authorized on this host (ADR-0008). This diagnostic is not a serving route.",
      "model_path": "/models/Qwen3.8-27B-FP8",
      "search_name": "Qwen3.8-27B-FP8",
      "gpus": [
@@ -424,9 +422,9 @@
      "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 98304,
      "ctx_max": 98304,
-     "ctx_note": "98K dual-card sweep verified (57.3 tok/s at 96K, 73.0 tok/s at 512 ctx)",
+     "ctx_note": "98K configured for a held diagnostic; not verified on the current v0.31.0 image",
      "power": 180,
-     "perf": "73.0 tok/s decode @512 ctx, 57.3 @96K — catalog-verified",
+     "perf": "Historical FP8 measurements used a different custom engine. No current-image throughput claim.",
      "fixed_flags": [
       "--mamba-ssm-cache-dtype",
       "float16"
@@ -440,11 +438,12 @@
        "fp8"
       ],
       "quant": "FP8 safetensors (29 GB)",
+      "quant_method": "fp8",
       "verify": [
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
     }
    },
@@ -458,7 +457,7 @@
     "Dual B70"
    ],
    "recommended_engine": "vllm",
-   "recommendation": "Requires 2× B70. Maximum throughput using vLLM TP2 tensor parallelism across both cards with FP8 KV cache."
+   "recommendation": "Research diagnostic only. Launch is held under ADR-0008; use independent single-card services instead."
   },
   {
    "id": "qwen38-27b-sc5",
@@ -483,18 +482,29 @@
    "recipes": {
     "exl3": {
      "kind": "exl3",
+     "kv_options": [
+      "fp8"
+     ],
+     "prefill_options": [
+      "int8",
+      "fp16"
+     ],
      "model_path": "~/models/Qwen3.8-27B-exl3-SC_5.00bpw_H6",
      "search_name": "qwen3.8-27b exl3 sc5",
      "serve_config": "models/qwen3.8-27b-exl3-4.00bpw",
-     "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261012c@sha256:7bb0c5cfed8a35da8f4db0034338d8dbe5f53731253d96ea8f1db2b5bddd4a40",
+     "image": "ghcr.io/sergiiob/exl3xpu-mixedk:20261014@sha256:933eda54bb51a2e8a6669a70f5a2d7696fabd12a5f8b7c469df02fdfecc79d3a",
      "docker_sock": "/run/b70-exl3-docker.sock",
      "inner_port": 8100,
-     "ctx": 65536,
-     "ctx_max": 65536,
-     "ctx_safe": 16384,
-     "ctx_note": "configured max_model_len 65,536 @ gmu 0.90 (fp8 KV, FULL_DECODE_ONLY graphs, MTP3); checked to 8,162-token prompts and a 4-turn prefix-cache session up to 15,600 tokens — longer is unverified",
+     "ctx": 196608,
+     "ctx_max": 206000,
+     "ctx_safe": 131072,
+     "ctx_note": "190K+ tested: 196,438 occupied exact retrieval+multiturn; 196,608 configured single-request inference profile gmu 0.94, 1,069 MiB free. Higher-reserve 128K alternate: 131,072 @ gmu 0.90 with 2,327 MiB free (>=2 GiB margin). Engine budget ceiling 206,000 @ gmu 0.94 (unverified); 240K+/262K/270K not achievable on SC5. fp8 KV pool is one shared token budget (max_num_seqs 16); pool capacity != context. Plain 4bpw (14.9 GiB) is a separate route: native 262,144 (proven 261,920-tok completion). Cache counters absent on this image — cold cells zero-hit by construction only.",
+     "gmu": "0.94",
+     "gmu_safe": "0.90",
+     "gmu_safe_budget": 168000,
      "power": 230,
-     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p524/g128 (0.89x); 56.82 vs 64.34 p8124/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts",
+     "perf": "matched A/B vs plain 4.00bpw, n=5 per arm (ABBA, temp 0.7/top_p 0.8/top_k 20/presence 1.5, MTP3, C1, g128, ~230 W measured draw): 56.62 vs 63.56 tok/s median p512/g128 (0.89x); 56.82 vs 64.34 p8192/g128 (0.88x). 46/46 kernel checks; greedy 6/6 exact-answer canaries + 3/3 long prompts; 131K context validated",
+     "perf_note": "Run one interactive agent per card. On real agent work with the plain 4.00bpw route, 4 agents at once on one card gave only 16 % more total tokens, and the slowest replies took 4x longer to start (2026-10-15). For two agents, run one on each card.",
      "download": {
       "kind": "snapshot",
       "repo": "turboderp/Qwen3.8-27B-exl3",
@@ -510,14 +520,15 @@
        "sc5"
       ],
       "quant": "EXL3 SC_5.00bpw_H6 (mixed K 4-7)",
+      "quant_method": "exl3",
       "verify": [
        "quantization_config.json",
        "config.json"
       ],
       "note": "Branch SC_5.00bpw_H6 of the same repo; it downloads into its own directory (dest) so it never mixes with the plain 4.00bpw snapshot."
      },
-     "recipe_note": "New: Qwen3.8-27B EXL3 SC_5.00bpw_H6 mixed-bit (K 4-7) — quality pick over plain 4.00bpw at ~0.89x decode on a single B70.",
-     "recipe_ver": "2026-10-13",
+     "recipe_note": "Qwen3.8-27B EXL3 SC_5.00bpw_H6: 190K+ tested (196,438 occupied exact retrieval+multiturn; 196,608 configured inference profile @ gmu 0.94, 1,069 MiB free); safe high-reserve alternate 131K @ gmu 0.90 (2,327 MiB free); budget ceiling 206,000.",
+     "recipe_ver": "2026-10-15",
      "ver": "2026-10-13"
     }
    },
@@ -529,21 +540,20 @@
     "~20 GB",
     "EXL3 SC5"
    ],
-   "recommended_engine": "exl3",
-   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed, checked to 15.6K-token multi-turn sessions."
+   "recommendation": "Quality pick for the dense 27B: turboderp's mixed-bit SC_5.00bpw_H6 (K 4-7) on one B70 — lower KL vs bf16 than plain 4.00bpw at ~0.89x decode speed. 190K+ context tested (196,438 occupied @ gmu 0.94); 131K safe high-reserve alternate (2,327 MiB free)."
   },
   {
    "id": "nemotron-35",
    "name": "Nemotron-3.5-Lightning",
    "arch": "MoE 30B (A3B)",
-   "blurb": "Ultra-fast MoE with DFlash speculative decoding and native XPU router patch. Up to 262K context.",
+   "blurb": "MoE with a DFlash draft and an XPU router patch. Current-image speed and long-context checks are pending.",
    "tags": [
     {
-     "t": "228 tok/s decode",
+     "t": "DFlash draft",
      "c": "violet"
     },
     {
-     "t": "262K context",
+     "t": "262K configured",
      "c": "green"
     },
     {
@@ -554,13 +564,16 @@
    "recipes": {
     "vllm": {
      "kind": "vllm-dflash",
+     "kv_options": [
+      "fp8"
+     ],
      "model_path": "/models/Nemotron-3.5-Lightning-GPTQ-Int4",
      "search_name": "Nemotron-3.5-Lightning-GPTQ-Int4",
      "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
      "ctx": 262144,
-     "ctx_note": "262,144 tokens verified with router patch (needle 250K pass 3/3)",
+     "ctx_note": "262,144 configured; earlier router-patched stacks passed a 250K needle check, but this v0.31.0 image needs its own check",
      "power": 230,
-     "perf": "228.34 tok/s p512 (200.75 p2048), 10,197 tok/s prefill",
+     "perf": "Current v0.31.0 image has no matched throughput measurement; historical DFlash results used an older stack.",
      "download": {
       "kind": "snapshot",
       "repo": "SergiioB/Nemotron-3.5-Lightning-30B-A3B-GPTQ-INT4-G64-sym",
@@ -570,6 +583,7 @@
        "gptq"
       ],
       "quant": "GPTQ-INT4 G64 sym",
+      "quant_method": "gptq",
       "verify": [
        "config.json"
       ]
@@ -582,7 +596,7 @@
      "patches": [
       "patches/patch_xpu_grouped_topk_native_v2.py"
      ],
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-15.2",
      "ver": "2026-10-07",
      "dtype": "float16",
      "quantization": "gptq",
@@ -595,7 +609,7 @@
        "quant": "BF16 DFlash draft"
       }
      },
-     "perf_note": "228 tok/s was measured on the pre-0.31 pinned image; v0.31.0 makes dflash a native method — pending re-measure."
+     "perf_note": "Earlier image measurements are retained in the cookbook. Do not use them as performance figures for v0.31.0."
     },
     "llamacpp": {
      "kind": "gguf",
@@ -630,6 +644,80 @@
    "recommendation": "High-speed MoE model offering ultra-fast interactive time-to-first-token on Arc Pro B70."
   },
   {
+   "id": "nemotron-35-bolt-74b",
+   "name": "Nemotron-3.5-Bolt-74B",
+   "arch": "MoE 74B (A9B)",
+   "blurb": "Hybrid Mamba-2 + MoE 74B model (about 9B active per token) with image input. Fits one B70 with no offload on a patched llama.cpp SYCL image.",
+   "tags": [
+    {
+     "t": "Single B70",
+     "c": "violet"
+    },
+    {
+     "t": "262K context",
+     "c": "green"
+    },
+    {
+     "t": "llama.cpp SYCL",
+     "c": "amber"
+    }
+   ],
+   "recipes": {
+    "llamacpp": {
+     "kind": "gguf",
+     "gguf": "/models/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+     "search_name": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+     "image": "ghcr.io/sergiiob/llama.cpp-sycl-b70:b11669-bolt@sha256:c1b871ee87d2790e92605e89d8fa40c41a61afa128bdce55da0f9fba22e3d042",
+     "env": {
+      "GGML_SYCL_GROUPED_MAX_ROWS": "0"
+     },
+     "ctx": 65536,
+     "ctx_max": 262144,
+     "ctx_note": "65,536 default; up to 262,144 (the GGUF maximum) fits: 25.8 GiB resident loaded, 26.5 GiB after a 250K-token prompt (23.9 GiB at 65,536). This image found a needle in a 250,035-token prompt (prefill 950.6, decode 15.6 tok/s) and in a 32,019-token prompt. One-slot recipe (-np 1 is pinned); -b 8192 -ub 4096, FA on, KV q8_0/q4_1",
+     "power": 230,
+     "perf": "This image, C1, one card: 886-token prompt prefill about 850 tok/s, decode 26.3 tok/s; 32,019-token prompt prefill 1281.3 tok/s, decode 24.2 tok/s. A native build of the same source on host runtime 26.05 decodes 28.1 tok/s (about 6% faster; cause not isolated). No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it (native build). Self-reported, one host, not independently reproduced.",
+     "fixed_flags": [
+      "--mmproj",
+      "/models/mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+      "-np",
+      "1",
+      "-b",
+      "8192",
+      "-ub",
+      "4096",
+      "-t",
+      "8",
+      "--jinja",
+      "--fit",
+      "off"
+     ],
+     "download": {
+      "kind": "file",
+      "name": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf",
+      "repo": "nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF",
+      "search": "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB",
+      "match": "nemotron-3.5-bolt",
+      "quant": "NVFP4 Mamba + IQ2_XXS experts GGUF (20.5 GiB) + BF16 mmproj (1.6 GiB)",
+      "sha256": "91d63363e782c8a3d5f4be42816eba8e0d42dd2530bd07a7d0d2dc440599af75",
+      "extra_files": [
+       "mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf"
+      ]
+     },
+     "recipe_ver": "2026-10-15",
+     "ver": "2026-10-15"
+    }
+   },
+   "brand": "nvidia",
+   "subtitle": "MoE 74B (A9B) • up to 262K context",
+   "chips": [
+    "LLM",
+    "Vision",
+    "24 GB"
+   ],
+   "recommended_engine": "llamacpp",
+   "recommendation": "Single-card B70 recipe on a patched llama.cpp b11669 SYCL image (GGML_SYCL_F16=ON, grouped MoE GEMM). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."
+  },
+  {
    "id": "qwen36-27b-ar",
    "name": "Qwen3.6-27B AutoRound INT4",
    "arch": "Dense 27B",
@@ -651,15 +739,15 @@
    "recipes": {
     "vllm": {
      "kind": "vllm-autoround",
+     "kv_options": [
+      "fp8"
+     ],
      "model_path": "Intel/Qwen3.6-27B-int4-AutoRound",
      "dtype": "float16",
      "kv": "fp8",
      "ctx": 262144,
      "ctx_max": 262144,
      "ctx_note": "starts at 256K (engine sweep 2026-07-05)",
-     "fixed_flags": [
-      "--enforce-eager"
-     ],
      "image": "intel/llm-scaler-vllm:0.26.0-b2@sha256:52218ad85513ab6686d4c090c83c2bd8c5b02423c63aa4dabd41837fe641fe3b",
      "power": 180,
      "perf": "128 tok / 11.1s non-stream (engine sweep 2026-07-05)",
@@ -675,7 +763,7 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
     }
    },
@@ -750,14 +838,14 @@
    "id": "muse-glimmer",
    "name": "Muse-Glimmer-30B",
    "arch": "MoE 30B · vision",
-   "blurb": "Vision + DFlash. Needs mmproj sidecar (auto-selected).",
+   "blurb": "Vision model with a required mmproj sidecar. This recipe does not enable DFlash.",
    "tags": [
     {
      "t": "Sees images",
      "c": "violet"
     },
     {
-     "t": "150W MoE sweet",
+     "t": "Q4_K_M weights",
      "c": "green"
     },
     {
@@ -772,13 +860,13 @@
      "search_name": "Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
      "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
      "ctx": 131072,
-     "ctx_note": "128K measured p512/g128 (cookbook)",
+     "ctx_note": "128K configured; this KQuant artifact and configuration have no retained long-context check",
      "fixed_flags": [
       "--mmproj",
       "/models/mmproj-Muse-Glimmer-30B-Q4_K_M.gguf"
      ],
      "power": 150,
-     "perf": "26.8 engine tok/s at p512/g128 128K n=5 (cookbook)",
+     "perf": "No measured speed for this KQuant Q4_K_M recipe. The cookbook's 26.8 tok/s result used a different artifact and draft configuration.",
      "download": {
       "kind": "file",
       "name": "Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
@@ -791,11 +879,11 @@
       ],
       "note": "Optional DFlash draft (dflash-Muse-Glimmer-30B-Q4_K_M.gguf) lives in the same repo — grab it there if you want speculative decoding."
      },
-     "recipe_ver": "2026-10-07",
+     "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
     }
    },
-   "brand": "generic",
+   "brand": "meta",
    "chips": [
     "LLM",
     "Instruct"

@@ -66,7 +66,18 @@ class ChildProcess:
         except ProcessLookupError:
             pass
 
-    def wait(self, timeout=3.0):
+    def wait(self, timeout=None):
+        """Block until the child exits, like Popen.wait. With a timeout,
+        raise TimeoutError if it is still running when the timeout ends."""
+        if timeout is None:
+            while self._rc is None:
+                try:
+                    pid, status = os.waitpid(self.pid, 0)
+                    if pid == self.pid:
+                        self._rc = os.waitstatus_to_exitcode(status)
+                except ChildProcessError:
+                    self._rc = 0  # reaped elsewhere
+            return self._rc
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.poll() is not None:
@@ -166,7 +177,7 @@ def main(argv=None):
             except KeyboardInterrupt:
                 child.terminate()
                 try:
-                    child.wait()
+                    child.wait(timeout=3.0)
                 except TimeoutError:
                     child.kill()
             return child.returncode or 0

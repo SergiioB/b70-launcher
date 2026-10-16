@@ -141,7 +141,44 @@ def _pick_toolkit(gi):
                      "falling back to browser")
 
 
-def _tune_view(view, WebKit, title):
+def _external_links(view, WebKit, origin):
+    """Links to other sites open in the default browser. WebKitGTK drops
+    target=_blank links unless the host handles them, so without this the
+    xecores.com and dossier links did nothing; a plain link would replace the
+    launcher UI inside the window."""
+    from gi.repository import Gio
+    kinds = WebKit.PolicyDecisionType
+
+    def on_policy(_view, decision, kind):
+        if kind not in (kinds.NAVIGATION_ACTION, kinds.NEW_WINDOW_ACTION):
+            return False
+        try:
+            uri = decision.get_navigation_action().get_request().get_uri()
+        except Exception:
+            return False
+        if uri.startswith(origin):
+            if kind == kinds.NEW_WINDOW_ACTION:
+                decision.ignore()
+                view.load_uri(uri)
+                return True
+            return False
+        if uri.startswith(("https://", "http://", "mailto:")):
+            try:
+                Gio.AppInfo.launch_default_for_uri(uri, None)
+            except Exception:
+                pass
+        decision.ignore()
+        return True
+
+    view.connect("decide-policy", on_policy)
+
+
+def _tune_view(view, WebKit, title, url):
+    origin = "/".join(url.split("/")[:3]) + "/"
+    try:
+        _external_links(view, WebKit, origin)
+    except Exception:
+        pass
     try:
         view.get_context().set_cache_model(WebKit.CacheModel.DOCUMENT_VIEWER)
     except Exception:
@@ -186,7 +223,7 @@ def _run_gtk3(Gtk, Gdk, WebKit, url, port, title):
     win.set_size_request(MIN_W, MIN_H)
     _geom_load(win)
     view = WebKit.WebView()
-    _tune_view(view, WebKit, title)
+    _tune_view(view, WebKit, title, url)
 
     def on_key(_w, event):
         if _is_reload(event.keyval,
@@ -221,7 +258,7 @@ def _run_gtk4(Gtk, Gdk, WebKit, url, port, title):
     _geom_load(win)
     win.set_icon_name(ICON_NAME)
     view = WebKit.WebView()
-    _tune_view(view, WebKit, title)
+    _tune_view(view, WebKit, title, url)
     loop = GLib.MainLoop()
     keys = Gtk.EventControllerKey()
 

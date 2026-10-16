@@ -28,8 +28,9 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-VERSION = "0.5.3"
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from b70launcher.paths import VERSION
 NAME = f"b70-launcher-{VERSION}-linux-source"
 
 # Files shipped in the source bundle, sorted for deterministic tar order.
@@ -43,7 +44,14 @@ FILES = sorted(
     "web/index.html ".split()
     + [f"web/assets/{p.name}" for p in (ROOT / "web" / "assets").iterdir()]
     + [f"patches/ssu-b70-b8w4/{p.name}" for p in (ROOT / "patches" / "ssu-b70-b8w4").iterdir()]
+    + [str(p.relative_to(ROOT)) for p in (ROOT / "b70launcher").rglob("*.py")]
 )
+
+for model in json.loads((ROOT / "recipes.json").read_text()).get("models", []):
+    for recipe in model.get("recipes", {}).values():
+        for patch in recipe.get("patches", []):
+            if patch not in FILES:
+                raise ValueError(f"Recipe patch is absent from the release: {patch}")
 
 HEX64 = re.compile(r"[0-9a-fA-F]{64}")
 SHA256_LINE = re.compile(r"^([0-9a-fA-F]{64}) ([ *])(\S.*)$")
@@ -55,6 +63,35 @@ def sha256(data: bytes) -> str:
 
 def safe_rel(rel: str) -> bool:
     return bool(rel) and not rel.startswith("/") and ".." not in rel.split("/")
+
+
+def release_notes(readme: str, version: str) -> list:
+    """Plain-text bullets of README's `## What is new in <version>` section.
+
+    Each note is the bullet's bold lead plus the next sentence, with Markdown
+    bold, code and link markup removed, so the update dialog stays short."""
+    lines = readme.splitlines()
+    heading = f"## What is new in {version}"
+    if heading not in (line.strip() for line in lines):
+        return []
+    start = [line.strip() for line in lines].index(heading) + 1
+    notes = []
+    for line in lines[start:]:
+        if line.startswith("#"):
+            break
+        if not line.startswith("- "):
+            continue
+        text = line[2:].strip()
+        lead = re.match(r"\*\*(.+?)\*\*\s*", text)
+        rest = text[lead.end():] if lead else text
+        # first sentence: up to ". " / "! " / "? " followed by a capital or a quote mark
+        rest = re.split(r"(?<=[.!?])\s+(?=[A-Z`\"“(])", rest, maxsplit=1)[0]
+        note = f"{lead.group(1)} {rest}".strip() if lead else rest
+        note = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", note)
+        note = note.replace("**", "").replace("`", "")
+        if note:
+            notes.append(note)
+    return notes
 
 
 def build(out_dir: Path) -> tuple:
@@ -98,6 +135,7 @@ def build(out_dir: Path) -> tuple:
             entries[f"{m['id']}:{eng}"] = e
     recipe_manifest = {
         "catalog_ver": recipes_doc.get("catalog_ver") or "",
+        "min_launcher_version": VERSION,
         "recipes_url": "https://xecores.com/downloads/recipes.json",
         "recipes": entries,
     }
@@ -112,6 +150,7 @@ def build(out_dir: Path) -> tuple:
         "sha256": digest,
         "recipes_manifest_url": "https://xecores.com/downloads/recipes-manifest.json",
         "message": f"B70 Launcher v{VERSION} is available.",
+        "notes": release_notes((ROOT / "README.md").read_text(), VERSION),
     }
     (out_dir / "version.json").write_text(json.dumps(version_doc, indent=1) + "\n")
     return archive, digest
@@ -247,6 +286,8 @@ def verify(archive: Path) -> bool:
                     warn("version.json: 'sha256' does not match this tarball")
                 if manifest and v.get("version") and manifest.get("version") != v["version"]:
                     warn(f"version.json: version {v['version']!r} != manifest version {manifest.get('version')!r}")
+                if not v.get("notes"):
+                    warn("version.json: no release notes (README.md has no 'What is new in' section for this version)")
         except json.JSONDecodeError:
             warn("version.json: not valid JSON")
     else:
