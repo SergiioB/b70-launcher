@@ -719,7 +719,9 @@
       "--limit-mm-per-prompt",
       "{\"image\":1,\"video\":0}",
       "--mamba-cache-mode",
-      "align"
+      "align",
+      "--override-generation-config",
+      "{\"temperature\":1.0,\"top_p\":0.95}"
      ],
      "perf": "C1, both cards capped at 180 W, graph mode, prefix caching on with zero cache hits (cold prompts), 128 out, greedy, thinking off, median of 5 after 1 warmup. 886-token prompt: prefill 2,925 tok/s, decode 60.5 tok/s. 8,192: 2,014 / 50.7. 32,000: 871 / 33.5. 64,000: 486 / 23.0. Self-reported, one host, two cards, not independently reproduced.",
      "download": {
@@ -736,7 +738,7 @@
        "config.json"
       ]
      },
-     "recipe_ver": "2026-10-16.2",
+     "recipe_ver": "2026-10-17",
      "ver": "2026-10-16",
      "perf_note": "Needs both patches: patch_vllm_worker_affinity.py and patch_xpu_moe_topk_pad.py (Bolt routes 9 experts per token; the XPU kernel has no TopK 9, so it pads to 10 with router weight 0). tp2-entry.sh applies them and checks the markers. Host networking with loopback pinning (CCL_KVS_IFACE=lo, FI_TCP_IFACE=lo, VLLM_HOST_IP=127.0.0.1); without it the two ranks hung at startup. Load time depends on disk; about 12-15 min on our USB SSD. For vision, put the image before the text. Not tested yet: LiLiCorr DFlash drafter, tool calling, video, concurrency beyond 4, task benchmarks beyond GSM8K 200.",
      "power": 180
@@ -767,7 +769,15 @@
       "8",
       "--jinja",
       "--fit",
-      "off"
+      "off",
+      "--temp",
+      "1.0",
+      "--top-p",
+      "0.95",
+      "--top-k",
+      "0",
+      "--min-p",
+      "0"
      ],
      "download": {
       "kind": "file",
@@ -781,7 +791,7 @@
        "mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf"
       ]
      },
-     "recipe_ver": "2026-10-15",
+     "recipe_ver": "2026-10-17",
      "ver": "2026-10-15"
     }
    },

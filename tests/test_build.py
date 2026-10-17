@@ -32,6 +32,24 @@ def cfg(**kw):
     return base
 
 
+class TestBoltSampling(LauncherStateCase):
+
+    def test_model_card_sampling_defaults(self):
+        expected = {
+            "vllm": {"--override-generation-config": '{"temperature":1.0,"top_p":0.95}'},
+            "llamacpp": {"--temp": "1.0", "--top-p": "0.95",
+                         "--top-k": "0", "--min-p": "0"},
+        }
+        for engine, flags in expected.items():
+            with self.subTest(engine=engine):
+                plan = builders.build(cfg(model_id="nemotron-35-bolt-74b", engine=engine))
+                self.assertNotIn("error", plan)
+                tokens = plan["tokens"]
+                for flag, value in flags.items():
+                    self.assertEqual(tokens.count(flag), 1)
+                    self.assertEqual(tokens[tokens.index(flag) + 1], value)
+
+
 class TestBuildLlamaCppDocker(LauncherStateCase):
 
     def test_kv_map_all_options(self):
