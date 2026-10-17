@@ -97,13 +97,10 @@ def _typelibs_present():
 
 
 def _display_reachable(env):
-    # Cheap guess; the spawn-grace poll below is the real arbiter. A bare
-    # wayland-* socket counts: libwayland uses the default socket name even
-    # when WAYLAND_DISPLAY is not exported.
-    if env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
-        return True
-    runtime = env.get("XDG_RUNTIME_DIR")
-    return bool(runtime) and any(Path(runtime).glob("wayland-*"))
+    # Require an explicit DISPLAY or WAYLAND_DISPLAY in the current environment;
+    # a bare wayland-* socket in XDG_RUNTIME_DIR may belong to a physical desktop
+    # seat while the user is connected over a headless SSH/remote session.
+    return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
 
 
 def open_app_window(script, url, port, title):

@@ -649,7 +649,7 @@ def cmd_serve(g, a):
         if not launcher:
             die("launcher.py not found", code=3,
                 hint="install via packaging/install.sh or set B70_LAUNCHER")
-        argv = [launcher, "--no-open", "--port", str(port)]
+        argv = [launcher, "--no-open", "--fg", "--port", str(port)]
         if launcher.endswith(".py"):
             argv = [sys.executable, "-u"] + argv
         print(f"{DOT} daemon in foreground on {c.api} — Ctrl+C to stop", flush=True)
@@ -792,10 +792,20 @@ def cmd_show(g, a):
     return 0
 
 
-def _interactive_pick(state, matches):
+def _interactive_pick(state, matches, c=None, g=None):
     """TTY-only two-step picker: model, then engine. Returns (model_id, engine)."""
+    if c is not None:
+        try:
+            _print_status({"state": state,
+                           "metrics": c.get("/api/metrics", timeout=10),
+                           "downloads": c.get("/api/downloads")})
+            print()
+        except Exception:
+            pass
+    running = [e for e in state.get("running", []) if e.get("status") != "stopped"]
     models = state.get("recipes", {}).get("models", [])
-    print(bold("  pick a model:"))
+    extra_hint = ", 's' stop running" if running else ""
+    print(bold("  pick a model") + dim(f" (green = on disk, ★ = recommended{extra_hint}, 'q' quit):"))
     for i, m in enumerate(models):
         star = yellow(" ★") if m.get("badge") else ""
         engs = []
@@ -809,6 +819,10 @@ def _interactive_pick(state, matches):
     except (EOFError, KeyboardInterrupt):
         print()
         raise SystemExit(130)
+    if raw.lower() in ("q", "quit", "exit"):
+        raise SystemExit(0)
+    if raw.lower() in ("s", "stop") and running and g is not None:
+        raise SystemExit(cmd_stop(g, argparse.Namespace(rid=None, all=True)))
     idx = 0
     if raw:
         if raw.isdigit() and 1 <= int(raw) <= len(models):
@@ -824,7 +838,13 @@ def _interactive_pick(state, matches):
     det_map = matches.get(model["id"], {})
     print(f"\n{bold('  pick an engine for')} {cyan(model.get('name', model['id']))}{bold(':')}")
     for i, e in enumerate(engs):
+        rec_cfg = model.get("recipes", {}).get(e, {})
         marks = []
+        if rec_cfg.get("kind"):
+            marks.append(rec_cfg["kind"])
+        ctx_v = rec_cfg.get("ctx_safe") or rec_cfg.get("ctx")
+        if ctx_v:
+            marks.append(f"ctx {human_ctx(ctx_v)}")
         if e == rec_eng:
             marks.append(yellow("recommended"))
         if det_map.get(e, {}).get("detected"):
@@ -837,6 +857,8 @@ def _interactive_pick(state, matches):
     except (EOFError, KeyboardInterrupt):
         print()
         raise SystemExit(130)
+    if raw.lower() in ("q", "quit", "exit"):
+        raise SystemExit(0)
     eng = rec_eng
     if raw:
         if raw.isdigit() and 1 <= int(raw) <= len(engs):
@@ -942,7 +964,7 @@ def cmd_launch(g, a):
             if not sys.stdin.isatty():
                 die("b70 launch needs a model id (or --path for a custom artifact)",
                     hint="see: b70 list")
-            target, eng = _interactive_pick(st, matches)
+            target, eng = _interactive_pick(st, matches, c=c, g=g)
             if not a.engine:
                 a.engine = eng
         model, cands = pick_model(recipes, target)

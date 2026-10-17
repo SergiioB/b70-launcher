@@ -381,12 +381,26 @@ class TestServer(unittest.TestCase):
         code, state = self.get("/api/state")
         self.assertEqual(state["settings"]["pcie_links"], {})
 
+    def test_already_running_message(self):
+        res = subprocess.run(
+            [sys.executable, str(ROOT / "launcher.py"), "--no-open", "--port", str(self.port)],
+            capture_output=True, text=True, cwd=str(ROOT), env=support_env.server_env(self.home, self.state)
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Launcher already running at", res.stdout)
+        self.assertIn("existing instance left unchanged", res.stdout)
+        self.assertIn("Stop daemon:", res.stdout)
+        self.assertIn("b70-launcher --kill", res.stdout)
+
     # ---- shutdown (alphabetically last) ---------------------------------
 
     def test_zz_shutdown(self):
-        code, out = self.post("/api/shutdown", {"stop_engines": False})
-        self.assertEqual(code, 200)
-        self.assertTrue(out["ok"])
+        res = subprocess.run(
+            [sys.executable, str(ROOT / "launcher.py"), "--stop", "--port", str(self.port)],
+            capture_output=True, text=True, cwd=str(ROOT), env=support_env.server_env(self.home, self.state)
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Shutdown requested", res.stdout)
         rc = self.proc.wait(timeout=15)
         self.assertEqual(rc, 0)
         with self.assertRaises(Exception):

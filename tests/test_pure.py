@@ -370,6 +370,15 @@ class TestAppWindowChildWait(unittest.TestCase):
             child.kill()
             child.wait()
 
+    def test_display_reachable_requires_explicit_display_env(self):
+        import appwindow
+        rt = TMP / "fake-xdg-runtime"
+        rt.mkdir(exist_ok=True)
+        (rt / "wayland-0").write_text("")
+        self.assertFalse(appwindow._display_reachable({"XDG_RUNTIME_DIR": str(rt)}))
+        self.assertTrue(appwindow._display_reachable({"DISPLAY": ":0"}))
+        self.assertTrue(appwindow._display_reachable({"WAYLAND_DISPLAY": "wayland-0"}))
+
 
 if __name__ == "__main__":
     unittest.main()
