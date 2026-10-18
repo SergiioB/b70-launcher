@@ -47,6 +47,12 @@ def ensure_exl3_stack(sock):
         if check.returncode:
             _checked(nat + ['-A'] + rule)
         state = '/run/b70-exl3-containerd'
+        cfg_file = paths.DATA / 'exl3-daemon.json'
+        try:
+            cfg_file.write_text('{}\n')
+            os.chmod(cfg_file, 0o644)
+        except OSError:
+            pass
         with open(paths.LOGDIR / 'exl3-stack.log', 'ab') as log:
             # Existing containerd state is never removed or overwritten.
             if not Path(state + '/containerd.sock').exists():
@@ -58,7 +64,11 @@ def ensure_exl3_stack(sock):
                     raise RuntimeError('containerd startup failed; inspect exl3-stack.log.')
             # overlay2 with the containerd snapshotter off: the image store
             # lives in data-root, so moving data-root moves the images with it.
-            daemon = subprocess.Popen(['sudo', '-n', 'dockerd', '--data-root=' + root + '-docker',
+            # Pass an isolated empty --config-file so a host /etc/docker/daemon.json
+            # with its own "data-root" cannot conflict with --data-root.
+            daemon = subprocess.Popen(['sudo', '-n', 'dockerd',
+                                       '--config-file=' + str(cfg_file),
+                                       '--data-root=' + root + '-docker',
                                        '--exec-root=/run/b70-exl3-docker', '--host=unix://' + sock,
                                        '--pidfile=/run/b70-exl3-docker.pid', '--bridge=' + bridge,
                                        '--ip-forward=false', '--ip-masq=false', '--group=docker',
@@ -69,7 +79,14 @@ def ensure_exl3_stack(sock):
         deadline = time.monotonic() + 40
         while time.monotonic() < deadline:
             if daemon.poll() is not None:
-                raise RuntimeError('EXL3 Docker startup failed; inspect exl3-stack.log.')
+                detail = ''
+                try:
+                    lines = [ln.strip() for ln in (paths.LOGDIR / 'exl3-stack.log').read_text(errors='replace').splitlines() if ln.strip()]
+                    if lines:
+                        detail = f' ({lines[-1]})'
+                except OSError:
+                    pass
+                raise RuntimeError(f'EXL3 Docker startup failed; inspect exl3-stack.log.{detail}')
             if Path(sock).exists():
                 result = subprocess.run(docker_cmd(sock) + ['info'], capture_output=True, timeout=3)
                 if result.returncode == 0:

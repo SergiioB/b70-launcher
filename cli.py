@@ -382,6 +382,46 @@ def parse_ctx(val):
     return n
 
 
+def _preflight_cards(pf):
+    """Normalize preflight GPU list (`devices` from daemon, or `cards` from unit tests)."""
+    if not isinstance(pf, dict):
+        return []
+    raw = pf.get("devices")
+    if not isinstance(raw, list) or not raw:
+        raw = pf.get("cards") or []
+    out = []
+    for i, c in enumerate(raw):
+        if not isinstance(c, dict):
+            continue
+        idx = c.get("index") if isinstance(c.get("index"), int) else i
+        label = c.get("label") or c.get("name") or f"GPU {idx}"
+        pci = (c.get("pci") or "").replace("0000:", "")
+        if pci and pci in label:
+            pci = ""
+        busy = bool(c.get("busy"))
+        busy_by = (c.get("busy_by") or "").strip()
+        if not busy_by and busy:
+            procs = c.get("busy_procs") or []
+            holders = []
+            for p in procs:
+                h = p.get("cname") or p.get("exe") or (f"PID {p['pid']}" if p.get("pid") else "")
+                if h and h not in holders:
+                    holders.append(h)
+            busy_by = ", ".join(holders)
+        out.append({
+            "index": idx,
+            "label": label,
+            "pci": pci,
+            "busy": busy,
+            "busy_by": busy_by,
+            "accessible": c.get("accessible", c.get("render_access", True)),
+            "b70": c.get("b70", True),
+            "vram_used_mib": c.get("vram_used_mib"),
+            "vram_total_mib": c.get("vram_total_mib"),
+        })
+    return out
+
+
 def default_gpus(recipe, preflight=None):
     """GPU selection a recipe implies when the user doesn't pass --gpus.
 
@@ -400,11 +440,11 @@ def default_gpus(recipe, preflight=None):
         d_gpus = (preflight.get("default") or {}).get("gpus")
         if isinstance(d_gpus, list) and d_gpus and isinstance(d_gpus[0], int):
             return [d_gpus[0]]
-        for c in preflight.get("cards") or []:
-            idx = c.get("index")
-            if isinstance(idx, int) and not c.get("busy") and c.get("render_access", True):
-                return [idx]
+        for c in _preflight_cards(preflight):
+            if not c["busy"] and c["accessible"] and c["b70"]:
+                return [c["index"]]
     return [0]
+
 
 
 
@@ -969,48 +1009,40 @@ def _blockers_for_gpus(st, gpus):
 def _interactive_launch_opts(st, model, engine, recipe, a, c=None):
     """Prompt for GPU(s), context size, and port when launching interactively."""
     pf = st.get("preflight") or {}
-    cards = [card for card in (pf.get("cards") or []) if isinstance(card.get("index"), int)]
+    cards = _preflight_cards(pf)
 
     # 1. GPU selection
     if a.gpus is None:
         def_gpus = default_gpus(recipe, pf)
         def_gpu_str = ",".join(map(str, def_gpus))
-        if len(cards) > 1 or any(card.get("busy") for card in cards):
+        if cards:
             print(f"\n{bold('  pick GPU(s) for')} {cyan(model.get('name', model['id']))}"
                   f" {dim('(0, 1, or 0,1 for dual-card):')}")
             for card in cards:
                 idx = card["index"]
-                name = card.get("name", f"GPU {idx}")
-                pci = card.get("pci", "")
-                if card.get("busy"):
-                    procs = card.get("busy_procs") or []
-                    holders = []
-                    for p in procs:
-                        h = p.get("cname") or p.get("exe") or f"PID {p.get('pid')}"
-                        if h not in holders:
-                            holders.append(h)
-                    detail = ", ".join(holders) if holders else "in use"
+                label = card["label"]
+                pci = card["pci"]
+                if card["busy"]:
+                    detail = card["busy_by"] or "in use"
                     status = yellow(f"busy ({detail})")
                 else:
                     status = green("free")
                 rec_mark = (" " + yellow("★ default")) if [idx] == def_gpus else ""
-                print(f"  {cyan('[' + str(idx) + ']')} GPU {idx} · {name}"
+                print(f"  {cyan('[' + str(idx) + ']')} GPU {idx} · {label}"
                       + (f" ({pci})" if pci else "") + f" · {status}{rec_mark}")
             if len(cards) >= 2:
-                both_busy = any(card.get("busy") for card in cards[:2])
+                both_busy = any(card["busy"] for card in cards[:2])
                 both_status = yellow("busy") if both_busy else green("free")
                 rec_mark = (" " + yellow("★ default")) if def_gpus == [0, 1] else ""
                 print(f"  {cyan('[0,1]')} Both GPUs (0,1) · {both_status}{rec_mark}")
-            try:
-                raw_gpu = input(f"{bold('gpu')} [{dim(def_gpu_str)}]{bold(':')} ").strip()
-            except (EOFError, KeyboardInterrupt):
-                print()
-                raise SystemExit(130)
-            if raw_gpu.lower() in ("q", "quit", "exit"):
-                raise SystemExit(0)
-            chosen_gpus = parse_gpus(raw_gpu) if raw_gpu else def_gpus
-        else:
-            chosen_gpus = def_gpus
+        try:
+            raw_gpu = input(f"{bold('gpu')} [{dim(def_gpu_str)}]{bold(':')} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            raise SystemExit(130)
+        if raw_gpu.lower() in ("q", "quit", "exit"):
+            raise SystemExit(0)
+        chosen_gpus = parse_gpus(raw_gpu) if raw_gpu else def_gpus
 
         # Offer to stop blocking workloads if a chosen GPU is busy
         card_by_idx = {card["index"]: card for card in cards}

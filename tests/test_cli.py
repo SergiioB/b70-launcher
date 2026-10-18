@@ -532,11 +532,11 @@ class TestCliE2E(unittest.TestCase):
         # Single-card recipe auto-selects free GPU 1 when GPU 0 is busy in preflight
         pf = {
             "default": {"gpus": [1]},
-            "cards": [
-                {"index": 0, "name": "Arc Pro B70", "pci": "0b:00.0", "busy": True,
-                 "busy_procs": [{"pid": 1003510, "cname": "forge-g5-roworder"}]},
-                {"index": 1, "name": "Arc Pro B70", "pci": "0f:00.0", "busy": False,
-                 "busy_procs": []},
+            "devices": [
+                {"label": "Arc Pro B70 · 0b:00.0", "pci": "0000:0b:00.0", "b70": True,
+                 "accessible": True, "busy": True, "busy_by": "forge-g5-roworder (PID 1003510)"},
+                {"label": "Arc Pro B70 · 0f:00.0", "pci": "0000:0f:00.0", "b70": True,
+                 "accessible": True, "busy": False, "busy_by": ""},
             ],
             "foreign": [{"id": "forge-g5-roworder", "kind": "container", "gpus": [0], "pids": [1003510]}],
         }
@@ -557,8 +557,9 @@ class TestCliE2E(unittest.TestCase):
         self.assertEqual(a.gpus, "1")
         self.assertEqual(a.ctx, 65536)
         self.assertEqual(a.port, 8015)
-        self.assertIn("busy (forge-g5-roworder)", buf.getvalue())
+        self.assertIn("busy (forge-g5-roworder", buf.getvalue())
         self.assertIn("GPU 1", buf.getvalue())
+
 
 
 if __name__ == "__main__":
