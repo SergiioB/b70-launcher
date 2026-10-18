@@ -285,9 +285,9 @@
         "xestrata": {
           "kind": "xestrata",
           "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
-          "ctx": 262144,
-          "ctx_max": 262144,
-          "ctx_note": "Full 262K context (IQ3_XXS, 2\u00d7 B70 K=24 pipelined)",
+          "ctx": 350000,
+          "ctx_max": 350000,
+          "ctx_note": "350K context via YaRN scaling (1.335x extension over 262K native)",
           "power": 180,
           "perf": "55.2\u201367.5 tok/s code/prose (up to 122 tok/s repetitive), 2,026 tok/s prefill at 32K",
           "gpus": [
@@ -316,7 +316,10 @@
             "xhigh"
           ],
           "vision_supported": true,
-          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+          "rope_scaling": "yarn",
+          "rope_scale": 1.33514,
+          "yarn_orig_ctx": 262144
         }
       },
       "brand": "qwen",
