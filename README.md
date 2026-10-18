@@ -56,6 +56,11 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.18
+
+- **XeStrata dual-B70 recipe for Qwen3.8-Flash-Next (122.2 tok/s).** Added the native XeStrata (Strata 0.1.45 SYCL) serving route for `qwen38-flashnext` across two Intel Arc Pro B70 cards with expert parallelism and native MTP4 speculative decoding (`b70 launch qwen38-flashnext -e xestrata`). Delivers 122.2 tok/s decode on LocalMaxxing benchmark run `cmvb7j24x01hzle01zgemx67l`.
+- **Direct artifact resolution for multi-shard GGUF routes.** `recipes.json` now supports exact `model_path` pointers for multi-shard models so detection resolves immediately without relying on fuzzy disk scanning.
+
 ## What is new in 0.6.17
 
 - **Interactive CLI GPU, context, and port selection + `--headless` flag.** Interactive CLI launches (`b70-launcher --headless` / `b70 launch`, with `--no-open` and `--cli` kept as aliases) now prompt for target GPU(s) (`0`, `1`, or `0,1`), context size (`8K..256K` presets or `64K` shorthand), and port (auto-picking the first free port starting at `8000`). Single-card launches automatically default to the first free B70 card (e.g. GPU 1 when GPU 0 is busy), and choosing a busy GPU offers to stop the blocking workload before launching. `-g`/`--gpus` and `K`-suffixed `--ctx` (e.g. `-c 64K`) work on CLI invocations too.

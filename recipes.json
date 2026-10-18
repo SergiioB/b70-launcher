@@ -245,6 +245,7 @@
     },
     "xestrata": {
      "kind": "xestrata",
+     "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
      "ctx": 10240,
      "ctx_max": 131072,
      "ctx_note": "10K-131K context (IQ3_XXS, 2× B70 expert-parallel)",
