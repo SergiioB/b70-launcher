@@ -311,10 +311,10 @@ class TestBuildOtherEngines(LauncherStateCase):
         self.assertNotIn("error", b)
         self.assertTrue(b["native"])
         self.assertEqual(b["gpus"], [0, 1])
-        self.assertIn("--engine", b["tokens"])
-        self.assertIn("strata", b["tokens"])
-        self.assertIn("--gpu", b["tokens"])
-        self.assertIn("0,1", b["tokens"])
+        self.assertIn("--engine", b["cmd"])
+        self.assertIn("strata", b["cmd"])
+        self.assertIn("--gpu", b["cmd"])
+        self.assertIn("0,1", b["cmd"])
 class TestBuildValidation(LauncherStateCase):
     def test_unknown_model_and_engine(self):
         self.assertIn("error", builders.build(cfg(model_id="nope", engine="x")))

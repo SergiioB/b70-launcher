@@ -23,14 +23,11 @@ def build_xestrata(b):
     gpus = list(b.gpus)
     gpus_arg = ",".join(map(str, gpus)) if len(gpus) > 1 else str(gpus[0])
 
-    tokens = [
-        py_exe, server_py,
-        "--engine", "strata",
-        "--config", config_file,
-        "--port", str(port),
-        "--host", host,
-        "--gpu", gpus_arg,
-    ]
+    cmd_str = (
+        f"source /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 && "
+        f"exec {py_exe} {server_py} --engine strata --config {config_file} --port {port} --host {host} --gpu {gpus_arg}"
+    )
+    tokens = ["bash", "-c", cmd_str]
 
     tokens += recipe.get("fixed_flags", []) + b.extra
 
