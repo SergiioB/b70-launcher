@@ -481,6 +481,87 @@ class TestCliE2E(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("_b70", out)
 
+    def test_interactive_picker_hides_held_models_and_stars_only_recommended(self):
+        import io
+        _, out, _ = self.b70("--json", "list")
+        models = json.loads(out)["models"]
+        state = {"recipes": {"models": models}, "running": [], "preflight": {"foreign": []}}
+        buf = io.StringIO()
+        with mock.patch("builtins.input", side_effect=["1", "1"]), \
+             mock.patch("sys.stdout", buf):
+            mid, eng = cli._interactive_pick(state, {})
+        rendered = buf.getvalue()
+        self.assertNotIn("qwen38-27b-fp8-tp2", rendered)
+        self.assertEqual(mid, "qwen36-35b")
+        # Legacy badge does not get a recommendation star
+        flash_line = next(ln for ln in rendered.splitlines() if "qwen38-flashnext" in ln)
+        self.assertNotIn("★", flash_line)
+
+    def test_status_prints_external_gpu_workload(self):
+        import io
+        payload = {
+            "state": {
+                "version": "0.6.17",
+                "recipes": {"catalog_ver": "2026-10-15.2"},
+                "running": [],
+                "preflight": {
+                    "foreign": [{
+                        "id": "bolt-vllm-tp2",
+                        "kind": "container",
+                        "cname": "bolt-vllm-tp2",
+                        "image": "vllm/vllm-openai-xpu:v0.31.0",
+                        "gpus": [0, 1],
+                        "pids": [1001, 1002],
+                    }]
+                }
+            },
+            "metrics": {"power": []},
+            "downloads": {},
+        }
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            cli._print_status(payload)
+        out = buf.getvalue()
+        self.assertIn("bolt-vllm-tp2", out)
+        self.assertIn("b70 stop bolt-vllm-tp2", out)
+        self.assertNotIn("no engines running", out)
+
+    def test_default_gpus_and_interactive_launch_opts(self):
+        import argparse
+        import io
+        # Single-card recipe auto-selects free GPU 1 when GPU 0 is busy in preflight
+        pf = {
+            "default": {"gpus": [1]},
+            "cards": [
+                {"index": 0, "name": "Arc Pro B70", "pci": "0b:00.0", "busy": True,
+                 "busy_procs": [{"pid": 1003510, "cname": "forge-g5-roworder"}]},
+                {"index": 1, "name": "Arc Pro B70", "pci": "0f:00.0", "busy": False,
+                 "busy_procs": []},
+            ],
+            "foreign": [{"id": "forge-g5-roworder", "kind": "container", "gpus": [0], "pids": [1003510]}],
+        }
+        self.assertEqual(cli.default_gpus({"kind": "exl3"}, pf), [1])
+        self.assertEqual(cli.default_gpus({"kind": "vllm-tp2"}, pf), [0, 1])
+        self.assertEqual(cli.parse_ctx("64K"), 65536)
+        self.assertEqual(cli.parse_ctx("128k"), 131072)
+
+        # Pressing Enter on GPU/ctx/port selects free GPU 1, validated ctx 131072, and free port
+        state = {"running": [], "preflight": pf}
+        model = {"id": "qwen38-27b-sc5", "name": "Qwen3.8-27B SC5"}
+        recipe = {"kind": "exl3", "ctx": 131072, "ctx_safe": 131072, "ctx_max": 131072}
+        a = argparse.Namespace(gpus=None, ctx=None, port=None)
+        buf = io.StringIO()
+        with mock.patch("builtins.input", side_effect=["", "64K", "8015"]), \
+             mock.patch("sys.stdout", buf):
+            cli._interactive_launch_opts(state, model, "exl3", recipe, a)
+        self.assertEqual(a.gpus, "1")
+        self.assertEqual(a.ctx, 65536)
+        self.assertEqual(a.port, 8015)
+        self.assertIn("busy (forge-g5-roworder)", buf.getvalue())
+        self.assertIn("GPU 1", buf.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

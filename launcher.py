@@ -30,18 +30,23 @@ def main():
     catalog.load()
     parser = argparse.ArgumentParser(description='B70 model launcher')
     parser.add_argument('--port', type=int, default=catalog.SETTINGS.get('port', 7570))
-    parser.add_argument('--no-open', action='store_true')
+    parser.add_argument('--headless', '--no-open', dest='no_open', action='store_true',
+                        help='Run in headless CLI mode without opening a desktop window')
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--cli', action='store_true', help='Open the interactive CLI recipe launcher')
     parser.add_argument('--fg', '--foreground', dest='fg', action='store_true', help='Run the HTTP daemon in the foreground')
     parser.add_argument('--kill', '--force', action='store_true', help='Gracefully replace an authenticated launcher on this port')
     parser.add_argument('--stop', '--down', action='store_true', help='Gracefully stop an authenticated launcher on this port and exit')
     parser.add_argument('--version', action='version', version=VERSION)
-    args = parser.parse_args()
+    has_display = bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    interactive_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    args, extra = parser.parse_known_args()
     if not 1 <= args.port <= 65535:
         parser.error('port must be between 1 and 65535')
     url = f'http://127.0.0.1:{args.port}'
     if args.stop:
+        if extra:
+            parser.parse_args()
         token = paths.read_token(args.port)
         try:
             req = urllib.request.Request(url + '/api/state', headers={'X-Launcher-Token': token})
@@ -56,15 +61,15 @@ def main():
             return
         except Exception as exc:
             raise SystemExit(f'Cannot stop launcher at {url}: {exc}')
-    has_display = bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
-    interactive_tty = sys.stdin.isatty() and sys.stdout.isatty()
-    if args.cli or (interactive_tty and not args.fg and not args.browser and (not has_display or args.no_open)):
+    if args.cli or extra or (interactive_tty and not args.fg and not args.browser and (not has_display or args.no_open)):
         import cli
         if args.kill:
             rc = cli.main(['--api', url, 'serve', '--kill'])
             if rc != 0:
                 raise SystemExit(rc)
-        raise SystemExit(cli.main(['--api', url, 'launch']))
+        raise SystemExit(cli.main(['--api', url, 'launch', *extra]))
+    if extra:
+        parser.parse_args()
     try:
         server = ThreadingHTTPServer(('127.0.0.1', args.port), http_api.Handler)
     except OSError as exc:
@@ -94,7 +99,7 @@ def main():
                 port_flag = f' --port {args.port}' if args.port != 7570 else ''
                 api_flag = f' --api {url}' if args.port != 7570 else ''
                 print(f'Launcher already running at {url}; existing instance left unchanged.')
-                print(f'  • Interactive CLI recipes: b70 launch{api_flag}  (or b70-launcher --cli{port_flag})')
+                print(f'  • Interactive CLI recipes: b70-launcher --headless{port_flag}  (or b70 launch{api_flag})')
                 print(f'  • Stop daemon:             b70 down{api_flag}    (or b70-launcher --stop{port_flag})')
                 print(f'  • Replace / restart:       b70 serve --kill{api_flag}  (or b70-launcher --kill{port_flag})')
                 print(f'  • Check status:            b70 status{api_flag}')

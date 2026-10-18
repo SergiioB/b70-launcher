@@ -351,7 +351,10 @@ out=[{"pid":pid,"exe":exe,"render":node,"cgroup":cg} for pid,exe,clients,cg in p
      for node in {n for n,c in clients if not c or (n,c) not in desktop_ids}]
 print(json.dumps(out))
 '''
-    argv = ["/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable, "-c", code]
+    py = shutil.which("python3")
+    if not py:
+        return []
+    argv = [py, "-c", code]
     data = []
     for command in ([["sudo", "-n"] + argv] if shutil.which("sudo") else []) + [argv]:
         try:
@@ -365,6 +368,39 @@ print(json.dumps(out))
     return data
 
 
+_DOCKER_CG_RE = re.compile(r"(?:docker[-/]|containers/)([0-9a-f]{64})")
+
+
+def _resolve_foreign_containers(clients):
+    """Map 64-hex container IDs found in client cgroups to container metadata."""
+    cids = {}
+    for p in clients:
+        m = _DOCKER_CG_RE.search(p.get("cgroup") or "")
+        if m:
+            cids.setdefault(m.group(1), None)
+    if not cids or not shutil.which("docker"):
+        return {}
+    for sock in recipe_sockets():
+        unresolved = [cid for cid, info in cids.items() if info is None]
+        if not unresolved:
+            break
+        try:
+            cmd = ["docker"] + (["-H", f"unix://{sock}"] if sock else [])
+            res = subprocess.run(
+                cmd + ["inspect", "--format", "{{.Id}}\t{{.Name}}\t{{.Config.Image}}", *unresolved],
+                capture_output=True, text=True, timeout=3)
+            for line in res.stdout.splitlines():
+                parts = line.split("\t")
+                if len(parts) >= 2 and len(parts[0]) == 64:
+                    cname = parts[1].lstrip("/")
+                    img = parts[2] if len(parts) > 2 else ""
+                    cids[parts[0]] = {"id": cname, "cid": parts[0], "cname": cname,
+                                      "image": img, "docker_sock": sock}
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return {k: v for k, v in cids.items() if v is not None}
+
+
 def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
     """Attribute actual clients per card, with a fallback VRAM busy threshold."""
     owned_gpus = {int(g) for g in owned_gpus}
@@ -373,7 +409,7 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
     devices = []
     owned_pids = {int(p) for p in owned_pids if p}
     owned_ids = []
-    if owned_cnames:
+    if owned_cnames and shutil.which("docker"):
         for sock in recipe_sockets():
             try:
                 cmd = ["docker"] + (["-H", f"unix://{sock}"] if sock else [])
@@ -384,6 +420,8 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
                 pass
     clients = [p for p in gpu_clients() if p["pid"] not in owned_pids
                and not any(cid in p.get("cgroup", "") for cid in owned_ids)]
+    cmap = _resolve_foreign_containers(clients)
+    foreign_map = {}
     for idx, d in enumerate(out["devices"]):
         d = dict(d)
         used = d.get("vram_used_mib")
@@ -394,11 +432,40 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
         foreign = [p for p in clients if p["render"] == Path(d.get("render", "")).name]
         busy = bool(foreign) or idx in owned_gpus or used is not None and used >= BUSY_VRAM_MIB
         d["busy"] = busy
-        d["busy_by"] = ", ".join(f"{p['exe']} (PID {p['pid']})" for p in foreign)
+        busy_parts = []
+        for p in foreign:
+            m = _DOCKER_CG_RE.search(p.get("cgroup") or "")
+            cinfo = cmap.get(m.group(1)) if m else None
+            if cinfo:
+                lbl = f"{cinfo['cname']} ({p['exe']} PID {p['pid']})"
+                f_ent = foreign_map.setdefault(
+                    cinfo["cname"],
+                    {"id": cinfo["cname"], "kind": "container", "cname": cinfo["cname"],
+                     "image": cinfo["image"], "docker_sock": cinfo["docker_sock"],
+                     "gpus": [], "pids": []})
+                if idx not in f_ent["gpus"]:
+                    f_ent["gpus"].append(idx)
+                if int(p["pid"]) not in f_ent["pids"]:
+                    f_ent["pids"].append(int(p["pid"]))
+            elif m:
+                lbl = f"{p['exe']} (PID {p['pid']})"
+            else:
+                lbl = f"{p['exe']} (PID {p['pid']})"
+                fid = f"pid:{p['pid']}"
+                f_ent = foreign_map.setdefault(
+                    fid,
+                    {"id": fid, "kind": "process", "pid": int(p["pid"]),
+                     "exe": p["exe"], "gpus": [], "pids": [int(p["pid"])]})
+                if idx not in f_ent["gpus"]:
+                    f_ent["gpus"].append(idx)
+            if lbl not in busy_parts:
+                busy_parts.append(lbl)
+        d["busy_by"] = ", ".join(busy_parts)
         if busy and not d["busy_by"]:
             d["busy_by"] = "Launcher server" if idx in owned_gpus else "unknown (VRAM in use)"
         devices.append(d)
     out["devices"] = devices
+    out["foreign"] = list(foreign_map.values())
     # default launch card: first free accessible B70 (contract /api/state)
     free = [i for i, d in enumerate(devices) if d.get("b70") and d.get("accessible") and not d.get("busy")]
     dflt = dict(out.get("default") or {})

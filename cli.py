@@ -364,11 +364,30 @@ def parse_gpus(val):
     return gpus
 
 
-def default_gpus(recipe):
+def parse_ctx(val):
+    """Parse a context size in tokens (`65536` or `64K`/`128k` or small K shorthand `64`)."""
+    if val is None or val == "":
+        return None
+    if isinstance(val, int):
+        return val
+    s = str(val).strip().replace("_", "").replace(",", "")
+    m = re.fullmatch(r"(\d+)\s*([kK])?", s)
+    if not m:
+        raise argparse.ArgumentTypeError(f"invalid context value {val!r} (use e.g. 65536 or 64K)")
+    n = int(m.group(1))
+    if m.group(2):
+        return n * 1024
+    if 1 <= n <= 512:
+        return n * 1024
+    return n
+
+
+def default_gpus(recipe, preflight=None):
     """GPU selection a recipe implies when the user doesn't pass --gpus.
 
     Recipes that declare `gpus`/`tp` (dual-card tensor split / TP2) need those
-    indices sent, or build() tensor-splits across a single device."""
+    indices sent, or build() tensor-splits across a single device. For single-card
+    recipes, prefer the first free B70 card from `preflight` when available."""
     g = recipe.get("gpus")
     if isinstance(g, list) and g and all(isinstance(i, int) and i in (0, 1) for i in g):
         return sorted(set(g))
@@ -377,7 +396,16 @@ def default_gpus(recipe):
         return list(range(min(tp, 2)))
     if recipe.get("kind") == "vllm-tp2":
         return [0, 1]
+    if isinstance(preflight, dict):
+        d_gpus = (preflight.get("default") or {}).get("gpus")
+        if isinstance(d_gpus, list) and d_gpus and isinstance(d_gpus[0], int):
+            return [d_gpus[0]]
+        for c in preflight.get("cards") or []:
+            idx = c.get("index")
+            if isinstance(idx, int) and not c.get("busy") and c.get("render_access", True):
+                return [idx]
     return [0]
+
 
 
 def resolve_rid(client, query, allow_port=True):
@@ -723,8 +751,9 @@ def cmd_list(g, a):
                 continue
             det = matches.get(m["id"], {}).get(eng, {})
             detected = det.get("detected")
-            mark = green("● detected") if detected else dim("○ —")
-            best = yellow("★") if eng == m.get("recommended_engine") else " "
+            held = bool((rec.get("operator_hold") or "").strip())
+            mark = yellow("⏸ held") if held else (green("● detected") if detected else dim("○ —"))
+            best = yellow("★") if (eng == m.get("recommended_engine") and not held) else " "
             rid_prefix = f"{m['id']}-{eng}-"
             live = red("▶ live") if any(r.startswith(rid_prefix) for r in running) else ""
             ctx = human_ctx(validated_ctx(rec))
@@ -769,7 +798,8 @@ def cmd_show(g, a):
             continue
         em = eng_meta.get(eng, {})
         det = matches.get(model["id"], {}).get(eng, {})
-        star = yellow("★ recommended") if eng == model.get("recommended_engine") else ""
+        hold = (rec.get("operator_hold") or "").strip()
+        star = yellow("★ recommended") if (eng == model.get("recommended_engine") and not hold) else ""
         dmark = green("detected: " + det["path"]) if det.get("detected") else dim("not detected")
         print(f"  {cyan(bold(eng))}  {dim(em.get('tagline', ''))} {star}".rstrip())
         ctx_parts = [f"ctx {human_ctx(validated_ctx(rec))}"
@@ -784,57 +814,87 @@ def cmd_show(g, a):
             if note:
                 print(dim(wrap(note, "    ")))
         print(f"    artifact: {dmark}")
-        dl = rec.get("download") or {}
-        if dl.get("repo") and not det.get("detected"):
-            print(f"    {dim('fetch:')} b70 download {model['id']} -e {eng}")
-        print(f"    {dim('launch:')} b70 launch {model['id']} -e {eng}")
+        if hold:
+            print(f"    {yellow('hold:')} {yellow(hold)}")
+        else:
+            dl = rec.get("download") or {}
+            if dl.get("repo") and not det.get("detected"):
+                print(f"    {dim('fetch:')} b70 download {model['id']} -e {eng}")
+            print(f"    {dim('launch:')} b70 launch {model['id']} -e {eng}")
         print()
     return 0
 
 
+def _is_recommended_badge(model):
+    badge = (model.get("badge") or "").strip().upper()
+    return bool(badge and "HOLD" not in badge and "LEGACY" not in badge)
+
+
+def _launchable_engines(model):
+    return [eng for eng, rec in (model.get("recipes") or {}).items()
+            if not (rec.get("operator_hold") or "").strip()]
+
+
 def _interactive_pick(state, matches, c=None, g=None):
     """TTY-only two-step picker: model, then engine. Returns (model_id, engine)."""
-    if c is not None:
+    while True:
+        if c is not None:
+            try:
+                _print_status({"state": state,
+                               "metrics": c.get("/api/metrics", timeout=10),
+                               "downloads": c.get("/api/downloads")})
+                print()
+            except Exception:
+                pass
+        running = [e for e in state.get("running", []) if e.get("status") != "stopped"]
+        foreign = (state.get("preflight") or {}).get("foreign") or []
+        has_active = bool(running or foreign)
+        all_models = state.get("recipes", {}).get("models", [])
+        models = [m for m in all_models if _launchable_engines(m)]
+        if not models:
+            die("no launchable models in catalog")
+        extra_hint = ", 's' stop running" if has_active else ""
+        print(bold("  pick a model") + dim(f" (green = on disk, ★ = recommended{extra_hint}, 'q' quit):"))
+        for i, m in enumerate(models):
+            star = yellow(" ★") if _is_recommended_badge(m) else ""
+            engs = []
+            for eng in _launchable_engines(m):
+                det = matches.get(m["id"], {}).get(eng, {}).get("detected")
+                engs.append(green(eng) if det else dim(eng))
+            print(f"  {cyan('[' + str(i + 1) + ']')} {m.get('name', m['id'])}{star}"
+                  f"  {dim(m['id'])}  —  {' '.join(engs)}")
         try:
-            _print_status({"state": state,
-                           "metrics": c.get("/api/metrics", timeout=10),
-                           "downloads": c.get("/api/downloads")})
+            raw = input(f"{bold('model')} [{dim('1')}]{bold(':')} ").strip()
+        except (EOFError, KeyboardInterrupt):
             print()
-        except Exception:
-            pass
-    running = [e for e in state.get("running", []) if e.get("status") != "stopped"]
-    models = state.get("recipes", {}).get("models", [])
-    extra_hint = ", 's' stop running" if running else ""
-    print(bold("  pick a model") + dim(f" (green = on disk, ★ = recommended{extra_hint}, 'q' quit):"))
-    for i, m in enumerate(models):
-        star = yellow(" ★") if m.get("badge") else ""
-        engs = []
-        for eng in m.get("recipes", {}):
-            det = matches.get(m["id"], {}).get(eng, {}).get("detected")
-            engs.append(green(eng) if det else dim(eng))
-        print(f"  {cyan('[' + str(i + 1) + ']')} {m.get('name', m['id'])}{star}"
-              f"  {dim(m['id'])}  —  {' '.join(engs)}")
-    try:
-        raw = input(f"{bold('model')} [{dim('1')}]{bold(':')} ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        raise SystemExit(130)
-    if raw.lower() in ("q", "quit", "exit"):
-        raise SystemExit(0)
-    if raw.lower() in ("s", "stop") and running and g is not None:
-        raise SystemExit(cmd_stop(g, argparse.Namespace(rid=None, all=True)))
-    idx = 0
-    if raw:
-        if raw.isdigit() and 1 <= int(raw) <= len(models):
-            idx = int(raw) - 1
-        else:
-            m, _ = pick_model(state.get("recipes", {}), raw)
-            if not m:
-                die(f"no model matches {raw!r}")
-            idx = models.index(m)
+            raise SystemExit(130)
+        if raw.lower() in ("q", "quit", "exit"):
+            raise SystemExit(0)
+        if raw.lower() in ("s", "stop") and has_active and g is not None:
+            cmd_stop(g, argparse.Namespace(rids=[], all=True))
+            if c is not None:
+                try:
+                    state = c.get("/api/state")
+                    print()
+                    continue
+                except Exception:
+                    pass
+            raise SystemExit(0)
+        idx = 0
+        if raw:
+            if raw.isdigit() and 1 <= int(raw) <= len(models):
+                idx = int(raw) - 1
+            else:
+                m, _ = pick_model({"models": models}, raw)
+                if not m:
+                    die(f"no launchable model matches {raw!r}")
+                idx = models.index(m)
+        break
     model = models[idx]
-    engs = list(model.get("recipes", {}).keys())
+    engs = _launchable_engines(model)
     rec_eng = pick_engine(model, None)
+    if rec_eng not in engs:
+        rec_eng = engs[0]
     det_map = matches.get(model["id"], {})
     print(f"\n{bold('  pick an engine for')} {cyan(model.get('name', model['id']))}{bold(':')}")
     for i, e in enumerate(engs):
@@ -868,6 +928,161 @@ def _interactive_pick(state, matches, c=None, g=None):
         else:
             die(f"no engine {raw!r} for {model['id']} (have: {', '.join(engs)})")
     return model["id"], eng
+
+
+def _free_engine_port(st, start=8000):
+    """Pick the first free local port starting at `start`, skipping running engines."""
+    used = {int(e.get("port")) for e in st.get("running", [])
+            if e.get("status") != "stopped" and str(e.get("port", "")).isdigit()}
+    for p in range(start, start + 50):
+        if p in used:
+            continue
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            if s.connect_ex(("127.0.0.1", p)) != 0:
+                return p
+    return start
+
+
+def _blockers_for_gpus(st, gpus):
+    """Return [(id, label)] for running servers or foreign workloads using any of `gpus`."""
+    gpu_set = set(gpus or [])
+    out = []
+    seen = set()
+    for e in st.get("running", []):
+        if e.get("status") == "stopped":
+            continue
+        egpus = e.get("gpus") if isinstance(e.get("gpus"), list) else []
+        if gpu_set.intersection(egpus) and e.get("id") and e["id"] not in seen:
+            seen.add(e["id"])
+            out.append((e["id"], e["id"]))
+    pf = st.get("preflight") or {}
+    for f in pf.get("foreign") or []:
+        fgpus = f.get("gpus") if isinstance(f.get("gpus"), list) else []
+        fid = f.get("id")
+        if gpu_set.intersection(fgpus) and fid and fid not in seen:
+            seen.add(fid)
+            out.append((fid, fid))
+    return out
+
+
+def _interactive_launch_opts(st, model, engine, recipe, a, c=None):
+    """Prompt for GPU(s), context size, and port when launching interactively."""
+    pf = st.get("preflight") or {}
+    cards = [card for card in (pf.get("cards") or []) if isinstance(card.get("index"), int)]
+
+    # 1. GPU selection
+    if a.gpus is None:
+        def_gpus = default_gpus(recipe, pf)
+        def_gpu_str = ",".join(map(str, def_gpus))
+        if len(cards) > 1 or any(card.get("busy") for card in cards):
+            print(f"\n{bold('  pick GPU(s) for')} {cyan(model.get('name', model['id']))}"
+                  f" {dim('(0, 1, or 0,1 for dual-card):')}")
+            for card in cards:
+                idx = card["index"]
+                name = card.get("name", f"GPU {idx}")
+                pci = card.get("pci", "")
+                if card.get("busy"):
+                    procs = card.get("busy_procs") or []
+                    holders = []
+                    for p in procs:
+                        h = p.get("cname") or p.get("exe") or f"PID {p.get('pid')}"
+                        if h not in holders:
+                            holders.append(h)
+                    detail = ", ".join(holders) if holders else "in use"
+                    status = yellow(f"busy ({detail})")
+                else:
+                    status = green("free")
+                rec_mark = (" " + yellow("★ default")) if [idx] == def_gpus else ""
+                print(f"  {cyan('[' + str(idx) + ']')} GPU {idx} · {name}"
+                      + (f" ({pci})" if pci else "") + f" · {status}{rec_mark}")
+            if len(cards) >= 2:
+                both_busy = any(card.get("busy") for card in cards[:2])
+                both_status = yellow("busy") if both_busy else green("free")
+                rec_mark = (" " + yellow("★ default")) if def_gpus == [0, 1] else ""
+                print(f"  {cyan('[0,1]')} Both GPUs (0,1) · {both_status}{rec_mark}")
+            try:
+                raw_gpu = input(f"{bold('gpu')} [{dim(def_gpu_str)}]{bold(':')} ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                raise SystemExit(130)
+            if raw_gpu.lower() in ("q", "quit", "exit"):
+                raise SystemExit(0)
+            chosen_gpus = parse_gpus(raw_gpu) if raw_gpu else def_gpus
+        else:
+            chosen_gpus = def_gpus
+
+        # Offer to stop blocking workloads if a chosen GPU is busy
+        card_by_idx = {card["index"]: card for card in cards}
+        busy_chosen = [g_idx for g_idx in chosen_gpus if card_by_idx.get(g_idx, {}).get("busy")]
+        if busy_chosen and c is not None:
+            blockers = _blockers_for_gpus(st, busy_chosen)
+            if blockers:
+                names = ", ".join(lbl for _, lbl in blockers)
+                g_label = ",".join(map(str, busy_chosen))
+                try:
+                    ans = input(
+                        f"  {WARN} {yellow(f'GPU {g_label} is in use by {names}. Stop it first?')} "
+                        f"[{dim('y/N')}]{bold(':')} "
+                    ).strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    raise SystemExit(130)
+                if ans in ("y", "yes"):
+                    for bid, blabel in blockers:
+                        res = c.post("/api/stop", {"id": bid})
+                        if res.get("ok"):
+                            print(f"  {OK} stopped {bold(blabel)}")
+                    time.sleep(0.5)
+                    try:
+                        st = c.get("/api/state")
+                    except Exception:
+                        pass
+        a.gpus = ",".join(map(str, chosen_gpus))
+
+    # 2. Context size selection
+    if a.ctx is None:
+        def_ctx = int(validated_ctx(recipe) or 32768)
+        max_ctx = int(recipe.get("ctx_max") or max(def_ctx, 131072))
+        presets = sorted({p for p in (8192, 16384, 32768, 65536, 98304, 131072, 196608, 262144, def_ctx, max_ctx)
+                          if 512 <= p <= max_ctx})
+        preset_str = " / ".join(human_ctx(p) for p in presets)
+        def_ctx_str = human_ctx(def_ctx)
+        try:
+            raw_ctx = input(
+                f"{bold('context')} {dim('(' + preset_str + ')')} [{dim(def_ctx_str)}]{bold(':')} "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            raise SystemExit(130)
+        if raw_ctx.lower() in ("q", "quit", "exit"):
+            raise SystemExit(0)
+        if raw_ctx:
+            try:
+                a.ctx = parse_ctx(raw_ctx)
+            except argparse.ArgumentTypeError as exc:
+                die(str(exc), code=2)
+        else:
+            a.ctx = def_ctx
+
+    # 3. Port selection
+    if a.port is None:
+        def_port = _free_engine_port(st, 8000)
+        try:
+            raw_port = input(f"{bold('port')} [{dim(str(def_port))}]{bold(':')} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            raise SystemExit(130)
+        if raw_port.lower() in ("q", "quit", "exit"):
+            raise SystemExit(0)
+        if raw_port:
+            if not raw_port.isdigit():
+                die(f"invalid port: {raw_port!r}", code=2)
+            a.port = int(raw_port)
+        else:
+            a.port = def_port
+
+    return st
 
 
 def _print_plan(out, a):
@@ -932,6 +1147,7 @@ def cmd_launch(g, a):
     cfg = {}
     target = a.model
     custom_path = a.path
+    interactive = False
     if target and not custom_path and ("/" in target or target.startswith("~")):
         if Path(target).expanduser().exists():
             custom_path, target = target, None  # `b70 launch ./model.gguf`
@@ -964,6 +1180,7 @@ def cmd_launch(g, a):
             if not sys.stdin.isatty():
                 die("b70 launch needs a model id (or --path for a custom artifact)",
                     hint="see: b70 list")
+            interactive = True
             target, eng = _interactive_pick(st, matches, c=c, g=g)
             if not a.engine:
                 a.engine = eng
@@ -973,6 +1190,8 @@ def cmd_launch(g, a):
             die(msg, hint=hint)
         engine = pick_engine(model, a.engine)
         recipe = model["recipes"].get(engine, {})
+        if interactive:
+            st = _interactive_launch_opts(st, model, engine, recipe, a, c=c)
         cfg["model_id"] = model["id"]
         cfg["engine"] = engine
         model_disp = model.get("name", model["id"])
@@ -991,7 +1210,7 @@ def cmd_launch(g, a):
             die(f"--{name} {val} out of range ({lo}–{hi})", code=2)
     gpus = parse_gpus(a.gpus)
     if gpus is None:
-        gpus = default_gpus(recipe)
+        gpus = default_gpus(recipe, st.get("preflight"))
     cfg["gpus"] = gpus
     if a.mtp is not None:
         cfg["mtp"] = a.mtp
@@ -1124,24 +1343,60 @@ def cmd_launch(g, a):
     return 0
 
 
+def _resolve_stop_target(st, query):
+    running = [e for e in st.get("running", []) if e.get("status") != "stopped"]
+    foreign = (st.get("preflight") or {}).get("foreign") or []
+    active = [e["id"] for e in running] + [f["id"] for f in foreign if f.get("id") and f["id"] not in {e["id"] for e in running}]
+    if not active:
+        die("no engines running", hint="launch one first: b70 launch <model>")
+    q = str(query or "").strip()
+    if not q:
+        if len(active) == 1:
+            return active[0]
+        die("several servers match — pick one",
+            hint="active: " + ", ".join(active) + "  (or pass --all)")
+    for e in running:
+        if e.get("id") == q or (q.isdigit() and e.get("port") == int(q)):
+            return e["id"]
+    q_pid = q[4:] if q.startswith("pid:") else q
+    for f in foreign:
+        if f.get("id") == q or f.get("cname") == q or (q_pid.isdigit() and f.get("pid") == int(q_pid)):
+            return f["id"]
+    ql = q.lower()
+    matches = [e["id"] for e in running if ql in (e.get("id") or "").lower()
+               or ql in (e.get("model") or "").lower()
+               or ql in (e.get("model_id") or "").lower()]
+    for f in foreign:
+        fid = f.get("id") or ""
+        if fid not in matches and (ql in fid.lower() or ql in (f.get("image") or "").lower() or ql in (f.get("exe") or "").lower()):
+            matches.append(fid)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        die("several servers match — pick one", hint="candidates: " + ", ".join(matches))
+    die(f"no server matches {query!r}", hint="active: " + ", ".join(active))
+
+
 def cmd_stop(g, a):
     c = daemon_client(g)
+    st = c.get("/api/state")
     ids = []
     if a.all or not a.rids:
-        st = c.get("/api/state")
         live = [e["id"] for e in st.get("running", [])
                 if e.get("status") in ("running", "starting")]
-        if not live:
+        foreign_ids = [f["id"] for f in ((st.get("preflight") or {}).get("foreign") or [])
+                       if f.get("id") and f["id"] not in live]
+        active = live + foreign_ids
+        if not active:
             if g.json:
                 jprint({"stopped": [], "failed": []})
             else:
                 print(f"{DOT} nothing running")
             return 0
-        ids = live if a.all or len(live) == 1 else [rid_or_die(c, None)["id"]]
+        ids = active if a.all or len(active) == 1 else [_resolve_stop_target(st, None)]
     else:
         for q in a.rids:
-            ent = rid_or_die(c, q)
-            ids.append(ent["id"])
+            ids.append(_resolve_stop_target(st, q))
     stopped, failed = [], []
     for rid in ids:
         try:
@@ -1201,6 +1456,7 @@ def _print_status(payload):
     cat = st.get("recipes", {}).get("catalog_ver", "?")
     running = [e for e in st.get("running", [])
                if e.get("status") != "stopped"]
+    foreign = (st.get("preflight") or {}).get("foreign") or []
     print(bold(f"  b70-launcher {ver}  {dim('catalog ' + str(cat))}"))
 
     gpu_rows = _gpu_rows(metrics)
@@ -1229,7 +1485,24 @@ def _print_status(payload):
         print()
         print(table(rows, ["SERVER", "PORT", "STATUS", "LOAD", "RATE", "REQS", "TOK IN/OUT"],
                     drop=(3, 4)))
-    else:
+
+    if foreign:
+        f_rows = []
+        for f in foreign:
+            gpus_s = ",".join(str(g) for g in f.get("gpus", []))
+            if f.get("kind") == "container":
+                pids_s = ",".join(str(p) for p in (f.get("pids") or [])[:2])
+                detail = (f.get("image") or "docker") + (f" (PID {pids_s})" if pids_s else "")
+            else:
+                detail = f"{f.get('exe', 'process')} (PID {f.get('pid')})"
+            f_rows.append([f["id"], yellow(f"external {f.get('kind', 'workload')}"),
+                           f"gpu {gpus_s}", detail])
+        print()
+        print(table(f_rows, ["EXTERNAL WORKLOAD", "STATUS", "GPUS", "DETAIL"], drop=(3,)))
+        stop_cmd = f"b70 stop {foreign[0]['id']}" if len(foreign) == 1 and not running else "b70 stop --all"
+        print(f"  {dim('stop external GPU workload:')} {stop_cmd}")
+
+    if not running and not foreign:
         print(f"  {dim('no engines running —')} b70 launch <model>")
 
     active = {k: v for k, v in (dls or {}).items()
@@ -1243,9 +1516,11 @@ def _status_json(payload):
     st = payload["state"]
     running = [e for e in st.get("running", [])
                if e.get("status") != "stopped"]
+    foreign = (st.get("preflight") or {}).get("foreign") or []
     return {"version": st.get("version"),
             "catalog_ver": st.get("recipes", {}).get("catalog_ver"),
             "running": running,
+            "foreign": foreign,
             "metrics": payload["metrics"],
             "downloads": payload["downloads"]}
 
@@ -1880,10 +2155,10 @@ def build_parser():
     s.add_argument("model", nargs="?", help="model id/name, or a path to a .gguf/IR artifact")
     s.add_argument("-e", "--engine", help="openvino | vllm | llamacpp | exl3")
     s.add_argument("--path", help="custom artifact path (must be under a scan root)")
-    s.add_argument("-c", "--ctx", type=int,
-                   help="context tokens (default: the recipe's validated context)")
+    s.add_argument("-c", "--ctx", type=parse_ctx,
+                   help="context tokens, e.g. 64K or 65536 (default: the recipe's validated context)")
     s.add_argument("-p", "--port", type=int, help="endpoint port (default 8000)")
-    s.add_argument("--gpus", help="0 | 1 | 0,1 | both (default: recipe topology or 0)")
+    s.add_argument("-g", "--gpus", help="0 | 1 | 0,1 | both (default: first free B70 or recipe topology)")
     s.add_argument("--kv", help="KV cache dtype: q8_0 | q5_0/q4_1 | q8_0/q4_1 | f16 | fp8")
     s.add_argument("--prefill", choices=["int8", "fp16"],
                    help="EXL3 prefill mode: int8 (default, fast) | fp16 (max quality, slower cold prefill)")

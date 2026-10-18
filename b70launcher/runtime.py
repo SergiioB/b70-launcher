@@ -417,14 +417,53 @@ def read_logs(rid, offset=None):
         return {"id": rid, "offset": 0, "lines": [], "eof": True}
 
 
+def stop_foreign(rid):
+    """Stop an active external GPU container or host GPU process discovered by preflight."""
+    q = str(rid or "").strip()
+    if not q:
+        return False
+    hardware.CLIENT_CACHE["ts"] = 0
+    pf = preflight()
+    foreign = pf.get("foreign") or []
+    q_pid = q[4:] if q.startswith("pid:") else q
+    target = next((f for f in foreign
+                   if f.get("id") == q or f.get("cname") == q
+                   or (q_pid.isdigit() and f.get("pid") == int(q_pid))), None)
+    if not target:
+        return False
+    try:
+        if target.get("kind") == "container" and target.get("cname"):
+            gone = ("No such container", "No such object", "is already in progress")
+            for action in (["stop", "--time", "5", target["cname"]], ["rm", target["cname"]]):
+                result = subprocess.run(docker_cmd(target.get("docker_sock", "")) + action,
+                                        capture_output=True, text=True, timeout=15)
+                if result.returncode and not any(s in result.stderr for s in gone):
+                    raise RuntimeError(result.stderr.strip() or "Docker refused to stop container.")
+        elif target.get("kind") == "process" and _pid_alive(target.get("pid")):
+            pid = int(target["pid"])
+            os.kill(pid, signal.SIGTERM)
+            deadline = time.monotonic() + 5
+            while _pid_alive(pid) and time.monotonic() < deadline:
+                time.sleep(.1)
+            if _pid_alive(pid):
+                os.kill(pid, signal.SIGKILL)
+        hardware.CLIENT_CACHE["ts"] = 0
+        hardware.PREFLIGHT_CACHE["ts"] = 0
+        hardware.VRAM_CACHE.clear()
+        return True
+    except Exception as exc:
+        raise ValueError(f"Stop failed: {exc}") from exc
+
+
 def stop_server(rid):
     with LOCK:
         e = RUNNING.get(rid)
-        if not e:
-            return False
-        if e["status"] == "stopped":
-            return True
-        e["status"] = "stopping"
+        if e:
+            if e["status"] == "stopped":
+                return True
+            e["status"] = "stopping"
+    if not e:
+        return stop_foreign(rid)
     try:
         if e.get("cname") and not e.get("native"):
             gone = ("No such container", "No such object", "is already in progress")

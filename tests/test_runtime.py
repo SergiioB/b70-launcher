@@ -226,6 +226,32 @@ http.server.ThreadingHTTPServer(('127.0.0.1',port),H).serve_forever()
                 self.assertNotIn('/dev/dri:/dev/dri:ro', tokens)
                 self.assertNotIn('ZE_AFFINITY_MASK=1', tokens)
 
+    def test_foreign_container_attribution_and_stop(self):
+        cid = '5bcb610fc1842b9793ccab4409a6be1523c2cbe7f73850193e05c2070ccbbc95'
+        base = {'devices': [
+            {'render': '/dev/dri/renderD128', 'b70': True, 'accessible': True, 'vram_used_mib': 26000},
+            {'render': '/dev/dri/renderD129', 'b70': True, 'accessible': True, 'vram_used_mib': 25000}],
+                'default': {'gpus': [0]}}
+        clients = [
+            {'pid': 1001, 'exe': 'python3.12', 'render': 'renderD128', 'cgroup': f'0::/system.slice/docker-{cid}.scope'},
+            {'pid': 1002, 'exe': 'python3.12', 'render': 'renderD129', 'cgroup': f'0::/system.slice/docker-{cid}.scope'},
+        ]
+        cinfo = {cid: {'id': 'bolt-vllm-tp2', 'cid': cid, 'cname': 'bolt-vllm-tp2',
+                       'image': 'vllm/vllm-openai-xpu:v0.31.0', 'docker_sock': ''}}
+        with mock.patch.object(hardware, 'gpu_clients', return_value=clients), \
+             mock.patch.object(hardware, '_resolve_foreign_containers', return_value=cinfo):
+            result = hardware.enrich_busy(base)
+            self.assertIn('bolt-vllm-tp2', result['devices'][0]['busy_by'])
+            self.assertEqual(len(result['foreign']), 1)
+            self.assertEqual(result['foreign'][0]['id'], 'bolt-vllm-tp2')
+            self.assertEqual(result['foreign'][0]['gpus'], [0, 1])
+            with mock.patch.object(runtime, 'preflight', return_value=result), \
+                 mock.patch.object(runtime.subprocess, 'run') as mrun:
+                mrun.return_value = mock.Mock(returncode=0, stderr='')
+                self.assertTrue(runtime.stop_server('bolt-vllm-tp2'))
+                self.assertFalse(runtime.stop_server('nonexistent-container'))
+
 
 if __name__ == '__main__':
     unittest.main()
+
