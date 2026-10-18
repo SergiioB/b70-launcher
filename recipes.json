@@ -314,7 +314,9 @@
             "medium",
             "high",
             "xhigh"
-          ]
+          ],
+          "vision_supported": true,
+          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
         }
       },
       "brand": "qwen",
@@ -323,7 +325,8 @@
         "LLM",
         "Instruct",
         "~76 GB",
-        "122.2 tok/s"
+        "122.2 tok/s",
+        "Vision"
       ],
       "recommended_engine": "xestrata",
       "recommendation": "122.2 tok/s on 2\u00d7 Arc Pro B70 using XeStrata SYCL with expert parallelism across both cards and MTP4 speculative decoding."

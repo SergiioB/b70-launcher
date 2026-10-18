@@ -1231,7 +1231,8 @@ def cmd_launch(g, a):
     for k, v in (("ctx", a.ctx), ("port", a.port), ("slots", a.slots),
                  ("kv", a.kv), ("power", a.power), ("prefill", getattr(a, "prefill", None)),
                  ("cache", getattr(a, "cache", None)),
-                 ("reasoning_effort", getattr(a, "reasoning_effort", None))):
+                 ("reasoning_effort", getattr(a, "reasoning_effort", None)),
+                 ("vision", getattr(a, "vision", None))):
         if v is not None:
             cfg[k] = v
     if a.ctx is None and recipe.get("ctx_safe"):
@@ -2207,6 +2208,11 @@ def build_parser():
     s.add_argument("--effort", "--reasoning-effort", dest="reasoning_effort",
                    choices=["none", "low", "medium", "high", "xhigh"],
                    help="default reasoning/thinking effort level: none | low | medium | high | xhigh")
+    vis = s.add_mutually_exclusive_group()
+    vis.add_argument("--vision", dest="vision", action="store_true", default=None,
+                     help="enable vision encoder (multimodal image support)")
+    vis.add_argument("--no-vision", dest="vision", action="store_false",
+                     help="disable vision encoder (text-only mode)")
     dk = s.add_mutually_exclusive_group()
     dk.add_argument("--docker", dest="use_docker", action="store_true", default=None,
                     help="force the container path")

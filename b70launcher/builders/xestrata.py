@@ -25,6 +25,28 @@ def build_xestrata(b):
 
     effort = cfg.get("reasoning_effort") or recipe.get("reasoning_effort")
     effort_flag = f" --effort {effort}" if effort else ""
+
+    # Handle vision toggle if explicitly passed
+    vision_enabled = cfg.get("vision")
+    config_path = Path(config_file)
+    if vision_enabled is not None and config_path.exists():
+        try:
+            import json
+            with open(config_path) as f:
+                cdata = json.load(f)
+            if vision_enabled:
+                cdata["vision"] = {
+                    "exe": "/data/sata1/engines/xestrata/dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
+                    "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+                    "model": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf"
+                }
+            else:
+                cdata.pop("vision", None)
+            with open(config_path, "w") as f:
+                json.dump(cdata, f, indent=2)
+        except Exception:
+            pass
+
     cmd_str = (
         f"source /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 && "
         f"exec {py_exe} {server_py} --engine strata --config {config_file} --port {port} --host {host} --gpu {gpus_arg}{effort_flag}"
