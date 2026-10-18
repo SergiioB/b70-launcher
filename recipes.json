@@ -1,5 +1,5 @@
 {
- "catalog_ver": "2026-10-15.2",
+ "catalog_ver": "2026-10-18",
  "engines": [
   {
    "id": "openvino",
@@ -28,6 +28,13 @@
    "tag": "EXL3",
    "tagline": "Trellis-compressed model weights",
    "note": "Serves EXL3 models through exl3xpu on an isolated Docker daemon. The plain Qwen3.8-27B route has a completed 262K-context check."
+  },
+  {
+   "id": "xestrata",
+   "label": "XeStrata (Strata 0.1.45)",
+   "tag": "XeStrata",
+   "tagline": "122.2 tok/s · 2× B70 Expert Parallelism",
+   "note": "Native SYCL/Level-Zero engine with host-mirror expert streaming, layer split / expert parallelism across 2× B70s, and MTP 4 spec decoding."
   }
  ],
  "models": [
@@ -153,8 +160,8 @@
    "id": "qwen38-flashnext",
    "name": "Qwen3.8-Flash-Next",
    "arch": "180B MoE (37B active)",
-   "blurb": "Historical dual-card llama.cpp fallback. The research route now uses single-card Strata, which is not distributed by this launcher.",
-   "badge": "LEGACY DUAL-CARD RECIPE",
+   "blurb": "122.2 tok/s on 2× Arc Pro B70 with XeStrata (Strata 0.1.45) expert parallelism and native MTP4.",
+   "badge": "LEGACY DUAL-CARD (122 TOK/S XESTRATA)",
    "tags": [
     {
      "t": "Top tier 180B",
@@ -235,6 +242,30 @@
      },
      "recipe_ver": "2026-10-13",
      "ver": "2026-10-07"
+    },
+    "xestrata": {
+     "kind": "xestrata",
+     "ctx": 10240,
+     "ctx_max": 131072,
+     "ctx_note": "10K-131K context (IQ3_XXS, 2× B70 expert-parallel)",
+     "power": 180,
+     "perf": "122.2 tok/s decode on 2× Arc Pro B70 with XeStrata MTP4 (LocalMaxxing cmvb7j24x01hzle01zgemx67l)",
+     "gpus": [
+      0,
+      1
+     ],
+     "py_exe": "/data/sata1/engines/xestrata/.venv/bin/python",
+     "server_script": "/data/sata1/engines/xestrata/serve/server.py",
+     "config_file": "/home/sergio/.config/xestrata/xestrata-iq3_xxs.json",
+     "download": {
+      "kind": "file",
+      "name": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
+      "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS",
+      "match": "flash-next",
+      "quant": "IQ3_XXS GGUF (76 GB) + MTP draft"
+     },
+     "recipe_ver": "2026-10-18",
+     "ver": "2026-10-18"
     }
    },
    "brand": "qwen",
@@ -242,11 +273,11 @@
    "chips": [
     "LLM",
     "Instruct",
-    "~95 GB",
-    "Legacy fallback"
+    "~76 GB",
+    "122.2 tok/s"
    ],
-   "recommended_engine": "llamacpp",
-   "recommendation": "Historical two-card llama.cpp fallback, not the current research recommendation. Check the effective binary and memory budget before launching."
+   "recommended_engine": "xestrata",
+   "recommendation": "122.2 tok/s on 2× Arc Pro B70 using XeStrata SYCL with expert parallelism across both cards and MTP4 speculative decoding."
   },
   {
    "id": "qwen38-27b",

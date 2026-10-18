@@ -306,7 +306,15 @@ class TestBuildOtherEngines(LauncherStateCase):
                                ctx=999999))
         self.assertIn("error", b)
 
-
+    def test_xestrata_dual_b70_build(self):
+        b = builders.build(cfg(model_id="qwen38-flashnext", engine="xestrata", gpus=[0, 1]))
+        self.assertNotIn("error", b)
+        self.assertTrue(b["native"])
+        self.assertEqual(b["gpus"], [0, 1])
+        self.assertIn("--engine", b["tokens"])
+        self.assertIn("strata", b["tokens"])
+        self.assertIn("--gpu", b["tokens"])
+        self.assertIn("0,1", b["tokens"])
 class TestBuildValidation(LauncherStateCase):
     def test_unknown_model_and_engine(self):
         self.assertIn("error", builders.build(cfg(model_id="nope", engine="x")))

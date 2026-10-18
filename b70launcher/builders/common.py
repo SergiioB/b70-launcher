@@ -203,7 +203,7 @@ def default_gpus(recipe):
 # how many cards each kind can actually use (audit M5: honest messages)
 MAX_GPUS = {"ovms": 1, "exl3": 1, "vllm": 2, "vllm-tp2": 2, "vllm-arext": 1,
             "vllm-mtp": 1, "vllm-dflash": 1, "vllm-autoround": 2,
-            "gguf": 2, "gguf-tiered": 2}
+            "gguf": 2, "gguf-tiered": 2, "xestrata": 2}
 
 
 class Bld:

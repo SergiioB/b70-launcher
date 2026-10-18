@@ -20,7 +20,7 @@ from .ovms import build_ovms
 from .vllm import BUILDERS as VLLM_BUILDERS, build_generic
 from .llamacpp import build_llamacpp
 from .exl3 import build_exl3
-
+from .xestrata import build_xestrata
 CUSTOM_TEMPLATES = {
     "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
                  "ctx": 32768, "power": 150, "kv_options": list(common.KV_LLAMACPP),
@@ -35,7 +35,7 @@ CUSTOM_TEMPLATES = {
              "ctx": 65536, "power": 230, "kv_options": ["fp8"], "prefill_options": ["int8", "fp16"],
              "download": {"kind": "snapshot", "quant": "EXL3 trellis (custom)"}},
 }
-KIND_ENGINE = {"gguf": "llamacpp", "openvino": "openvino", "vllm": "vllm", "exl3": "exl3"}
+KIND_ENGINE = {"gguf": "llamacpp", "openvino": "openvino", "vllm": "vllm", "exl3": "exl3", "xestrata": "xestrata"}
 
 
 def prepare_custom(cfg):
@@ -120,6 +120,8 @@ def _kind_builder(kind):
         return build_llamacpp
     if kind == "exl3":
         return build_exl3
+    if kind == "xestrata":
+        return build_xestrata
     return None
 
 
