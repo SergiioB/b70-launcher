@@ -192,6 +192,30 @@ http.server.ThreadingHTTPServer(('127.0.0.1',port),H).serve_forever()
         with mock.patch.object(hardware, 'gpu_clients', return_value=[]):
             self.assertEqual(hardware.enrich_busy(base)['default']['gpus'], [])
 
+    def test_created_container_is_still_starting(self):
+        """`docker run` creates the container before it starts it; with a big image the
+        two can be a second or more apart, and inspect then says Running false,
+        ExitCode 0. That is not an exit: the attached run client decides."""
+        cname = 'b70-created-race-1'
+        proc = mock.Mock()
+        proc.poll.return_value = None
+        entry = {'id': 'created-race', 'cname': cname, 'docker_sock': '', 'native': False, 'proc': proc,
+                 'status': 'starting', 'port': support_env.free_port(), 'log': '', 'test': {'state': 'pending'}}
+        runtime.RUNNING['created-race'] = entry
+        state = {'running': False, 'status': 'created', 'exitcode': 0, 'object': {}}
+        with mock.patch.object(runtime, 'docker_containers_status', return_value={cname: state}), \
+                mock.patch('b70launcher.telemetry.record_usage'):
+            runtime.servers_snapshot()
+            self.assertEqual(entry['status'], 'starting')
+            proc.poll.return_value = 125  # the start failed: docker run exits, the container stays "created"
+            runtime.servers_snapshot()
+            self.assertEqual((entry['status'], entry['exitcode']), ('exited', 125))
+            entry.update(status='starting', exitcode=None)
+            proc.poll.return_value = None
+            state.update(status='exited', exitcode=137)  # a container that ran and stopped is an exit
+            runtime.servers_snapshot()
+            self.assertEqual((entry['status'], entry['exitcode']), ('exited', 137))
+
     def test_missing_image_is_refused_without_running_docker(self):
         fake = support_env.TMPROOT / 'docker-missing-image'
         fake.mkdir(exist_ok=True)

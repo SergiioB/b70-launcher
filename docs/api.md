@@ -159,7 +159,9 @@ UI labels "GPU clock" because the xe driver exposes no busy counter.
 
 `{"running": [server entries], "scan": {"state", "ts"}}` — the lightweight poll
 the UI uses for live status; it refreshes container status, readiness, load
-phase, and token counters as a side effect.
+phase, and token counters as a side effect. A container Docker still reports as
+`created` (made, not yet started) stays `starting` while its `docker run`
+client is alive; only a client exit or a stopped container is `exited`.
 
 ### `GET /api/downloads`
 
