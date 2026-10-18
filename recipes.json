@@ -248,9 +248,9 @@
           "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
           "ctx": 262144,
           "ctx_max": 262144,
-          "ctx_note": "10K-131K context (IQ3_XXS, 2\u00d7 B70 expert-parallel)",
+          "ctx_note": "Full 262K context (IQ3_XXS, 2× B70 K=24 pipelined)",
           "power": 180,
-          "perf": "122.2 tok/s decode on 2\u00d7 Arc Pro B70 with XeStrata MTP4 (LocalMaxxing cmvb7j24x01hzle01zgemx67l)",
+          "perf": "55.2–67.5 tok/s code/prose (up to 122 tok/s repetitive), 2,026 tok/s prefill at 32K",
           "gpus": [
             0,
             1

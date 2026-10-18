@@ -32,8 +32,9 @@ def build_xestrata(b):
     tokens += recipe.get("fixed_flags", []) + b.extra
 
     warns.append(
-        "XeStrata SYCL with 2x Arc Pro B70 expert parallelism and native MTP4 (122.2 tok/s); "
-        "first load takes ~3-4 min to read weights from disk."
+        "XeStrata SYCL with 2x Arc Pro B70 expert parallelism, K=24 pipelining, and native MTP4 "
+        "(55.2–67.5 tok/s code/prose, up to 122 tok/s repetitive; 2,026 tok/s prefill at 32K; full 262K context). "
+        "First load takes ~2-3 min to read weights and fill GPU expert cache."
     )
 
     return {
