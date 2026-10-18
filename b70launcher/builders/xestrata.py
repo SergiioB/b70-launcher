@@ -17,8 +17,7 @@ def build_xestrata(b):
     py_exe = str(recipe.get("py_exe") or "/data/sata1/engines/xestrata/.venv/bin/python")
     server_py = str(recipe.get("server_script") or "/data/sata1/engines/xestrata/serve/server.py")
     config_file = str(recipe.get("config_file") or Path("~/.config/xestrata/xestrata-iq3_xxs.json").expanduser())
-
-    port = int(cfg.get("port") or recipe.get("port", 8095))
+    port = b.port
     host = "127.0.0.1"
 
     gpus = list(b.gpus)
