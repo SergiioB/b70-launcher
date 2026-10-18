@@ -1230,7 +1230,8 @@ def cmd_launch(g, a):
 
     for k, v in (("ctx", a.ctx), ("port", a.port), ("slots", a.slots),
                  ("kv", a.kv), ("power", a.power), ("prefill", getattr(a, "prefill", None)),
-                 ("cache", getattr(a, "cache", None))):
+                 ("cache", getattr(a, "cache", None)),
+                 ("reasoning_effort", getattr(a, "reasoning_effort", None))):
         if v is not None:
             cfg[k] = v
     if a.ctx is None and recipe.get("ctx_safe"):
@@ -2203,6 +2204,9 @@ def build_parser():
                      help="force MTP speculative decoding on")
     mtp.add_argument("--no-mtp", dest="mtp", action="store_false",
                      help="disable MTP speculative decoding")
+    s.add_argument("--effort", "--reasoning-effort", dest="reasoning_effort",
+                   choices=["none", "low", "medium", "high", "xhigh"],
+                   help="default reasoning/thinking effort level: none | low | medium | high | xhigh")
     dk = s.add_mutually_exclusive_group()
     dk.add_argument("--docker", dest="use_docker", action="store_true", default=None,
                     help="force the container path")

@@ -23,9 +23,11 @@ def build_xestrata(b):
     gpus = list(b.gpus)
     gpus_arg = ",".join(map(str, gpus)) if len(gpus) > 1 else str(gpus[0])
 
+    effort = cfg.get("reasoning_effort") or recipe.get("reasoning_effort")
+    effort_flag = f" --effort {effort}" if effort else ""
     cmd_str = (
         f"source /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 && "
-        f"exec {py_exe} {server_py} --engine strata --config {config_file} --port {port} --host {host} --gpu {gpus_arg}"
+        f"exec {py_exe} {server_py} --engine strata --config {config_file} --port {port} --host {host} --gpu {gpus_arg}{effort_flag}"
     )
     tokens = ["bash", "-c", cmd_str]
 

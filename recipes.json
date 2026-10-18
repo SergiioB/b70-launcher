@@ -87,7 +87,15 @@
             ]
           },
           "recipe_ver": "2026-10-07",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "vllm": {
           "kind": "vllm-mtp",
@@ -123,7 +131,15 @@
             ]
           },
           "recipe_ver": "2026-10-14",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "llamacpp": {
           "kind": "gguf",
@@ -149,7 +165,15 @@
             "quant": "UD-Q4_K_XL (Unsloth Dynamic) ~21 GB"
           },
           "recipe_ver": "2026-10-13",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -248,7 +272,15 @@
             "note": "The MTP draft Qwen3.8-Flash-Next-MTP-Q4_K_M.gguf is published separately in dzannotti/Qwen3.8-Flash-Next-MTP-GGUF."
           },
           "recipe_ver": "2026-10-13",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "xestrata": {
           "kind": "xestrata",
@@ -274,7 +306,15 @@
           },
           "recipe_ver": "2026-10-18",
           "ver": "2026-10-18",
-          "prefill": "2,015 tok/s (32K chunk)"
+          "prefill": "2,015 tok/s (32K chunk)",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -335,7 +375,15 @@
           },
           "ctx_safe": 131072,
           "recipe_ver": "2026-10-07",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "openvino": {
           "kind": "ovms",
@@ -363,7 +411,15 @@
           },
           "ctx_safe": 65536,
           "recipe_ver": "2026-10-07",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "exl3": {
           "kind": "exl3",
@@ -409,7 +465,15 @@
           },
           "ctx_safe": 131072,
           "recipe_ver": "2026-10-15",
-          "ver": "2026-10-13"
+          "ver": "2026-10-13",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -484,7 +548,15 @@
             ]
           },
           "recipe_ver": "2026-10-13",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -569,7 +641,15 @@
           },
           "recipe_note": "Qwen3.8-27B EXL3 SC_5.00bpw_H6: 190K+ tested (196,438 occupied exact retrieval+multiturn; 196,608 configured inference profile @ gmu 0.94, 1,069 MiB free); safe high-reserve alternate 131K @ gmu 0.90 (2,327 MiB free); budget ceiling 206,000.",
           "recipe_ver": "2026-10-15",
-          "ver": "2026-10-13"
+          "ver": "2026-10-13",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -649,7 +729,15 @@
               "quant": "BF16 DFlash draft"
             }
           },
-          "perf_note": "Earlier image measurements are retained in the cookbook. Do not use them as performance figures for v0.31.0."
+          "perf_note": "Earlier image measurements are retained in the cookbook. Do not use them as performance figures for v0.31.0.",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "llamacpp": {
           "kind": "gguf",
@@ -669,7 +757,15 @@
             "quant": "UD-Q4_K_M GGUF (~24 GB)"
           },
           "recipe_ver": "2026-10-07",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "nvidia",
@@ -781,7 +877,15 @@
           "recipe_ver": "2026-10-17",
           "ver": "2026-10-16",
           "perf_note": "Needs both patches: patch_vllm_worker_affinity.py and patch_xpu_moe_topk_pad.py (Bolt routes 9 experts per token; the XPU kernel has no TopK 9, so it pads to 10 with router weight 0). tp2-entry.sh applies them and checks the markers. Host networking with loopback pinning (CCL_KVS_IFACE=lo, FI_TCP_IFACE=lo, VLLM_HOST_IP=127.0.0.1); without it the two ranks hung at startup. Load time depends on disk; about 12-15 min on our USB SSD. For vision, put the image before the text. Not tested yet: LiLiCorr DFlash drafter, tool calling, video, concurrency beyond 4, task benchmarks beyond GSM8K 200.",
-          "power": 180
+          "power": 180,
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         },
         "llamacpp": {
           "kind": "gguf",
@@ -832,7 +936,15 @@
             ]
           },
           "recipe_ver": "2026-10-17",
-          "ver": "2026-10-15"
+          "ver": "2026-10-15",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "nvidia",
@@ -893,7 +1005,15 @@
             ]
           },
           "recipe_ver": "2026-10-13",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -949,7 +1069,15 @@
             "note": "Repo is license-gated on HF \u2014 accept the model terms first; if the in-app download 401s, fetch the file manually."
           },
           "recipe_ver": "2026-10-07",
-          "ver": "2026-10-07"
+          "ver": "2026-10-07",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
@@ -1233,7 +1361,15 @@
             "note": "Shard 2 (the per-layer lookup table) is the same file for every GSQ-RCO size, so an IQ3_S copy can be linked in its place. The Strata pack and MTP draft layer come from Strata's setup, not from this download."
           },
           "recipe_note": "New: Qwen3.8-Flash-Next IQ3_XXS on two B70s through your own Strata build (expert parallel, MTP, 2 \u00d7 200K context).",
-          "recipe_ver": "2026-10-16"
+          "recipe_ver": "2026-10-16",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
         }
       },
       "brand": "qwen",
