@@ -56,9 +56,15 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.19
+
+- **Separate IQ3_S Flash-Next recipe.** `b70 launch qwen38-flashnext-iq3s -e xestrata` uses its own GGUF, native pack and server config. IQ3_XXS remains available for comparison. Setup and measured results: [cookbook quant comparison](https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook/blob/master/docs/qwen38-flash-next/QWEN38-FLASH-NEXT-XESTRATA.md).
+- **Launch overrides leave source configs intact.** XeStrata context, vision and default reasoning are applied to a temporary launch config. Dry runs no longer change the user's vision settings. `--effort` sets the server config default rather than passing an unsupported flag to the upstream server; per-request effort still wins.
+- **Native context by default for IQ3_S.** 262,144 tokens; optional 350,000-token YaRN configuration is experimental. Allocation and short-prompt replies do not establish long-context accuracy.
+
 ## What is new in 0.6.18
 
-- **XeStrata dual-B70 recipe for Qwen3.8-Flash-Next (122.2 tok/s).** Added the native XeStrata (Strata 0.1.45 SYCL) serving route for `qwen38-flashnext` across two Intel Arc Pro B70 cards with expert parallelism and native MTP4 speculative decoding (`b70 launch qwen38-flashnext -e xestrata`). Delivers 122.2 tok/s decode on LocalMaxxing benchmark run `cmvb7j24x01hzle01zgemx67l`.
+- **XeStrata dual-B70 recipe for Qwen3.8-Flash-Next.** Added the native XeStrata serving route with MTP4 (`b70 launch qwen38-flashnext -e xestrata`). The earlier 122.2 tok/s figure belongs to a submitter's LocalMaxxing run, not a reproduced workstation result. Use the cookbook's matched quant comparison for local measurements.
 - **Direct artifact resolution for multi-shard GGUF routes.** `recipes.json` now supports exact `model_path` pointers for multi-shard models so detection resolves immediately without relying on fuzzy disk scanning.
 
 ## What is new in 0.6.17

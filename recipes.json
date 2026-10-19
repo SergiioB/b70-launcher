@@ -1,5 +1,5 @@
 {
-  "catalog_ver": "2026-10-18",
+  "catalog_ver": "2026-10-19",
   "engines": [
     {
       "id": "openvino",
@@ -33,7 +33,7 @@
       "id": "xestrata",
       "label": "XeStrata (Strata 0.1.45)",
       "tag": "XeStrata",
-      "tagline": "122.2 tok/s \u00b7 2\u00d7 B70 Expert Parallelism",
+      "tagline": "Native SYCL · two-card MoE serving",
       "note": "Native SYCL/Level-Zero engine with host-mirror expert streaming, layer split / expert parallelism across 2\u00d7 B70s, and MTP 4 spec decoding."
     },
     {
@@ -287,9 +287,9 @@
           "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
           "ctx": 350000,
           "ctx_max": 350000,
-          "ctx_note": "350K context via YaRN scaling (1.335x extension over 262K native)",
+          "ctx_note": "350K YaRN is experimental; accuracy beyond the 262K native window has not been established.",
           "power": 180,
-          "perf": "55.2\u201367.5 tok/s code/prose (up to 122 tok/s repetitive), 2,026 tok/s prefill at 32K",
+          "perf": "Measured timing and answer checks are documented in the cookbook quant comparison; thinking mode and context affect results.",
           "gpus": [
             0,
             1
@@ -306,7 +306,7 @@
           },
           "recipe_ver": "2026-10-18",
           "ver": "2026-10-18",
-          "prefill": "2,015 tok/s (32K chunk)",
+          "prefill": "See matched quant comparison in the cookbook",
           "reasoning_effort_supported": true,
           "reasoning_effort_options": [
             "none",
@@ -1389,6 +1389,46 @@
       ],
       "recommended_engine": "strata",
       "recommendation": "Two-card Strata route: ISTA-DASLab's GSQ-RCO IQ3_XXS with every expert in the two cards' VRAM. Needs a checkout of hotschmoe/Strata branch b70-night-20261016 (upstream Strata plus the unmerged expert-parallel PRs #1798 and #2205), its SYCL engine, the strata-sycl-dev image and the files Strata's setup writes (README: Strata). Thinking is on by default; send chat_template_kwargs {\"enable_thinking\": false} to turn it off."
+    },
+    {
+      "id": "qwen38-flashnext-iq3s",
+      "name": "Qwen3.8-Flash-Next IQ3_S",
+      "arch": "MoE · GSQ-RCO IQ3_S",
+      "brand": "qwen",
+      "blurb": "Higher-bit Flash-Next quant on two B70s. Uses a separate XeStrata pack and config; shares the lookup shard and MTP weights.",
+      "tags": [{"t": "IQ3_S", "c": "violet"}, {"t": "2× B70", "c": "green"}],
+      "chips": ["LLM", "IQ3_S", "~84 GB"],
+      "recommended_engine": "xestrata",
+      "recipes": {
+        "xestrata": {
+          "kind": "xestrata",
+          "model_path": "/data/sata1/models/qwen38-flashnext-iq3s/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+          "ctx": 262144,
+          "ctx_max": 350000,
+          "ctx_note": "262K native default; 350K YaRN is experimental, quality beyond native context is not validated.",
+          "gpus": [0, 1],
+          "py_exe": "/data/sata1/engines/xestrata/.venv/bin/python",
+          "server_script": "/data/sata1/engines/xestrata/serve/server.py",
+          "config_file": "~/.config/xestrata/xestrata-iq3_s.json",
+          "served_model_name": "qwen3.8-flash-next-iq3_s",
+          "vision_supported": true,
+          "vision_exe": "/data/sata1/engines/xestrata/dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
+          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": ["none", "low", "medium", "high", "xhigh"],
+          "download": {
+            "kind": "file",
+            "name": "IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+            "extra_files": ["IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"],
+            "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+            "revision": "ed59f92082b1e93c0e96d60a8b11aab089b52f09",
+            "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S",
+            "match": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002",
+            "quant": "IQ3_S: 54.82 GB first shard + shared 28.80 GB lookup"
+          },
+          "recipe_ver": "2026-10-19"
+        }
+      }
     }
   ]
 }

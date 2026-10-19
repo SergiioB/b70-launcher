@@ -96,6 +96,8 @@ b70 launch qwen36-35b -e vllm --cache off  # prefix caching off: testing/benchma
 b70 launch qwen38-27b-fp8-tp2              # recipe declares dual-card → gpus 0,1 auto
 b70 launch qwen38-flashnext --gpus 0,1     # same, manual
 b70 launch qwen38-flashnext-strata --dry-run  # Strata from your own checkout (README: Strata)
+b70 launch qwen38-flashnext-iq3s -e xestrata --ctx 262144 --vision --effort none
+b70 launch qwen38-flashnext-iq3s -e xestrata --no-vision --effort high
 b70 launch qwen36-35b -e vllm --slots 8 --no-mtp --extra "--async-scheduling"
 b70 launch /mnt/models/foo.gguf            # custom artifact, engine sniffed (.gguf → llamacpp)
 b70 launch /mnt/models/foo-dir -e openvino # custom OpenVINO IR dir
@@ -109,6 +111,11 @@ Flags → API fields (`docs/api.md`): `--ctx`→`ctx` · `--port`→`port` ·
 `--mtp/--no-mtp`→`mtp` · `--docker/--native`→`use_docker` · `--extra`→`extra`
 · `-E/--env`→`extra_env` (repeatable `NAME=value` lines) · `--path`→
 `custom_path` (`model_id=__custom__`).
+
+For native XeStrata, `--effort` / `--reasoning-effort` sets `reasoning_effort` in an isolated
+launch config. Clients can change effort per request without reloading weights.
+`--vision` / `--no-vision` selects the image encoder at launch; unset preserves the source config.
+Neither option edits that source config, including in a dry run.
 
 Prefix caching is on for every engine. `--cache off` turns it off for testing
 and benchmarks (vLLM `--no-enable-prefix-caching`, EXL3

@@ -1237,9 +1237,10 @@ def cmd_launch(g, a):
             cfg[k] = v
     if a.ctx is None and recipe.get("ctx_safe"):
         cfg["ctx"] = recipe["ctx_safe"]  # same validated context the UI preselects
+    max_ctx = 350000 if recipe.get("kind") == "xestrata" else 262144
     for name, val, lo, hi in (("port", a.port, 1, 65535),
                               ("slots", a.slots, 1, 128),
-                              ("ctx", a.ctx, 512, 262144)):
+                              ("ctx", a.ctx, 512, max_ctx)):
         if val is not None and not lo <= val <= hi:
             die(f"--{name} {val} out of range ({lo}–{hi})", code=2)
     gpus = parse_gpus(a.gpus)

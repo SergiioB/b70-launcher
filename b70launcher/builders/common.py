@@ -228,7 +228,8 @@ class Bld:
         if recipe.get("ctx_max") and self.ctx > recipe["ctx_max"]:
             warns.append(f"ctx {self.ctx} > engine ceiling {recipe['ctx_max']} for this recipe — clamping.")
             self.ctx = recipe["ctx_max"]
-        if not 1 <= self.port <= 65535 or not 1 <= self.slots <= 128 or not 512 <= self.ctx <= 262144:
+        max_ctx = 350000 if recipe.get("kind") == "xestrata" else 262144
+        if not 1 <= self.port <= 65535 or not 1 <= self.slots <= 128 or not 512 <= self.ctx <= max_ctx:
             raise BuildError("Port, slots, or context out of range.")
         gpus = cfg.get("gpus")
         if gpus is None:

@@ -306,15 +306,20 @@ class TestBuildOtherEngines(LauncherStateCase):
                                ctx=999999))
         self.assertIn("error", b)
 
-    def test_xestrata_dual_b70_build(self):
-        b = builders.build(cfg(model_id="qwen38-flashnext", engine="xestrata", gpus=[0, 1]))
-        self.assertNotIn("error", b)
-        self.assertTrue(b["native"])
-        self.assertEqual(b["gpus"], [0, 1])
-        self.assertIn("--engine", b["cmd"])
-        self.assertIn("strata", b["cmd"])
-        self.assertIn("--gpu", b["cmd"])
-        self.assertIn("0,1", b["cmd"])
+    def test_xestrata_vision_dry_run_preserves_source_config(self):
+        import tempfile
+        from unittest import mock
+        recipe = catalog.find_model("qwen38-flashnext")["recipes"]["xestrata"]
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.json"
+            original = '{"args": ["--max-context", "8192"], "vision": {"mmproj": "keep.gguf"}}\n'
+            source.write_text(original)
+            with mock.patch.dict(recipe, {"config_file": str(source)}):
+                plan = builders.build(cfg(model_id="qwen38-flashnext", engine="xestrata",
+                                          gpus=[0, 1], vision=False))
+            self.assertNotIn("error", plan)
+            self.assertEqual(source.read_text(), original)
+
 class TestBuildValidation(LauncherStateCase):
     def test_unknown_model_and_engine(self):
         self.assertIn("error", builders.build(cfg(model_id="nope", engine="x")))

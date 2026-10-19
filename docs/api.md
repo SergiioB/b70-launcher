@@ -265,6 +265,12 @@ recipe default), `gpus` (list of ints), `power`, `extra`
 `use_docker` (bool), `dry_run`, `models_dir`, `harness`, `harness_cmd`,
 `no_test`, and `custom_path` when `model_id` is `"__custom__"`.
 
+Native XeStrata also accepts `reasoning_effort` (`none`, `low`, `medium`, `high`, `xhigh`)
+and `vision` (bool). An omitted field preserves the recipe/config default. These overrides
+and `ctx` are applied to a temporary launch config; a plan or dry run never edits the source.
+XeStrata supports configured contexts up to 350,000 tokens, with experimental YaRN scaling
+above its 262,144-token native window.
+
 ### `POST /api/window`
 
 `{}` → `{"url": "http://127.0.0.1:<port>/?nonce=<one-time>"}`. The nonce is

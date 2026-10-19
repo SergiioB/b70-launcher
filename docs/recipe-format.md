@@ -81,7 +81,7 @@ current UI.
 
 | field | meaning |
 |---|---|
-| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`, `gguf-tiered`, `exl3`, `strata` |
+| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`, `gguf-tiered`, `exl3`, `strata`, `xestrata` |
 | `image` | container image (ignored when a `llama_bin` native path exists) |
 | `ctx` | default context; clamped by `ctx_max` |
 | `ctx_max` | hard ceiling; user ctx above it is clamped with a warning |
@@ -244,6 +244,22 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
 `gpu_memory_utilization` 0.90 (<128K ctx) or 0.94 (≥128K). `prefill_options` / caller `prefill`
 (`int8` default, `fp16` max quality). Every `extra_env` entry is passed both as `-e` and as
 `--set env.NAME="value"`, because the serve config's `env:` block overrides `docker -e`.
+
+### `kind: xestrata` (engine `xestrata`)
+
+Runs a local XeStrata server using `py_exe`, `server_script` and `config_file`.
+The GGUF in `model_path` must match the native pack and tokenizer named in that config.
+IQ3_S and IQ3_XXS require separate packs; they can share the byte-identical PLE lookup shard and MTP files.
+
+The launcher copies the config to a temporary file at execution time. `ctx` changes `--max-context`;
+above 262,144 tokens it selects YaRN with scale `ctx / 262144`. This is an experimental
+capacity setting, not a long-context quality claim. Dry runs do not modify files.
+
+`reasoning_effort` sets the default (`none`, `low`, `medium`, `high`, `xhigh`); API requests may override it.
+`vision` is optional: unset preserves the config, false removes its encoder, true enables it.
+For vision, set `vision_exe` and `mmproj` or retain them in the config. The wrapper uses the selected
+quant's `--native` shard as the encoder's language-model file and rejects missing files.
+The CPU encoder avoids allocating GPU weights; vision accuracy must still be checked with real images.
 
 ### `kind: strata` (engine `strata`)
 
