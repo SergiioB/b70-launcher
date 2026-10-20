@@ -284,6 +284,8 @@ The `qwen38-flashnext-strata` recipe runs [Strata](https://github.com/Niko1221/S
 
 A dry run (`b70 launch qwen38-flashnext-strata --dry-run`) lists anything still missing; a real launch is refused until it is all there. The recipe's speed numbers are the submitter's, measured on one box (see Recipe notes).
 
+On Windows the launcher can't run Strata, but the engine itself can run natively: [docs/strata-windows.md](docs/strata-windows.md) has patches for this branch, a tuned IQ3_S config (~99 tok/s on two B70s) and the pitfalls (int8 KV needs a JIT build with oneAPI 2026.0; `--ple-io mmap` instead of `direct`).
+
 ## What is new in 0.4.0
 
 - **Native app window.** The UI opens in a standalone WebKitGTK window (`webwindow.py`, spawned with the system `python3`) instead of a Chromium tab. Closing the window quits the app cleanly: downloads are cancelled and per-session token usage is stored. `--browser` and `--no-open` keep the old behavior; without `python3-gi` the launcher falls back to a browser app window automatically.

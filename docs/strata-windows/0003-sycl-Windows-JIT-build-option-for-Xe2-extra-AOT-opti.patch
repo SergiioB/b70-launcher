@@ -1,0 +1,70 @@
+# 0003-sycl-Windows-JIT-build-option-for-Xe2-extra-AOT-opti
+#
+# Prepared with AI assistance.
+# Derived from Strata (MIT License, Copyright (c) 2026 Niko1221 and the Strata contributors);
+# see LICENSES/Strata-LICENSE.
+# Base: hotschmoe/Strata branch b70-night-20261016 @ 1c360526 + patches 0001, 0002. Apply with `git apply`
+# (or `git am` after adding your own commit message). See ../README.md.
+#
+diff --git a/sycl/CMakeLists.txt b/sycl/CMakeLists.txt
+index 5d4ece6..56becbb 100644
+--- a/sycl/CMakeLists.txt
++++ b/sycl/CMakeLists.txt
+@@ -37,7 +37,9 @@ if(STRATA_SYCL_SPIN_MAX)
+   add_compile_definitions(STRATA_SYCL_SPIN_MAX=${STRATA_SYCL_SPIN_MAX}u)
+ endif()
+ set(_sycl_flags -fsycl)
+-if(STRATA_SYCL_AOT MATCHES "^(bmg|lnl)")
++# JIT on an Xe2 card (B-series): the AOT build defines this from the device name; a JIT build asks for it here
++option(STRATA_SYCL_XE2_JIT "JIT build for an Xe2 (Arc B-series / Lunar Lake) card: the sub-group-16 XMX kernels" OFF)
++if(STRATA_SYCL_AOT MATCHES "^(bmg|lnl)" OR (NOT STRATA_SYCL_AOT AND STRATA_SYCL_XE2_JIT))
+   add_compile_definitions(STRATA_XMX_SG16=1)   # the grouped XMX kernels on sub-group 16, joint_matrix 8x16x16 (Xe2)
+ elseif(STRATA_SYCL_AOT MATCHES "^pvc")
+   add_compile_definitions(STRATA_NO_DG2_XMX=1)   # the grouped XMX kernels (sub-group 8, 8x8x16) do not compile for Xe2 / Xe-HPC
+@@ -50,8 +52,14 @@ if(STRATA_SYCL_AOT)
+   if(STRATA_SYCL_AOT_CACHE_DIR)
+     set(_sycl_cache_flags " -allow_caching -cache_dir ${STRATA_SYCL_AOT_CACHE_DIR}")
+   endif()
++  # extra ocloc -options for the AOT device code (e.g. -ze-opt-greater-than-4GB-buffer-required)
++  set(STRATA_SYCL_AOT_OPTIONS "" CACHE STRING "extra ocloc -options for the AOT build")
++  set(_sycl_aot_opts "-cl-fp32-correctly-rounded-divide-sqrt")
++  if(STRATA_SYCL_AOT_OPTIONS)
++    string(APPEND _sycl_aot_opts " ${STRATA_SYCL_AOT_OPTIONS}")
++  endif()
+   set(_sycl_link -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen
+-      "-device ${STRATA_SYCL_AOT} -options -cl-fp32-correctly-rounded-divide-sqrt${_sycl_cache_flags}")
++      "-device ${STRATA_SYCL_AOT} -options \"${_sycl_aot_opts}\"${_sycl_cache_flags}")
+ else()
+   set(_sycl_link -fsycl)
+ endif()
+diff --git a/sycl/src/kernels/kv_hybrid_parity.cpp b/sycl/src/kernels/kv_hybrid_parity.cpp
+index 8474abf..4355dff 100644
+--- a/sycl/src/kernels/kv_hybrid_parity.cpp
++++ b/sycl/src/kernels/kv_hybrid_parity.cpp
+@@ -25,6 +25,9 @@
+ #include <cstring>
+ #include <random>
+ #include <vector>
++#if defined(_WIN32)
++static int setenv(const char* n, const char* v, int) { return _putenv_s(n, v); }   // no setenv in the Windows CRT
++#endif
+ 
+ namespace k = strata::kernels;
+ 
+diff --git a/sycl/src/kernels/qsa_prompt_attn_parity.cpp b/sycl/src/kernels/qsa_prompt_attn_parity.cpp
+index b0f4434..2a6f20a 100644
+--- a/sycl/src/kernels/qsa_prompt_attn_parity.cpp
++++ b/sycl/src/kernels/qsa_prompt_attn_parity.cpp
+@@ -24,6 +24,9 @@
+ #include <cstring>
+ #include <random>
+ #include <vector>
++#if defined(_WIN32)
++static int setenv(const char* n, const char* v, int) { return _putenv_s(n, v); }   // no setenv in the Windows CRT
++#endif
+ 
+ namespace k = strata::kernels;
+ 
+-- 
+2.53.0.windows.2
+

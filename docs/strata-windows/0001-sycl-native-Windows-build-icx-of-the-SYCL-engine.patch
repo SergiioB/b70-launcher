@@ -1,0 +1,291 @@
+# 0001-sycl-native-Windows-build-icx-of-the-SYCL-engine
+#
+# Prepared with AI assistance.
+# Derived from Strata (MIT License, Copyright (c) 2026 Niko1221 and the Strata contributors);
+# see LICENSES/Strata-LICENSE.
+# Base: hotschmoe/Strata branch b70-night-20261016 @ 1c360526. Apply with `git apply` (or `git am` after
+# adding your own commit message). See ../README.md.
+#
+diff --git a/sycl/CMakeLists.txt b/sycl/CMakeLists.txt
+index 4b68200..5d4ece6 100644
+--- a/sycl/CMakeLists.txt
++++ b/sycl/CMakeLists.txt
+@@ -85,8 +85,17 @@ list(APPEND _sycl_flags -fsycl-default-sub-group-size=32)
+ # split the first launch in the prompt path (the embedding gather) paid 245 ms for the image it shared (2026-09-30).
+ list(APPEND _sycl_link -fsycl-device-code-split=per_kernel)
+ list(APPEND _sycl_flags -fsycl-device-code-split=per_kernel)
+-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${_sycl_flags}>" -fp-model=precise -Wno-unused-parameter
+-                    -Wno-unused-variable -Wno-deprecated-declarations)
++# Windows (icx, MSVC-style driver): the same options in their /-spelling
++if(WIN32)
++  set(_strata_fp_precise /fp:precise)
++  set(_strata_mkl /Qmkl:sequential)
++  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
++else()
++  set(_strata_fp_precise -fp-model=precise)
++  set(_strata_mkl -qmkl=sequential)
++endif()
++add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${_sycl_flags}>" "$<$<COMPILE_LANGUAGE:CXX>:${_strata_fp_precise}>"
++                    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter;-Wno-unused-variable;-Wno-deprecated-declarations>")
+ add_link_options(${_sycl_link})
+ 
+ # --- source resolution: the migrated copy when there is one, the original otherwise -------------------------------
+@@ -115,7 +124,11 @@ add_library(strata_includes INTERFACE)
+ target_include_directories(strata_includes INTERFACE
+   ${CMAKE_CURRENT_SOURCE_DIR}/include      # migrated headers + dpct/ helpers, first
+   ${STRATA_ROOT}/include)
+-target_compile_options(strata_includes INTERFACE -Wall -Wextra)
++if(WIN32)
++  target_compile_options(strata_includes INTERFACE /W3)   # clang-cl's -Wall is -Weverything
++else()
++  target_compile_options(strata_includes INTERFACE -Wall -Wextra)
++endif()
+ 
+ # --- CPU-side pieces, identical to the top-level build ------------------------------------------------------------
+ strata_resolve(_spec src/spec/suffix_drafter.cpp src/spec/controller.cpp src/spec/draft_policy.cpp
+@@ -210,9 +223,14 @@ strata_resolve(_core src/core/device.cu src/core/pinned.cu src/platform/memory.c
+ add_library(strata_core STATIC ${_core})
+ target_link_libraries(strata_core PUBLIC strata_includes)
+ # zeMemAllocHost for the host memory a kernel polls (include/strata/sycl_queue.hpp, host_malloc_polled): only when libze-dev's header is there
+-find_library(STRATA_ZE_LOADER ze_loader)
++file(GLOB _strata_ze_sdk "C:/Program Files/LevelZeroSDK/*")   # Windows: the Level Zero SDK installer's folder
++find_library(STRATA_ZE_LOADER ze_loader HINTS $ENV{LEVEL_ZERO_V1_SDK_PATH}/lib ${_strata_ze_sdk})
++find_path(STRATA_ZE_INCLUDE level_zero/ze_api.h HINTS $ENV{LEVEL_ZERO_V1_SDK_PATH}/include ${_strata_ze_sdk} PATH_SUFFIXES include)
+ if(STRATA_ZE_LOADER)
+   target_link_libraries(strata_core PUBLIC ${STRATA_ZE_LOADER})
++  if(STRATA_ZE_INCLUDE)
++    target_include_directories(strata_core PUBLIC ${STRATA_ZE_INCLUDE})
++  endif()
+ endif()
+ 
+ set(_kernel_cu dequant_s2 s2_gemv s_gemv s2_gemv_quads s2_gemv_fast router_top10 quantize_act rope sampler s2_gemv_q8
+@@ -250,8 +268,8 @@ add_library(strata_prefill STATIC ${_prefill}
+             ${CMAKE_CURRENT_SOURCE_DIR}/src/prefill/moe_fused_stub.cpp   # upstream's fused int8 kernels: not built here
+             ${CMAKE_CURRENT_SOURCE_DIR}/src/prefill/xmx_moe.dp.cpp      # A770 port: grouped XMX expert GEMM
+             ${CMAKE_CURRENT_SOURCE_DIR}/src/prefill/gdn_chunk.dp.cpp)    # night-lab: chunkwise GDN recurrence
+-target_compile_options(strata_prefill PUBLIC -qmkl=sequential)
+-target_link_options(strata_prefill PUBLIC -qmkl=sequential)
++target_compile_options(strata_prefill PUBLIC ${_strata_mkl})
++target_link_options(strata_prefill PUBLIC ${_strata_mkl})
+ target_link_libraries(strata_prefill PUBLIC strata_engine)
+ 
+ strata_resolve(_main src/program/generate.cpp)
+diff --git a/sycl/include/dpct/device.hpp b/sycl/include/dpct/device.hpp
+index b55d2dc..bf4e2dc 100644
+--- a/sycl/include/dpct/device.hpp
++++ b/sycl/include/dpct/device.hpp
+@@ -32,6 +32,7 @@
+ #define NOMINMAX
+ #endif
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #endif
+ 
+ namespace dpct {
+diff --git a/sycl/include/dpct/kernel.hpp b/sycl/include/dpct/kernel.hpp
+index 0e214ae..100c0a6 100644
+--- a/sycl/include/dpct/kernel.hpp
++++ b/sycl/include/dpct/kernel.hpp
+@@ -14,6 +14,7 @@
+ #ifdef _WIN32
+ #include <unordered_set>
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #include <dlfcn.h>
+ #endif
+diff --git a/sycl/include/dpct/memory.hpp b/sycl/include/dpct/memory.hpp
+index 2ea68a9..9cf8914 100644
+--- a/sycl/include/dpct/memory.hpp
++++ b/sycl/include/dpct/memory.hpp
+@@ -28,6 +28,7 @@
+ #define NOMINMAX
+ #endif
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #error "Only support Windows and Linux."
+ #endif
+diff --git a/sycl/include/strata_win_undefs.h b/sycl/include/strata_win_undefs.h
+new file mode 100644
+index 0000000..0aa1e1c
+--- /dev/null
++++ b/sycl/include/strata_win_undefs.h
+@@ -0,0 +1,8 @@
++// Windows port: names <windows.h> defines as macros that the engine uses as identifiers
++// (rpcndr.h: small; minwindef.h: IN, OUT). Include right after <windows.h>.
++// no include guard on purpose: each include re-runs the #undefs
++#ifdef _WIN32
++#undef small
++#undef OUT
++#undef IN
++#endif
+diff --git a/sycl/src/core/copy_queue.cpp b/sycl/src/core/copy_queue.cpp
+index 247db9f..1d00080 100644
+--- a/sycl/src/core/copy_queue.cpp
++++ b/sycl/src/core/copy_queue.cpp
+@@ -22,6 +22,7 @@
+ #ifdef STRATA_HAVE_ZE_API
+ #if defined(_WIN32)
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #include <dlfcn.h>
+ #endif
+diff --git a/sycl/src/core/device.dp.cpp b/sycl/src/core/device.dp.cpp
+index 5905b30..f1e0ca4 100644
+--- a/sycl/src/core/device.dp.cpp
++++ b/sycl/src/core/device.dp.cpp
+@@ -165,6 +165,7 @@ catch (sycl::exception const &exc) {
+ #define NOMINMAX
+ #endif
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #include <dxgi1_4.h>
+ #include <atomic>
+ #include <cstdlib>
+diff --git a/sycl/src/core/expert_source.cpp b/sycl/src/core/expert_source.cpp
+index e0bb0f2..2655e1e 100644
+--- a/sycl/src/core/expert_source.cpp
++++ b/sycl/src/core/expert_source.cpp
+@@ -41,6 +41,7 @@
+ #define NOMINMAX   // std::numeric_limits<T>::max() below
+ #endif
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #include <fcntl.h>
+ #include <sys/mman.h>
+diff --git a/sycl/src/core/gguf_expert_source.cpp b/sycl/src/core/gguf_expert_source.cpp
+index af1bda1..8d147bb 100644
+--- a/sycl/src/core/gguf_expert_source.cpp
++++ b/sycl/src/core/gguf_expert_source.cpp
+@@ -7,11 +7,38 @@
+ #include <cstring>
+ #include <utility>
+ #include <fcntl.h>
++#if defined(_WIN32)
++#include <io.h>
++#include <windows.h>
++#include "strata_win_undefs.h"
++#else
+ #include <unistd.h>
++#endif
+ #include <dpct/dpct.hpp>
+ #include <sycl/sycl.hpp>
+ #include <thread>
+ 
++#if defined(_WIN32)
++// Windows: ::open / ::close are the CRT's; pread is a positioned ReadFile on the descriptor's handle (no file
++// position, no text-mode translation). off_t is 32-bit there, so this file's offsets use a 64-bit type.
++#ifndef O_CLOEXEC
++#define O_CLOEXEC 0
++#endif
++#define off_t long long
++#define ssize_t long long
++static long long pread(int fd, void* buf, size_t n, long long off) {
++    HANDLE h = (HANDLE) _get_osfhandle(fd);
++    if (h == INVALID_HANDLE_VALUE) return -1;
++    OVERLAPPED ov{};
++    ov.Offset = (DWORD) ((unsigned long long) off & 0xffffffffu);
++    ov.OffsetHigh = (DWORD) ((unsigned long long) off >> 32);
++    DWORD got = 0;
++    const DWORD want = n > 0x40000000u ? 0x40000000u : (DWORD) n;
++    if (!ReadFile(h, buf, want, &got, &ov)) return GetLastError() == ERROR_HANDLE_EOF ? 0 : -1;
++    return (long long) got;
++}
++#endif
++
+ namespace strata::core {
+ 
+ namespace {
+diff --git a/sycl/src/core/pinned.dp.cpp b/sycl/src/core/pinned.dp.cpp
+index 57fc68e..643137f 100644
+--- a/sycl/src/core/pinned.dp.cpp
++++ b/sycl/src/core/pinned.dp.cpp
+@@ -25,6 +25,7 @@
+ 
+ #ifdef _WIN32
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #include <fcntl.h>
+ #include <sys/mman.h>
+@@ -320,19 +321,8 @@ namespace {
+ bool sliced_pin_limit(uint64_t& limit, std::string& why) {
+     constexpr uint64_t GiB = 1ull << 30;
+     char buf[256];
+-    int dev = 0;
+-    cudaDeviceProp p{};
+-    uint64_t budget = 0, usage = 0;
+-    std::string err = "no CUDA device properties";
+-    if (cudaGetDevice(&dev) == cudaSuccess && cudaGetDeviceProperties(&p, dev) == cudaSuccess &&
+-        strata::platform::gpu_shared_memory_budget(p.luid, budget, usage, err)) {
+-        limit = budget > usage + 4 * GiB ? budget - usage - 4 * GiB : 0;
+-        std::snprintf(buf, sizeof buf, "the GPU's shared-memory budget %.1f GiB - %.1f GiB in use - 4 GiB",
+-                      (double) budget / GiB, (double) usage / GiB);
+-        why = buf;
+-        return true;
+-    }
+-    (void) cudaGetLastError();
++    // SYCL port: no device LUID from the runtime here, so the DXGI budget is not read; the RAM rule below applies
++    std::string err = "no DXGI budget in the SYCL port";
+     const uint64_t ram = strata::platform::total_physical_memory();
+     if (ram == 0) return false;
+     limit = ram / 2 > 8 * GiB ? ram / 2 - 8 * GiB : 0;
+diff --git a/sycl/src/kernels/cuda/verify_kernels.dp.cpp b/sycl/src/kernels/cuda/verify_kernels.dp.cpp
+index 77288c0..c05eee6 100644
+--- a/sycl/src/kernels/cuda/verify_kernels.dp.cpp
++++ b/sycl/src/kernels/cuda/verify_kernels.dp.cpp
+@@ -26,6 +26,7 @@
+ #include <stdexcept>
+ #include <thread>
+ #include <vector>
++#include "strata_win_undefs.h"   // after every header: <windows.h> macros (small, OUT) clash with names below
+ 
+ #ifndef STRATA_PLAN_LOCAL
+ #define STRATA_PLAN_LOCAL 1   // 0: the original one-thread plan kernel (A/B)
+diff --git a/sycl/src/platform/direct_file.cpp b/sycl/src/platform/direct_file.cpp
+index a1c16f2..e6cffd5 100644
+--- a/sycl/src/platform/direct_file.cpp
++++ b/sycl/src/platform/direct_file.cpp
+@@ -16,6 +16,7 @@
+ #define WIN32_LEAN_AND_MEAN
+ #define NOMINMAX
+ #include <windows.h>
++#include "strata_win_undefs.h"
+ #else
+ #include <fcntl.h>
+ #include <sys/stat.h>
+diff --git a/sycl/src/program/generate.cpp b/sycl/src/program/generate.cpp
+index 28ef523..1126bb2 100644
+--- a/sycl/src/program/generate.cpp
++++ b/sycl/src/program/generate.cpp
+@@ -94,6 +94,16 @@ namespace strata::prefill { void set_nonresident_share(double share); }   // SYC
+ #include <windows.h>
+ #include <psapi.h>
+ #include <io.h>
++#include "strata_win_undefs.h"
++#include <cstring>
++// no memmem in the Windows CRT (used only by a load-check diagnostic)
++static const void* memmem(const void* hay, size_t hn, const void* needle, size_t nn) {
++    if (nn == 0) return hay;
++    const unsigned char* h = (const unsigned char*) hay;
++    for (size_t i = 0; i + nn <= hn; ++i)
++        if (std::memcmp(h + i, needle, nn) == 0) return h + i;
++    return nullptr;
++}
+ #else
+ #include <unistd.h>
+ #include <cerrno>
+@@ -128,6 +138,7 @@ namespace strata::prefill { void set_nonresident_share(double share); }   // SYC
+ #include <string>
+ #include <set>
+ #include <vector>
++#include "strata_win_undefs.h"   // after every header: <windows.h> macros (small, OUT) clash with names below
+ 
+ namespace {
+ // Windows' WDDM driver model: native Windows, or WSL2 (its GPU goes through /dev/dxg to the Windows driver).  There,
+-- 
+2.53.0.windows.2
+
