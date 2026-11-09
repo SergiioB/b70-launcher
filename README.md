@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.6.17 (Linux source)
+# B70 Launcher 0.6.19 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -55,6 +55,24 @@ b70 agent pi                 # open an agent on it: pi, omp, droid, codex or dee
 b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
+
+## Pending correctness fix (source branch)
+
+EXL3 now honors `--no-mtp` by passing `vllm.speculative_config=null` to the
+server. Earlier versions accepted the option but left the EXL3 drafter enabled.
+Until a release includes this fix, use
+`--extra '--set vllm.speculative_config=null'` for that engine. The preview must
+show the override before you launch.
+
+EXL3 MTP3 can change the greedy answer; a passing smoke prompt does not prove
+output parity or general task quality. See the cookbook's
+[route evidence](https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook/blob/master/docs/qwen38-27b/EXL3-XPU.md).
+
+Cache settings need recipe-specific checks. In particular, a cold prompt or a
+passing smoke does not qualify the cache-hit path on a vLLM-XPU speculative or
+W4A16 stack. Use `--cache off` while investigating correctness, then retain a
+multi-turn cache-hit comparison before recommending cache on for a changed stack.
+This source change does not publish a release or change recipe defaults.
 
 ## What is new in 0.6.19
 
@@ -249,7 +267,7 @@ B70 Launcher is open source under the [MIT License](LICENSE); the repository liv
 ## Start a server
 
 1. Choose a model. One is preselected once the scan lands; type in **Search models** (matches name, architecture, blurb, and chips) and tick **On disk** to keep only detected artifacts. **Model folders** edits the scan roots and the download folder (`Save folders` writes them through `POST /api/settings`), and **Browse detected files** lists what the scan found under those roots.
-2. Check the engine and the run facts (model on disk or not, context tokens, selected GPU). Open **Advanced** only for recipe defaults: context tokens, server port, KV cache precision, prefix cache (on by default for every engine; off is for testing and benchmarks, `b70 launch ... --cache off`), GPUs (free, accessible B70s only), default client, and client-config sync. **Recipe details** holds the recipe note, the throughput note, the image or native binary in use, and the plan warnings.
+2. Check the engine and the run facts (model on disk or not, context tokens, selected GPU). Open **Advanced** only for recipe defaults: context tokens, server port, KV cache precision, prefix cache (`b70 launch ... --cache off` disables reuse; correctness must be checked on the selected recipe, including cache hits), GPUs (free, accessible B70s only), default client, and client-config sync. **Recipe details** holds the recipe note, the throughput note, the image or native binary in use, and the plan warnings.
 3. Press the primary button; its label says what it will do — **Review download** (confirm destination and free space, or change the folder), **Choose model file**, **Review setup**, **Launch held** (operator hold), **Launch blocked** (plan error), **No free GPU**, **Launch on GPU 0**, or **Downloading files** / **Loading model** while work is in flight. Once the engine answers, the button becomes **Open in Pi** (or **Copy endpoint** when no client is selected); **Stop** (or **Cancel launch** while starting), **Test**, and **Logs** sit on the server row, and the log dialog follows byte offsets as the engine writes.
 
 **Preview command** and **Apply recipe update** live under **Recipe details**. The preview prints the resolved command and its warnings without starting anything. Configured scan roots are not listed in the run panel — edit them through **Model folders** or `settings-override.json` (below).
@@ -303,9 +321,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.17-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.17-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.17-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.19-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.19-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.19-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space (for Strata's locally built image, the `docker build` command instead). Containers see only the selected card(s). Some recipe images use mutable tags.
 

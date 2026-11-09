@@ -273,7 +273,7 @@ class Bld:
         elif not recipe_cache:
             warns.append(f"prefix caching OFF for this recipe: {note}. --cache on forces it.")
         elif not self.prefix_cache:
-            warns.append("prefix caching OFF (--cache off): for testing and benchmarks; "
+            warns.append("prefix caching OFF (--cache off): useful for correctness checks and cold-input benchmarks; "
                          "every turn re-reads the whole prompt.")
         self.env = {}
         self.native = False

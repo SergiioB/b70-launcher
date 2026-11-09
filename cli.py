@@ -2198,7 +2198,7 @@ def build_parser():
     s.add_argument("--prefill", choices=["int8", "fp16"],
                    help="EXL3 prefill mode: int8 (default, fast) | fp16 (max quality, slower cold prefill)")
     s.add_argument("--cache", choices=["on", "off"],
-                   help="prefix caching: on (default) | off (testing/benchmarks only)")
+                   help="prefix caching: on | off; correctness depends on the recipe and cache-hit path")
     s.add_argument("-n", "--slots", type=int, help="max parallel sequences")
     s.add_argument("--power", type=int, help="watts hint (advisory; launcher never sets caps)")
     mtp = s.add_mutually_exclusive_group()
