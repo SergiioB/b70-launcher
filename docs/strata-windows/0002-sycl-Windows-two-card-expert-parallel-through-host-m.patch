@@ -1,0 +1,145 @@
+# 0002-sycl-Windows-two-card-expert-parallel-through-host-m
+#
+# Prepared with AI assistance.
+# Derived from Strata (MIT License, Copyright (c) 2026 Niko1221 and the Strata contributors);
+# see LICENSES/Strata-LICENSE.
+# Base: hotschmoe/Strata branch b70-night-20261016 @ 1c360526. Apply with `git apply` (or `git am` after
+# adding your own commit message). See ../README.md.
+#
+diff --git a/sycl/include/dpct/device.hpp b/sycl/include/dpct/device.hpp
+index bf4e2dc..44e87e9 100644
+--- a/sycl/include/dpct/device.hpp
++++ b/sycl/include/dpct/device.hpp
+@@ -463,6 +463,28 @@ has_capability_or_fail(const sycl::device &dev,
+   }
+ }
+ 
++#if defined(_WIN32)
++/// Windows port: Level Zero on Windows has no IPC handles and no peer access between Arc cards (measured on two
++/// B70s: zeMemGetIpcHandle 0x78000003, zeDeviceCanAccessPeer 0, a kernel on the other card's memory: device lost).
++/// The two cards' shared regions (strata/core/ep_mem.hpp) are therefore host memory, which both cards' kernels can
++/// use only inside ONE context: every GPU of a platform shares one sycl::context here.
++/// STRATA_WIN_SHARED_CONTEXT=0 gives each device its own context again (as on Linux).
++inline sycl::context strata_device_context(const sycl::device &d) {
++  const char *e = std::getenv("STRATA_WIN_SHARED_CONTEXT");
++  if ((e != nullptr && e[0] == '0') || !d.is_gpu()) return sycl::context(d);
++  static std::mutex mu;
++  static std::vector<std::pair<sycl::platform, sycl::context>> made;
++  std::lock_guard<std::mutex> g(mu);
++  const sycl::platform p = d.get_platform();
++  for (auto &m : made)
++    if (m.first == p) return m.second;
++  made.emplace_back(p, sycl::context(p.get_devices(sycl::info::device_type::gpu)));
++  return made.back().second;
++}
++#else
++inline sycl::context strata_device_context(const sycl::device &d) { return sycl::context(d); }
++#endif
++
+ /// dpct device extension
+ class device_ext : public sycl::device {
+   typedef std::mutex mutex_type;
+@@ -473,7 +495,7 @@ public:
+     std::lock_guard<mutex_type> lock(m_mutex);
+     clear_queues();
+   }
+-  device_ext(const sycl::device &base) : sycl::device(base), _ctx(*this) {
++  device_ext(const sycl::device &base) : sycl::device(base), _ctx(strata_device_context(*this)) {
+     std::lock_guard<mutex_type> lock(m_mutex);
+     init_queues();
+   }
+diff --git a/sycl/include/strata/core/ep_mem.hpp b/sycl/include/strata/core/ep_mem.hpp
+index affcd73..9505527 100644
+--- a/sycl/include/strata/core/ep_mem.hpp
++++ b/sycl/include/strata/core/ep_mem.hpp
+@@ -9,6 +9,7 @@
+ #include <dpct/dpct.hpp>
+ 
+ #include <cstddef>
++#include <cstring>
+ #include <string>
+ 
+ namespace strata::core {
+@@ -32,6 +33,25 @@ inline bool ep_region_alloc(int owner, int other, size_t bytes, EpRegion& r, std
+     r = EpRegion{};
+     r.owner_ctx = ep_ze_context(owner);
+     r.other_ctx = ep_ze_context(other);
++#if defined(_WIN32)
++    // Windows: no IPC and no peer access between the cards, so the region is host memory in the context both cards
++    // share (dpct strata_device_context): one address for both, every access over PCIe (system-scope atomics).
++    if (r.owner_ctx == r.other_ctx) {
++        ze_host_mem_alloc_desc_t hdesc{};
++        hdesc.stype = ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
++        ze_result_t zh = zeMemAllocHost(r.owner_ctx, &hdesc, bytes, 4096, &r.local);
++        if (zh != ZE_RESULT_SUCCESS) {
++            err = "expert parallel: zeMemAllocHost of " + std::to_string(bytes) + " bytes failed (" + std::to_string((unsigned) zh) + ")";
++            r.local = nullptr;
++            return false;
++        }
++        std::memset(r.local, 0, bytes);
++        r.remote = r.local;
++        return true;
++    }
++    err = "expert parallel: the cards have separate contexts (STRATA_WIN_SHARED_CONTEXT=0?) and Windows has no IPC";
++    return false;
++#endif
+     ze_device_mem_alloc_desc_t desc{};
+     desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
+     ze_result_t z = zeMemAllocDevice(r.owner_ctx, &desc, bytes, 4096, ep_ze_device(owner), &r.local);
+@@ -54,7 +74,7 @@ inline bool ep_region_alloc(int owner, int other, size_t bytes, EpRegion& r, std
+ }
+ 
+ inline void ep_region_free(EpRegion& r) {
+-    if (r.remote != nullptr) zeMemCloseIpcHandle(r.other_ctx, r.remote);
++    if (r.remote != nullptr && r.remote != r.local) zeMemCloseIpcHandle(r.other_ctx, r.remote);
+     if (r.local != nullptr) zeMemFree(r.owner_ctx, r.local);
+     r = EpRegion{};
+ }
+diff --git a/sycl/src/kernels/iq_multi_parity.cpp b/sycl/src/kernels/iq_multi_parity.cpp
+index 1b0e02d..5dc25bf 100644
+--- a/sycl/src/kernels/iq_multi_parity.cpp
++++ b/sycl/src/kernels/iq_multi_parity.cpp
+@@ -108,6 +108,10 @@ std::vector<double> dequant_q8_1(const std::vector<uint8_t>& q, size_t n) {
+ }
+ 
+ #include "iq2xs_host_tables.inc"
++#if defined(_WIN32)
++#undef near   // <windows.h> (minwindef.h) macros; names below
++#undef far
++#endif
+ // IQ2_XS decoded on the CPU from ggml's tables (dequantize_row_iq2_xs), a reference independent of the GPU dequantizer
+ std::vector<float> host_iq2_xs(const std::vector<uint8_t>& w, size_t n) {
+     std::vector<float> y(n);
+diff --git a/sycl/src/kernels/rope_parity.cpp b/sycl/src/kernels/rope_parity.cpp
+index cf11ccb..e617b51 100644
+--- a/sycl/src/kernels/rope_parity.cpp
++++ b/sycl/src/kernels/rope_parity.cpp
+@@ -38,6 +38,10 @@
+ #include <random>
+ #include <string>
+ #include <vector>
++#if defined(_WIN32)
++#undef near   // <windows.h> (minwindef.h) macros; names below
++#undef far
++#endif
+ 
+ namespace {
+ 
+diff --git a/sycl/src/kernels/sampler_parity.cpp b/sycl/src/kernels/sampler_parity.cpp
+index 7938ed9..bdb34d1 100644
+--- a/sycl/src/kernels/sampler_parity.cpp
++++ b/sycl/src/kernels/sampler_parity.cpp
+@@ -22,6 +22,10 @@
+ #include <random>
+ #include <string>
+ #include <vector>
++#if defined(_WIN32)
++#undef near   // <windows.h> (minwindef.h) macros; names below
++#undef far
++#endif
+ 
+ namespace {
+ 
+-- 
+2.53.0.windows.2
+
