@@ -56,11 +56,11 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
-## Pending correctness fix (source branch)
+## Unreleased: EXL3 honors `--no-mtp`
 
-EXL3 now honors `--no-mtp` by passing `vllm.speculative_config=null` to the
-server. Earlier versions accepted the option but left the EXL3 drafter enabled.
-Until a release includes this fix, use
+`--no-mtp` now passes `vllm.speculative_config=null` to the EXL3 server.
+Released versions up to 0.6.19 accept the option but leave the drafter enabled.
+On those versions, use
 `--extra '--set vllm.speculative_config=null'` for that engine. The preview must
 show the override before you launch.
 
