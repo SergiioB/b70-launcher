@@ -1,5 +1,5 @@
 {
-  "catalog_ver": "2026-10-19",
+  "catalog_ver": "2026-10-20",
   "engines": [
     {
       "id": "openvino",
@@ -33,7 +33,7 @@
       "id": "xestrata",
       "label": "XeStrata (Strata 0.1.45)",
       "tag": "XeStrata",
-      "tagline": "Native SYCL · two-card MoE serving",
+      "tagline": "Native SYCL \u00b7 two-card MoE serving",
       "note": "Native SYCL/Level-Zero engine with host-mirror expert streaming, layer split / expert parallelism across 2\u00d7 B70s, and MTP 4 spec decoding."
     },
     {
@@ -1202,6 +1202,91 @@
       "recommended_engine": "llamacpp"
     },
     {
+      "id": "ornith-15-122b",
+      "name": "Ornith-1.5-122B",
+      "arch": "MoE 122B / ~9B active",
+      "blurb": "Day-0 Ornith 1.5 122B. Fits 2x Arc Pro B70 as Unsloth UD-IQ3_XXS (~49.5 GB). DFlash2 (incoai) is NVIDIA SGLang only \u2014 not on this launcher.",
+      "badge": "NEW 122B",
+      "tags": [
+        {
+          "t": "122B MoE",
+          "c": "violet"
+        },
+        {
+          "t": "2x B70 IQ3_XXS",
+          "c": "green"
+        },
+        {
+          "t": "No DFlash2 on XPU",
+          "c": "amber"
+        }
+      ],
+      "brand": "generic",
+      "chips": [
+        "LLM",
+        "Instruct",
+        "IQ3_XXS",
+        "~49.5 GB",
+        "Dual B70"
+      ],
+      "recommended_engine": "llamacpp",
+      "recipes": {
+        "llamacpp": {
+          "kind": "gguf",
+          "gguf": "/models/Ornith-1.5-122B-UD-IQ3_XXS.gguf",
+          "search_name": "Ornith-1.5-122B-UD-IQ3_XXS.gguf",
+          "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
+          "ctx": 131072,
+          "ctx_max": 131072,
+          "ctx_note": "131K loads with q8/q4 KV on 2x32GB; llama-bench pp2048 700 tok/s, tg128 28.1",
+          "power": 150,
+          "gpus": [
+            0,
+            1
+          ],
+          "tensor_split": "50,50",
+          "split_mode": "layer",
+          "perf": "llama-bench n=5 F16 SYCL: pp2048 700.07 tok/s, tg128 28.10 tok/s. Serving -c 131072.",
+          "fixed_flags": [
+            "-fa",
+            "on",
+            "-ngl",
+            "99",
+            "-np",
+            "1",
+            "-b",
+            "2048",
+            "-ub",
+            "2048",
+            "-t",
+            "6",
+            "--cache-type-k",
+            "q8_0",
+            "--cache-type-v",
+            "q4_0"
+          ],
+          "download": {
+            "kind": "file",
+            "name": "Ornith-1.5-122B-UD-IQ3_XXS.gguf",
+            "repo": "unsloth/Ornith-1.5-122B-GGUF",
+            "search": "Ornith-1.5-122B-UD-IQ3_XXS",
+            "match": "ornith-1.5-122b",
+            "quant": "UD-IQ3_XXS GGUF (~49.5 GB)"
+          },
+          "recipe_ver": "2026-10-20",
+          "ver": "2026-10-20",
+          "reasoning_effort_supported": true,
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      }
+    },
+    {
       "id": "qwen38-flashnext-strata",
       "name": "Qwen3.8-Flash-Next IQ3_XXS",
       "arch": "180B MoE (37B active) \u00b7 2\u00d7 B70 expert parallel",
@@ -1393,11 +1478,24 @@
     {
       "id": "qwen38-flashnext-iq3s",
       "name": "Qwen3.8-Flash-Next IQ3_S",
-      "arch": "MoE · GSQ-RCO IQ3_S",
+      "arch": "MoE \u00b7 GSQ-RCO IQ3_S",
       "brand": "qwen",
       "blurb": "Higher-bit Flash-Next quant on two B70s. Uses a separate XeStrata pack and config; shares the lookup shard and MTP weights.",
-      "tags": [{"t": "IQ3_S", "c": "violet"}, {"t": "2× B70", "c": "green"}],
-      "chips": ["LLM", "IQ3_S", "~84 GB"],
+      "tags": [
+        {
+          "t": "IQ3_S",
+          "c": "violet"
+        },
+        {
+          "t": "2\u00d7 B70",
+          "c": "green"
+        }
+      ],
+      "chips": [
+        "LLM",
+        "IQ3_S",
+        "~84 GB"
+      ],
       "recommended_engine": "xestrata",
       "recipes": {
         "xestrata": {
@@ -1406,7 +1504,10 @@
           "ctx": 262144,
           "ctx_max": 350000,
           "ctx_note": "262K native default; 350K YaRN is experimental, quality beyond native context is not validated.",
-          "gpus": [0, 1],
+          "gpus": [
+            0,
+            1
+          ],
           "py_exe": "/data/sata1/engines/xestrata/.venv/bin/python",
           "server_script": "/data/sata1/engines/xestrata/serve/server.py",
           "config_file": "~/.config/xestrata/xestrata-iq3_s.json",
@@ -1415,11 +1516,19 @@
           "vision_exe": "/data/sata1/engines/xestrata/dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
           "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
           "reasoning_effort_supported": true,
-          "reasoning_effort_options": ["none", "low", "medium", "high", "xhigh"],
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
           "download": {
             "kind": "file",
             "name": "IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
-            "extra_files": ["IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"],
+            "extra_files": [
+              "IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+            ],
             "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
             "revision": "ed59f92082b1e93c0e96d60a8b11aab089b52f09",
             "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S",
