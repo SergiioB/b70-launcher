@@ -321,7 +321,7 @@ def gpu_clients():
         return CLIENT_CACHE["data"]
     code = r'''
 import glob,json,os,re
-desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-desktop-portal|gsd-|at-spi|dbus-daemon)",re.I)
+desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|t3code|wfica|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-desktop-portal|gsd-|at-spi|dbus-daemon)",re.I)
 procs=[];desktop_ids=set()
 for proc in glob.glob("/proc/[0-9]*"):
  try:
@@ -330,6 +330,12 @@ for proc in glob.glob("/proc/[0-9]*"):
   if exe.startswith("python") and not quiet:
    with open(proc+"/cmdline","rb") as stream: args=stream.read().split(b"\0")
    quiet=len(args)>1 and os.path.basename(args[1]) in (b"webwindow.py",b"appwindow.py")
+  if not quiet:
+   # Chromium/Electron helpers (any app name) hold a render node for the window, not a workload.
+   try:
+    with open(proc+"/cmdline","rb") as stream: args=stream.read().split(b"\0")
+    quiet=any(a in (b"--type=gpu-process",b"--type=renderer",b"--type=utility") for a in args)
+   except OSError: pass
   clients=set()
   for fd in glob.glob(proc+"/fd/*"):
    try:
