@@ -100,7 +100,15 @@ def build_exl3(b):
         "--set", "vllm.tool_call_parser=qwen3_coder"]
     tokens += [x for k, v in set_env.items() for x in ("--set", f"env.{k}={json.dumps(v)}")]
     tokens += recipe.get("fixed_flags", []) + b.extra
-    warns.append(f"EXL3 trellis + native MTP3 on the isolated dockerd; fp8 KV only; gmu {gmu}; "
+    if cfg.get("mtp") is False:
+        # The explicit off switch wins over both model config and extra flags.
+        tokens += ["--set", "vllm.speculative_config=null"]
+        warns.append("EXL3 speculative decoding disabled (--no-mtp). "
+                     "Quantization and other engine settings still affect the answer.")
+    else:
+        warns.append("EXL3 recipes include native MTP3, which can change the greedy answer. "
+                     "Use --no-mtp to disable speculative decoding.")
+    warns.append(f"EXL3 trellis on the isolated dockerd; fp8 KV only; gmu {gmu}; "
                  "first load ~5-8 min for kernel compile.")
     if recipe.get("gmu_safe"):
         if b.ctx > recipe.get("ctx_safe", 131072):
