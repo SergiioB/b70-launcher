@@ -1,13 +1,32 @@
 """EXL3 (exl3xpu, isolated dockerd) builder.
 
-Prefix caching stays ON here — the EXL3 route is verified multi-turn with the
-cache enabled (unlike the vLLM-XPU speculative stacks).
+Prefix caching follows the recipe unless `--cache off`; `--no-mtp` sends
+`vllm.speculative_config=null`.
 """
 import json
 from pathlib import Path
 
 from . import common
+from .. import catalog, downloads
 from ..paths import IS_WIN
+
+IMAGE_GIB = 32  # pinned exl3xpu images are ~32 GB unpacked
+
+
+def data_root_warnings(free_bytes=None):
+    """Warn before the ~32 GB image lands on a disk that cannot hold it.
+
+    The isolated dockerd keeps images under `<exl3_data_root>-docker`; the default
+    root is in the home directory, which is often on a small root disk.
+    """
+    root = str(Path(catalog.SETTINGS.get("exl3_data_root") or "~/.local/share/b70-exl3").expanduser())
+    target = root + "-docker"
+    free = downloads._fs_free(target) if free_bytes is None else free_bytes
+    if free is None or free >= (IMAGE_GIB + 8) * 1073741824:
+        return []
+    return [f"EXL3 image store {target} has {free / 1073741824:.1f} GiB free; the engine image needs "
+            f"about {IMAGE_GIB} GiB. Set exl3_data_root in settings to a folder on a larger disk "
+            f"before the first pull."]
 
 
 def build_exl3(b):
@@ -32,6 +51,8 @@ def build_exl3(b):
     if dsock and cfg.get("dry_run"):
         # previews never touch dockerd — bring-up is a launch-time step only
         warns.append("isolated exl3 dockerd auto-starts on launch (needs passwordless sudo)")
+    if dsock:
+        warns.extend(data_root_warnings())
     inner_port = int(recipe.get("inner_port", 8100))
     # Context profile dispatch:
     # Explicit user/operator override in cfg or recipe takes precedence and is NEVER silently increased.
