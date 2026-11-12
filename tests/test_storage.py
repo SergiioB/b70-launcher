@@ -4,6 +4,8 @@ No GPU, Docker or network: Docker calls are replaced with stubs, files live in
 the isolated temp HOME.
 """
 import os
+import shutil
+import threading
 import time
 import unittest
 import urllib.parse
@@ -221,6 +223,160 @@ class TestTrash(unittest.TestCase):
             out = storage.delete(["image:x"], mode="trash")
         self.assertEqual(out["results"][0]["method"], "docker")
         self.assertEqual(calls[0][-3:], ["image", "rm", "sha256:abc"])
+
+
+class TestDeleteJobs(unittest.TestCase):
+    """Background deletes: a slow rmtree must not hold the API thread."""
+
+    def setUp(self):
+        self.root = TMP / "st-jobs-root"
+        self.root.mkdir(exist_ok=True)
+        self.catalog = []
+        patches = [mock.patch.object(scan, "scan_roots", lambda: [self.root]),
+                   mock.patch.object(scan, "scan_blocking",
+                                     lambda: {"catalog": self.catalog, "state": "done", "ts": time.time()}),
+                   mock.patch.object(storage, "_image_items", lambda *a, **kw: ([], [])),
+                   mock.patch.object(scan, "start_scan_async", lambda *a, **kw: None)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        storage.invalidate()
+        self.addCleanup(storage.invalidate)
+        with storage._JOBS_LOCK:
+            storage.JOBS.clear()
+
+    def entry(self, path):
+        return {"kind": "vllm", "name": Path(path).name, "path": str(path), "size_mib": 1, "ctx": None}
+
+    def snap_item(self, path):
+        self.catalog = [self.entry(path)]
+        storage.invalidate()
+        snap = storage.snapshot(force=True)
+        return next(i for i in snap["items"] if i["path"] == str(path))
+
+    def wait_done(self, jid, timeout=10):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            job = storage.job_status(jid)
+            if job and job["state"] != "running":
+                return job
+            time.sleep(0.02)
+        self.fail("delete job did not finish in %.0fs" % timeout)
+
+    def test_job_deletes_and_reports_progress(self):
+        real_rmtree = shutil.rmtree
+        started = threading.Event()
+
+        def slow_rmtree(target, *a, **kw):
+            started.set()
+            time.sleep(0.15)
+            return real_rmtree(target, *a, **kw)
+
+        d = write_file(self.root / "big-model" / "w.bin")
+        item = self.snap_item(d.parent)
+        with mock.patch.object(storage.shutil, "rmtree", slow_rmtree):
+            job = storage.start_delete([item["id"]], mode="trash")
+            self.assertEqual(job["state"], "running")
+            started.wait(5)
+            # the API thread is free while the worker holds the rmtree
+            self.assertIsNotNone(storage.job_status(job["id"]))
+            done = self.wait_done(job["id"])
+        self.assertFalse(d.exists())
+        self.assertEqual(done["state"], "done")
+        self.assertEqual(done["done"], 1)
+        self.assertTrue(done["results"][0]["ok"])
+        self.assertEqual(done["results"][0]["method"], "trash")
+        self.assertEqual(done["freed_bytes"], item["size_bytes"])
+
+    def test_bad_ids_and_modes_are_refused_before_the_job_starts(self):
+        for ids in (None, [], "x", [1]):
+            with self.assertRaises(ValueError):
+                storage.start_delete(ids)
+        with self.assertRaises(ValueError):
+            storage.start_delete(["model:x"], mode="recycle")
+        self.assertEqual(storage.jobs_status(), [])
+
+    def test_refused_and_unknown_items_are_reported_not_raised(self):
+        forged = "model:" + "0" * 10
+        d = write_file(self.root / "locked" / "w.bin")
+        item = self.snap_item(d.parent)
+        locked = dict(item, deletable=False, why_kept="a running server is using it")
+        snap2 = {"items": [dict(locked)]}
+        with mock.patch.object(storage, "snapshot", return_value=snap2):
+            job = storage.start_delete([forged, item["id"]])
+            done = self.wait_done(job["id"])
+        self.assertEqual(done["state"], "done")
+        self.assertEqual([r["ok"] for r in done["results"]], [False, False])
+        self.assertIn("running server", done["results"][1]["error"])
+        self.assertTrue((self.root / "locked" / "w.bin").exists())
+
+    def test_finished_jobs_are_kept_and_listed_newest_first(self):
+        d = write_file(self.root / "j1" / "w.bin")
+        iid = self.snap_item(d.parent)["id"]
+        job = storage.start_delete([iid])
+        self.wait_done(job["id"])
+        jobs = storage.jobs_status()
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["id"], job["id"])
+        self.assertIn("started", jobs[0])
+
+
+class TestOpenFolder(unittest.TestCase):
+    """Open folder resolves ids only — never a raw path from the client."""
+
+    def setUp(self):
+        self.root = TMP / "st-open-root"
+        self.root.mkdir(exist_ok=True)
+        self.catalog = []
+        patches = [mock.patch.object(scan, "scan_roots", lambda: [self.root]),
+                   mock.patch.object(scan, "scan_blocking",
+                                     lambda: {"catalog": self.catalog, "state": "done", "ts": time.time()}),
+                   mock.patch.object(storage, "_image_items", lambda *a, **kw: ([], []))]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        storage.invalidate()
+        self.addCleanup(storage.invalidate)
+
+    def snap_item(self, path):
+        self.catalog = [{"kind": "vllm", "name": Path(path).name, "path": str(path),
+                         "size_mib": 1, "ctx": None}]
+        storage.invalidate()
+        snap = storage.snapshot(force=True)
+        return next(i for i in snap["items"] if i["path"] == str(path))
+
+    def test_unknown_and_image_ids_are_refused(self):
+        with mock.patch.object(storage, "snapshot",
+                               return_value={"items": [{"id": "image:x", "kind": "image", "name": "i", "path": "docker · abc"}]}):
+            out = storage.open_item_folder("image:x")
+        self.assertFalse(out["ok"])
+        self.assertIn("docker", out["error"])
+        out = storage.open_item_folder("model:nope")
+        self.assertFalse(out["ok"])
+
+    def test_opens_the_model_folder_not_a_client_path(self):
+        d = write_file(self.root / "openme" / "w.bin")
+        iid = self.snap_item(d.parent)["id"]
+        seen = []
+
+        def fake_open(folder):
+            seen.append(str(folder))
+            return True, None
+
+        with mock.patch.object(storage, "open_folder", fake_open):
+            out = storage.open_item_folder(iid)
+        self.assertTrue(out["ok"])
+        self.assertEqual(seen, [str(d.parent)])
+        self.assertEqual(out["path"], str(d.parent))
+
+    def test_headless_returns_copy_hint(self):
+        d = write_file(self.root / "headless" / "w.bin")
+        iid = self.snap_item(d.parent)["id"]
+        with mock.patch.object(storage, "open_folder", lambda f: (False, "no display — copy the path instead")):
+            out = storage.open_item_folder(iid)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["path"], str(d.parent))
+        self.assertIn("copy", out["error"])
 
 
 class TestPartials(unittest.TestCase):

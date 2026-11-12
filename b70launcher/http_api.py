@@ -194,6 +194,13 @@ def _harness(cfg):
         return {'error': str(exc), 'line': exc.line}, 400
 
 
+def _storage_delete(cfg):
+    """Sync by default (CLI); "async": true starts a background job the UI polls."""
+    if cfg.get('async') and not cfg.get('dry_run'):
+        return {'job': storage.start_delete(cfg.get('ids'), cfg.get('mode') or 'permanent')}
+    return storage.delete(cfg.get('ids'), bool(cfg.get('dry_run')), cfg.get('mode') or 'permanent')
+
+
 GET_ROUTES = {
     '/api/state': state_response,
     '/api/scan': scan_response,
@@ -203,6 +210,7 @@ GET_ROUTES = {
     '/api/metrics': telemetry.metrics_snapshot,
     '/api/usage': lambda: dict(telemetry.usage_summary(), **gateway.summary(), speed=requestlog.summary()),
     '/api/storage': storage.snapshot,
+    '/api/storage/jobs': lambda: {'jobs': storage.jobs_status()},
 }
 POST_ROUTES = {
     '/api/build': _preview,
@@ -214,8 +222,8 @@ POST_ROUTES = {
     '/api/test_prompt': runtime.test_prompt,
     '/api/harness': _harness,
     '/api/storage/refresh': lambda cfg: storage.snapshot(force=True),
-    '/api/storage/delete': lambda cfg: storage.delete(cfg.get('ids'), bool(cfg.get('dry_run')),
-                                                       cfg.get('mode') or 'permanent'),
+    '/api/storage/delete': _storage_delete,
+    '/api/storage/open': lambda cfg: storage.open_item_folder(cfg.get('id', '')),
     '/api/recipes/update': lambda cfg: catalog.apply_recipe_update(cfg.get('model_id'), cfg.get('engine')),
     '/api/settings': _settings,
     '/api/update/install': selfupdate.start_install,

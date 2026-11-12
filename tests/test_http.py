@@ -405,6 +405,41 @@ class TestServer(unittest.TestCase):
 
     # ---- shutdown (alphabetically last) ---------------------------------
 
+    def test_storage_async_delete_and_jobs(self):
+        """Long deletes run in a worker: the POST returns at once and the
+        client polls /api/storage/jobs; "open folder" resolves ids only."""
+        code, body = self.get("/api/storage")
+        self.assertEqual(code, 200)
+        for key in ("items", "volumes", "daemons", "summary"):
+            self.assertIn(key, body)
+        code, out = self.post("/api/storage/delete",
+                              {"ids": ["model:" + "0" * 10], "async": True, "mode": "trash"})
+        self.assertEqual(code, 200)
+        jid = out["job"]["id"]
+        self.assertEqual(out["job"]["state"], "running")
+        self.assertEqual(out["job"]["mode"], "trash")
+        deadline = time.time() + 10
+        job = None
+        while time.time() < deadline:
+            code, jobs = self.get("/api/storage/jobs")
+            self.assertEqual(code, 200)
+            job = next(j for j in jobs["jobs"] if j["id"] == jid)
+            if job["state"] != "running":
+                break
+            time.sleep(0.05)
+        self.assertEqual(job["state"], "done")
+        self.assertFalse(job["results"][0]["ok"])
+        self.assertIn("not found", job["results"][0]["error"])
+        # dry runs stay synchronous, and a bad mode is a 400
+        code, out = self.post("/api/storage/delete", {"ids": ["model:" + "0" * 10], "dry_run": True})
+        self.assertEqual(code, 200)
+        self.assertTrue(out["dry_run"])
+        code, out = self.post("/api/storage/delete", {"ids": ["model:x"], "async": True, "mode": "shred"})
+        self.assertEqual(code, 400)
+        code, out = self.post("/api/storage/open", {"id": "model:nope"})
+        self.assertEqual(code, 200)
+        self.assertFalse(out["ok"])
+
     def test_zz_shutdown(self):
         res = subprocess.run(
             [sys.executable, str(ROOT / "launcher.py"), "--stop", "--port", str(self.port)],
