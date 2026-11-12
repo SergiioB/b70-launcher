@@ -1,5 +1,10 @@
 {
   "catalog_ver": "2026-10-19",
+  "first_run": {
+    "model": "qwen38-27b",
+    "engine": "exl3",
+    "source": "cookbook data/first-run.v1.json (reviewed 2026-11-10)"
+  },
   "engines": [
     {
       "id": "openvino",
@@ -50,7 +55,6 @@
       "name": "Qwen3.6-35B-A3B",
       "arch": "MoE 35B / 3B active",
       "blurb": "Intel's documented B70 agentic path. Reasoning + tool parsers on.",
-      "badge": "BEST DEFAULT",
       "tags": [
         {
           "t": "Top smart",
@@ -490,6 +494,7 @@
         "~16 GB"
       ],
       "recommended_engine": "exl3",
+      "badge": "FIRST RUN · EXL3",
       "recommendation": "Dense 27B model for balanced performance. EXL3 4bpw is the primary route \u2014 full 262K context on a single card."
     },
     {

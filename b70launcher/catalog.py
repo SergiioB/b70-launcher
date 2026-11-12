@@ -13,7 +13,7 @@ from . import paths
 from .locks import LOCK
 
 UPDATE_URL = None  # set by load(); env override honored there
-UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/match", "notes": []}
+UPDATE_INFO = {"checked": False, "has_update": False, "latest_version": "", "message": "", "download_url": "https://xecores.com/start#install-launcher", "notes": []}
 # Remote recipe catalog state: filled by the same background check as
 # UPDATE_INFO. entries maps "<model_id>:<engine>" -> {"ver", "note", "recommended"}.
 RECIPE_REMOTE = {"checked": False, "catalog_ver": "", "recipes_url": "", "entries": {}}
@@ -385,7 +385,7 @@ def check_for_updates():
                     "has_update": True,
                     "latest_version": latest,
                     "message": data.get("message", f"B70 Launcher v{latest} is available."),
-                    "download_url": data.get("download_url", "https://xecores.com/match"),
+                    "download_url": data.get("download_url", "https://xecores.com/start#install-launcher"),
                     "notes": _update_notes(data.get("notes")),
                 }
             else:

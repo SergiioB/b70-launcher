@@ -21,13 +21,14 @@ import time
 
 from . import paths
 from .locks import LOCK, USAGE_LOCK
-from . import runtime
+from . import requestlog, runtime
 
 CLIENTS = ("pi", "omp", "droid", "codex", "deepseek", "other")
 NATIVE_RESPONSES = {"vllm", "llamacpp", "exl3"}
 MAX_BODY = 32 << 20
 USAGE_FILE = paths.DATA / "client-usage.json"
 _DIRTY = {"pending": False}
+_CURRENT = threading.local()   # the span of the request this thread is serving
 _EMPTY = {"requests": 0, "tokens_in": 0, "tokens_out": 0, "errors": 0, "last_used": ""}
 
 
@@ -69,6 +70,10 @@ def _bump(bucket, tin, tout, ok, now):
 def record(client, entry, tin, tout, ok):
     """One finished request: update the live entry and the persisted totals."""
     tin, tout = max(int(tin or 0), 0), max(int(tout or 0), 0)
+    span = getattr(_CURRENT, "span", None)
+    _CURRENT.span = None
+    if span is not None:
+        requestlog.append(span.finish(client, tin, tout, ok))
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     model = entry.get("served_name") or entry.get("model_name") or entry.get("model_id") or "unknown"
     with LOCK:
@@ -154,6 +159,7 @@ def handle(handler, method):
         req = json.loads(body) if body else {}
     except ValueError:
         req = None
+    _CURRENT.span = requestlog.Span(entry) if method == "POST" else None
     if method == "POST" and rest == "/v1/responses" and isinstance(req, dict):
         if entry.get("engine") in NATIVE_RESPONSES:
             return _responses_native(handler, client, entry, req)
@@ -203,8 +209,22 @@ def _passthrough(handler, entry, method, path, body):
         conn.close()
 
 
+def _is_token(chunk):
+    """True for an SSE event that carries generated text or a tool call."""
+    if str(chunk.get("type", "")).endswith(".delta"):          # /v1/responses events
+        return bool(chunk.get("delta"))
+    for choice in chunk.get("choices") or []:
+        delta = choice.get("delta") or {}
+        if delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning") \
+                or delta.get("tool_calls") or choice.get("text"):
+            return True
+    return False
+
+
 def _sse_lines(resp):
-    """Yield (raw_line_bytes, parsed_json_or_None) for an upstream SSE body."""
+    """Yield (raw_line_bytes, parsed_json_or_None) for an upstream SSE body.
+    The first event with generated text marks the request's time to first token."""
+    span = getattr(_CURRENT, "span", None)
     while True:
         line = resp.readline()
         if not line:
@@ -218,6 +238,8 @@ def _sse_lines(resp):
                     parsed = json.loads(payload)
                 except ValueError:
                     parsed = None
+                if span is not None and span.first is None and isinstance(parsed, dict) and _is_token(parsed):
+                    span.mark_first()
         yield line, parsed
 
 

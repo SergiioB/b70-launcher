@@ -147,7 +147,7 @@ def build(out_dir: Path) -> tuple:
     version_doc = {
         "version": VERSION,
         "name": "B70 Launcher",
-        "download_url": "https://xecores.com/match",
+        "download_url": "https://xecores.com/start#install-launcher",
         "tarball_url": f"https://xecores.com/downloads/{NAME}.tar.gz",
         "sha256": digest,
         "recipes_manifest_url": "https://xecores.com/downloads/recipes-manifest.json",

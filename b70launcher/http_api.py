@@ -10,7 +10,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from . import builders, catalog, downloads, gateway, hardware, harness, paths, runtime, scan, selfupdate, telemetry
+from . import builders, catalog, downloads, gateway, hardware, harness, paths, requestlog, runtime, scan, selfupdate, storage, telemetry
 from .locks import LOCK
 
 API_TOKEN = ''
@@ -189,7 +189,8 @@ GET_ROUTES = {
     '/api/servers': lambda: {'running': runtime.servers_snapshot(), 'scan': {'state': scan.SCAN.get('state'), 'ts': scan.SCAN.get('ts')}},
     '/api/downloads': downloads.snapshot,
     '/api/metrics': telemetry.metrics_snapshot,
-    '/api/usage': lambda: dict(telemetry.usage_summary(), **gateway.summary()),
+    '/api/usage': lambda: dict(telemetry.usage_summary(), **gateway.summary(), speed=requestlog.summary()),
+    '/api/storage': storage.snapshot,
 }
 POST_ROUTES = {
     '/api/build': _preview,
@@ -200,6 +201,8 @@ POST_ROUTES = {
     '/api/stop': lambda cfg: {'ok': runtime.stop_server(cfg.get('id', ''))},
     '/api/test_prompt': runtime.test_prompt,
     '/api/harness': _harness,
+    '/api/storage/refresh': lambda cfg: storage.snapshot(force=True),
+    '/api/storage/delete': lambda cfg: storage.delete(cfg.get('ids'), bool(cfg.get('dry_run'))),
     '/api/recipes/update': lambda cfg: catalog.apply_recipe_update(cfg.get('model_id'), cfg.get('engine')),
     '/api/settings': _settings,
     '/api/update/install': selfupdate.start_install,
