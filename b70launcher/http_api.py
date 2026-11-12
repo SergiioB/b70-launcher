@@ -201,6 +201,13 @@ def _storage_delete(cfg):
     return storage.delete(cfg.get('ids'), bool(cfg.get('dry_run')), cfg.get('mode') or 'permanent')
 
 
+def _open_state_folder():
+    """Open the launcher state folder (settings-override.json lives there).
+    No client input: the path is fixed."""
+    opened, error = storage.open_folder(paths.DATA)
+    return {'ok': opened, 'path': str(paths.DATA), 'opened': opened, 'error': error}
+
+
 GET_ROUTES = {
     '/api/state': state_response,
     '/api/scan': scan_response,
@@ -224,6 +231,7 @@ POST_ROUTES = {
     '/api/storage/refresh': lambda cfg: storage.snapshot(force=True),
     '/api/storage/delete': _storage_delete,
     '/api/storage/open': lambda cfg: storage.open_item_folder(cfg.get('id', '')),
+    '/api/settings/open': lambda cfg: _open_state_folder(),
     '/api/recipes/update': lambda cfg: catalog.apply_recipe_update(cfg.get('model_id'), cfg.get('engine')),
     '/api/settings': _settings,
     '/api/update/install': selfupdate.start_install,
