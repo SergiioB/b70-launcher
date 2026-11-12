@@ -531,9 +531,11 @@ def _vram_mm(pci):
 
 
 def _act_freq(pci):
+    """Actual GT clock in MHz. 0 means idle (RC6); only fall back to cur_freq, the clock the
+    driver *requested* and which sits at the maximum on an idle card, when act_freq is absent."""
     for rel in ("tile0/gt0/freq0/act_freq", "tile0/gt0/freq0/cur_freq"):
         v = _read_int(Path(f"/sys/bus/pci/devices/{pci}/{rel}"))
-        if v:
+        if v is not None:
             return v
     return None
 
@@ -582,7 +584,7 @@ def power_probe():
                 "vram_total_gb": total_gb,
                 "vram_used_gb": used_gb,
             }
-            if freq and maxfreq:
+            if freq is not None and maxfreq:
                 entry["util_pct"] = max(0, min(100, round(freq / maxfreq * 100)))
             prev = POWER_PREV.get(pci)
             if energy is not None and prev and now > prev[0] and energy >= prev[1]:
