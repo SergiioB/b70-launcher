@@ -1955,6 +1955,24 @@ def _bar(used, total, width=24):
     return "█" * n + "░" * (width - n)
 
 
+def _storage_rows(doc, sort="size", query=""):
+    """Filterable, sortable storage rows for the table."""
+    items = [i for i in doc.get("items", [])
+             if i["kind"] != "image" or i.get("managed")]
+    q = (query or "").lower()
+    if q:
+        items = [i for i in items if q in i["name"].lower() or q in i.get("path", "").lower()
+                 or any(q in f"{u.get('model_id')}:{u.get('engine')}".lower() for u in i.get("used_by", []))]
+    keys = {
+        "name": lambda i: (i["name"].lower(), -i["size_bytes"]),
+        "last": lambda i: (i.get("last_launched") or "", -i["size_bytes"]),
+        "kind": lambda i: (i["kind"], -i["size_bytes"]),
+        "size": lambda i: (-i["size_bytes"], i["name"].lower()),
+    }.get(sort, lambda i: (-i["size_bytes"], i["name"].lower()))
+    items.sort(key=keys)
+    return items
+
+
 def cmd_storage(g, a):
     """Disk use by models, partial downloads and engine images; `rm` removes items."""
     c = daemon_client(g)
@@ -1962,23 +1980,29 @@ def cmd_storage(g, a):
     if g.json:
         jprint(doc)
         return 0
+    width = term_width()
+    barw = 24 if width is None else max(6, min(24, width - 68))
     print(bold("  storage"))
     for v in doc.get("volumes", []):
         pct = 100 * v["used_bytes"] / v["total_bytes"] if v["total_bytes"] else 0
         warn = red if pct >= 95 else yellow if pct >= 85 else green
-        print(f"  {v['mount']:<14} {warn(_bar(v['used_bytes'], v['total_bytes']))} {pct:3.0f}%   "
-              f"{_gib(v['free_bytes'])} free of {_gib(v['total_bytes'])}   "
-              f"{dim('launcher: ' + _gib(v['managed_bytes']))}")
+        mount = v['mount']
+        if width is not None:
+            mount = mount[:max(6, min(14, width // 8))]
+        line = (f"  {mount:<14} {warn(_bar(v['used_bytes'], v['total_bytes'], barw))} {pct:3.0f}%   "
+                f"{_gib(v['free_bytes'])} free of {_gib(v['total_bytes'])}")
+        if width is None or len(_strip(line)) + 30 <= width:
+            line += f"   {dim('launcher: ' + _gib(v['managed_bytes']))}"
+        print(line)
     kinds = {"models": "model", "images": "image", "partials": "partial"}
     want = kinds.get(getattr(a, "kind", None) or "")
+    query = getattr(a, "query", None) or ""
     rows = []
-    for it in doc.get("items", []):
+    for it in _storage_rows(doc, getattr(a, "sort", "size") or "size", query):
         if want and it["kind"] != want:
             continue
-        if it["kind"] == "image" and not it.get("managed") and not want:
-            continue    # other Docker images are not ours; `--kind images` lists the managed ones only
         if it["kind"] == "image" and not it.get("managed"):
-            continue
+            continue    # other Docker images are not ours; `--kind images` lists the managed ones only
         use = ", ".join(sorted({f"{u['model_id']}:{u['engine']}" for u in it.get("used_by", [])})) or "-"
         mark = green("●") if it["in_use"] else (yellow("↻") if it.get("suggested") else " ")
         rows.append([it["id"], mark, it["kind"], _gib(it["size_bytes"]), it["name"][:46], use[:34]])
@@ -1986,7 +2010,8 @@ def cmd_storage(g, a):
     if not rows:
         print(f"  {dim('nothing to show')}")
     else:
-        print(table(rows, ["ID", "", "KIND", "SIZE", "NAME", "USED BY"], ["<", "<", "<", ">", "<", "<"]))
+        print(table(rows, ["ID", "", "KIND", "SIZE", "NAME", "USED BY"], ["<", "<", "<", ">", "<", "<"],
+                    drop=(5, 4)))
     s = doc.get("summary", {})
     print(f"\n  {dim('●  in use   ↻ suggested')}   models {_gib(s.get('models_bytes'))} · "
           f"images {_gib(s.get('images_bytes'))} · partials {_gib(s.get('partial_bytes'))}")
@@ -2024,26 +2049,36 @@ def cmd_storage_rm(g, a):
             uniq.append(i)
     if not uniq:
         raise CliError("nothing selected — pass an id/name or --suggested")
+    mode = a.mode or "trash"      # --trash/--permanent; default: trash (models), like the UI
+    models = [i for i in uniq if i["kind"] != "image"]
+    trashable = [i for i in models if i.get("trash_ok")]
     total = sum(i["size_bytes"] for i in uniq)
     for i in uniq:
         why = "" if i["deletable"] else f"  {red('refused: ' + (i.get('why_kept') or 'not deletable'))}"
-        print(f"  {i['kind']:<8} {_gib(i['size_bytes']):>10}  {i['name']}{why}")
+        note = ""
+        if mode == "trash" and i["kind"] != "image" and not i.get("trash_ok") and i["deletable"]:
+            note = f"  {yellow('no trash on this disk — permanent')}"
+        print(f"  {i['kind']:<8} {_gib(i['size_bytes']):>10}  {i['name']}{why}{note}")
     print(f"  {bold('total')} {_gib(total)}")
     if a.dry_run:
-        r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq], "dry_run": True}, timeout=120)
+        r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq], "dry_run": True, "mode": mode}, timeout=120)
         print(f"  {dim('dry run: nothing was deleted')}  would free {_gib(r.get('freed_bytes'))}")
         return 0
+    ask = (f"move {len(trashable)} to trash and delete the rest permanently? [y/N]"
+           if mode == "trash" and models else "delete these permanently? [y/N]")
     if not a.yes:
         if not sys.stdin.isatty():
             raise CliError("refusing to delete without a terminal; pass -y")
-        if input("  delete these permanently? [y/N] ").strip().lower() not in ("y", "yes"):
+        if input("  " + ask + " ").strip().lower() not in ("y", "yes"):
             print("  cancelled")
             return 1
-    r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq]}, timeout=900)
+    r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq], "mode": mode}, timeout=900)
     bad = 0
     for row in r.get("results", []):
+        method = {"trash": " → trash", "permanent": " (permanent)"}.get(row.get("method"), "")
+        note = f"  {yellow(row['note'])}" if row.get("note") else ""
         if row.get("ok"):
-            print(f"  {OK} {row['name']}  {_gib(row['size_bytes'])}")
+            print(f"  {OK} {row['name']}  {_gib(row['size_bytes'])}{method}{note}")
         else:
             bad += 1
             print(f"  {ERR} {row.get('name', row['id'])}: {row.get('error')}")
@@ -2206,7 +2241,7 @@ _b70() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     cmds="serve down list ls recipes show launch stop status ps monitor logs test \
-download open ui env agent usage tokens doctor scan version recipes-update completion help"
+download open ui env agent usage tokens storage disk rm storage-rm doctor scan version recipes-update completion help"
     case "$prev" in
         b70) COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ) ;;
         launch|show|download)
@@ -2220,7 +2255,11 @@ download open ui env agent usage tokens doctor scan version recipes-update compl
             rids=$(b70 status --json 2>/dev/null | python3 -c \
                 'import json,sys; print(" ".join(e["id"] for e in json.load(sys.stdin)["running"]))' 2>/dev/null)
             COMPREPLY=( $(compgen -W "$rids ui" -- "$cur") ) ;;
-        -e|--engine) COMPREPLY=( $(compgen -W "openvino vllm llamacpp exl3 strata" -- "$cur") ) ;;
+        storage|disk) COMPREPLY=( $(compgen -W "--kind models images partials --sort size name last kind --json" -- "$cur") ) ;;
+        rm|storage-rm) COMPREPLY=( $(compgen -W "--suggested --dry-run --trash --permanent -y --json" -- "$cur") ) ;;
+        --kind) COMPREPLY=( $(compgen -W "models images partials" -- "$cur") ) ;;
+        --sort) COMPREPLY=( $(compgen -W "size name last kind" -- "$cur") ) ;;
+        -e|--engine) COMPREPLY=( $(compgen -W "openvino vllm llamacpp exl3 strata xestrata" -- "$cur") ) ;;
         --kv) COMPREPLY=( $(compgen -W "q8_0 q5_0/q4_1 q8_0/q4_1 f16 fp8 int8" -- "$cur") ) ;;
         --prefill) COMPREPLY=( $(compgen -W "int8 fp16" -- "$cur") ) ;;
         --cache) COMPREPLY=( $(compgen -W "on off" -- "$cur") ) ;;
@@ -2419,14 +2458,22 @@ def build_parser():
 
     s = add("storage", aliases=["disk"], help="what models, partial downloads and engine images use on disk")
     s.add_argument("--kind", choices=["models", "images", "partials"], help="show one kind only")
+    s.add_argument("--sort", choices=["size", "name", "last", "kind"], default="size",
+                   help="row order (default: size)")
+    s.add_argument("query", nargs="?", help="only items whose name, path or model matches")
     s.set_defaults(fn=cmd_storage)
 
     s = add("rm", aliases=["storage-rm"], help="delete models, partial downloads or engine images (see: b70 storage)")
     s.add_argument("items", nargs="*", help="item id or name from `b70 storage`")
     s.add_argument("--suggested", action="store_true", help="also delete everything marked suggested")
     s.add_argument("--dry-run", action="store_true", help="list what would be deleted and the space freed")
+    mode = s.add_mutually_exclusive_group()
+    mode.add_argument("--trash", dest="mode", action="store_const", const="trash",
+                      help="move models to the desktop trash (default; same-disk only)")
+    mode.add_argument("--permanent", dest="mode", action="store_const", const="permanent",
+                      help="delete from disk without using the trash")
     s.add_argument("-y", "--yes", action="store_true", help="do not ask")
-    s.set_defaults(fn=cmd_storage_rm)
+    s.set_defaults(fn=cmd_storage_rm, mode=None)
 
     s = add("doctor", help="preflight: GPUs, blockers, scan roots")
     s.set_defaults(fn=cmd_doctor)

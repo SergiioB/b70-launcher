@@ -481,6 +481,47 @@ class TestCliE2E(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("_b70", out)
 
+    def test_completion_covers_the_new_commands_and_flags(self):
+        rc, out, _ = self.b70("completion", "bash")
+        self.assertEqual(rc, 0)
+        for word in ("storage", "disk", "rm", "storage-rm"):
+            self.assertIn(word, out, word)
+        for flag in ("--trash", "--permanent", "--suggested", "--sort"):
+            self.assertIn(flag, out, flag)
+        self.assertIn("xestrata", out)  # engine list kept current
+
+    def test_storage_json_shape_is_stable(self):
+        rc, out, _ = self.b70("--json", "storage")
+        self.assertEqual(rc, 0)
+        doc = json.loads(out)
+        for key in ("volumes", "items", "daemons", "summary", "roots", "scan_state", "ts"):
+            self.assertIn(key, doc, key)
+        for key in ("models_bytes", "images_bytes", "partial_bytes",
+                    "suggested_bytes", "suggested_count"):
+            self.assertIn(key, doc["summary"], key)
+        self.assertTrue(all("trash_ok" in i for i in doc["items"]))
+
+    def test_rm_dry_run_reports_and_deletes_nothing(self):
+        rc, out, err = self.b70("rm", "--dry-run", "-y", "definitely-not-an-item")
+        self.assertEqual(rc, 1)
+        self.assertIn("no storage item matches", err)
+
+    def test_storage_rows_sort_and_query(self):
+        doc = {"items": [
+            {"id": "model:a", "kind": "model", "name": "zeta", "path": "/x/zeta", "size_bytes": 10,
+             "used_by": [{"model_id": "m1", "engine": "exl3"}]},
+            {"id": "model:b", "kind": "model", "name": "alpha", "path": "/x/alpha", "size_bytes": 30,
+             "used_by": []},
+            {"id": "partial:c", "kind": "partial", "name": "mid.part", "path": "/x/mid.part", "size_bytes": 5,
+             "used_by": []},
+        ]}
+        names = lambda rows: [r["name"] for r in rows]
+        self.assertEqual(names(cli._storage_rows(doc, "size")), ["alpha", "zeta", "mid.part"])
+        self.assertEqual(names(cli._storage_rows(doc, "name")), ["alpha", "mid.part", "zeta"])
+        self.assertEqual(names(cli._storage_rows(doc, "kind"))[0], "alpha")  # model before partial
+        self.assertEqual(names(cli._storage_rows(doc, "size", "zeta")), ["zeta"])
+        self.assertEqual(names(cli._storage_rows(doc, "size", "m1")), ["zeta"])  # used_by match
+
     def test_list_marks_setup_needed(self):
         rc, out, _ = self.b70("list", "-e", "xestrata")
         self.assertEqual(rc, 0)

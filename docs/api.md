@@ -134,7 +134,7 @@ scan).
   "roots": ["/home/user/models"],
   "catalog": [{"kind": "gguf|openvino|vllm|exl3", "name", "path", "size_mib", "ctx"}],
   "free_gb": 111.0,
-  "matches": {"<model_id>": {"<engine>": {"detected": true, "path": "...", "size_mib": 21504.0, "ctx_native": 131072, "reason": ""}}}
+  "matches": {"<model_id>": {"<engine>": {"detected": true, "path": "...", "size_mib": 21504.0, "ctx_native": 131072, "reason": "", "needs": []}}}
 }
 ```
 
@@ -144,7 +144,11 @@ filesystem. `error` carries partial-scan notes. Each match's `reason` is `""`
 when `detected` is true, `"incompatible: …"` when a same-family artifact exists
 on disk but no variant satisfies the recipe (wrong format, quantization pin,
 sidecar, or a sibling another recipe owns), and `"not downloaded"` when nothing
-matching is on disk.
+matching is on disk. `needs` lists settings the recipe needs that this machine
+has not provided — `[{"setting": "xestrata_root", "hint": "…"}]` for a native
+engine checkout (`xestrata_root`, `strata_root`) or `model_path` when a
+recipe cannot be downloaded and its artifact is not on disk. Empty when the
+recipe is ready; the UI shows it as "Setup needed".
 
 ### `GET /api/power`
 
@@ -237,23 +241,52 @@ used_bytes, free_bytes, managed_bytes, paths}], "items": [...], "daemons":
 partial_bytes, suggested_bytes, suggested_count}, "roots", "scan_state"}`. Each
 item is `{id, kind: model|partial|image, name, path, size_bytes, used_by:
 [{model_id, name, engine, role?}], last_launched, in_use, deletable, why_kept,
-suggested, hint}`; images add `daemon, socket, image_id, managed, created`.
-Model sizes are a recursive byte count. Image sizes are what `docker image ls`
-prints (disk use); layers shared with another image free less. Images that no
-recipe pins (your own containers) are listed with `managed: false` and are never
-deletable here. `suggested` marks old `.part` files (untouched for 15 minutes or
-more) and pinned images no downloaded model uses. The snapshot is cached for 30 s;
-`POST /api/storage/refresh` rebuilds it.
+suggested, hint, trash_ok}`; images add `daemon, socket, image_id, managed,
+created` and carry `trash_ok: null`. Model sizes are a recursive byte count.
+Image sizes are what `docker image ls` prints (disk use); layers shared with
+another image free less. Images that no recipe pins (your own containers) are
+listed with `managed: false` and are never deletable here. `suggested` marks
+old `.part` files (untouched for 15 minutes or more) and pinned images no
+downloaded model uses. `trash_ok` is true for a model/partial whose
+filesystem is the one the freedesktop home trash lives on — those can be
+trashed instead of deleted. Each item's `mount` names the filesystem it sits
+on. The snapshot is cached for 30 s; `POST /api/storage/refresh` rebuilds it.
+
+### `GET /api/storage/jobs`
+
+`{"jobs": [{id, state: running|done|error, mode, ids, total, done, current,
+results, freed_bytes, error, started, finished}]}` — live and recent
+background deletes, newest first (10 finished jobs kept 15 minutes). One job
+per delete request; ids are resolved once against the snapshot the job
+started from, `current` names the item being removed, `results` grows per
+item (`{id, name, kind, size_bytes, ok, method?, note?, error?}`).
 
 ### `POST /api/storage/delete`
 
-`{"ids": ["model:ab12…", …], "dry_run": false}`. Ids come from the latest
-snapshot; the API never takes a path. Refused per item: a running server uses it,
-a container uses the image, the image is not a pinned launcher image, the path is
-outside every scan root, is a scan root, or is a link. Models are deleted from
-disk (not moved to a trash); images go through `docker image rm` without
-`--force`. Returns `{"results": [{id, name, ok, size_bytes, error?}],
-"freed_bytes", "dry_run", "snapshot"}`.
+`{"ids": ["model:ab12…", …], "dry_run": false, "mode": "trash|permanent",
+"async": false}`. Ids come from the latest snapshot; the API never takes a
+path. Refused per item: a running server uses it, a container uses the image,
+the image is not a pinned launcher image, the path is outside every scan
+root, is a scan root, or is a link. `mode` applies to models and partials:
+`trash` moves them into the freedesktop home trash (`~/.local/share/Trash`+
+`$XDG_DATA_HOME/Trash`, `.trashinfo` written first, `.2`/`.3` name suffixes
+on collision) when that is on the same filesystem — a cross-disk item is
+deleted permanently instead and its result row carries
+`note: "this disk has no trash…"`. Images always go through `docker image
+rm` without `--force` (`method: "docker"`). With `"async": true` the call
+starts a background job (see `GET /api/storage/jobs`) and returns at once
+with `{"job": {…}}`; without it the call is synchronous and returns
+`{"results": [{id, name, ok, size_bytes, method?, note?, error?}],
+"freed_bytes", "dry_run", "mode", "snapshot"}` (snapshot only for a real
+delete).
+
+### `POST /api/storage/open`
+
+`{"id": "model:ab12…"}` → `{ok, path, opened, error?}` — opens the item's
+folder in the desktop file manager. Models and partials only (an image is
+refused with `ok: false`); the id is resolved against the current snapshot,
+never a client path. On a headless session `opened` is false and `path` names
+the folder so the UI can copy it.
 
 ## Client gateway `/gw/<client>/<engine_port>/v1/...`
 
@@ -511,6 +544,13 @@ does not rescan unless other keys are posted with it. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
 `exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`, `agent_dir`, and
 `recipe_overrides`.
+
+### `POST /api/settings/open`
+
+`{}` → `{ok, path, opened, error?}` — opens the launcher state directory
+(the folder `settings-override.json` lives in) in the desktop file manager.
+No client input; the path is fixed. `opened` is false on a headless session
+(`path` still names the folder).
 
 ### `POST /api/shutdown`
 
