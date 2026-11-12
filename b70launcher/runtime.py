@@ -73,6 +73,14 @@ def expected_load_s(entry):
     return round(statistics.median(rows), 1) if rows else None
 
 
+def last_load_s(entry):
+    """The most recent successful load time of this recipe, or None.
+    The median (expected_load_s) is the usual-case estimate; this is the
+    freshest measurement, shown alongside it."""
+    rows = _load_history().get(_recipe_key(entry) or "")
+    return round(rows[-1], 1) if rows else None
+
+
 def docker_cmd(sock=""):
     return ["docker"] + (["-H", f"unix://{sock}"] if sock else [])
 
@@ -246,6 +254,7 @@ def _public(entry):
     # App-open success is tracked separately (client_open), never by "ready".
     out["ready"] = out.get("status") == "running"
     out["load_expected_s"] = expected_load_s(entry)
+    out["load_last_s"] = last_load_s(entry)
     return out
 
 

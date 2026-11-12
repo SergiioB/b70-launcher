@@ -615,11 +615,16 @@ const liveEngine=m=>S.servers.find(e=>e.model_id===m.id&&live(e)&&m.recipes[e.en
 function pickEngine(m){const engs=Object.keys(m.recipes);const rec=m.recipes[m.recommended_engine]?m.recommended_engine:null;
   const last=S.lastEngine[m.id];if(last&&m.recipes[last])return last;
   return liveEngine(m)||(rec&&detected(m,rec)?rec:null)||engs.find(e=>detected(m,e))||rec||engs[0];}
+/* The context field follows a running session of this recipe (the session
+   was started with that override) until the user edits the field by hand. */
+function liveSessionCtx(port){const e=sessionFor(S.model,S.engine,port!=null?port:Number($('port').value));
+  return e&&live(e)&&e.ctx?e.ctx:null;}
 function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
   S.engine=engine&&m.recipes[engine]?engine:pickEngine(m);S.lastEngine[id]=S.engine;
   S.selection++;S.plan=null;S.downloadPlan=null;$('download-confirm').hidden=true;error('action-error','');
   const r=recipe();
-  $('context').value=validatedCtx(r)||r.ctx||32768;
+  S.ctxDirty=false;
+  $('context').value=liveSessionCtx(port)||(validatedCtx(r)||r.ctx||32768);
   $('context').max=r.ctx_max||262144;
   renderSelection();refreshPlan();
   if(port){$('port').value=port;}
@@ -904,6 +909,19 @@ function sessionStatus(e){if(e.status==='running')return['running','Ready','Serv
   if(e.status==='starting')return['starting',e.phase||'Starting','Loading; the endpoint is not accepting requests yet'];
   if(e.status==='exited')return['exited',`Exited${e.exitcode==null?'':' ('+e.exitcode+')'}`,'The engine process ended'];
   return['',e.status||'',''];}
+/* Honest first-load note per engine kind, shown until this machine has a
+   measured load of the recipe. Derived from what the engine does before its
+   first answer, not from a fabricated time. */
+const FIRST_LOAD_NOTES={
+  exl3:'First load compiles kernels: usually several minutes; later loads are faster.',
+  strata:'First load builds engine caches: usually several minutes; later loads are faster.',
+  xestrata:'First load builds engine caches: usually several minutes; later loads are faster.',
+  gguf:'First load compiles SYCL kernels: usually one to three minutes; later loads are faster.',
+  ovms:'First load builds the model cache: usually a few minutes; later loads are faster.'};
+function firstLoadNote(e){const k=String(e.kind||'');
+  if(k.startsWith('vllm'))return FIRST_LOAD_NOTES.exl3;
+  if(k.startsWith('gguf'))return FIRST_LOAD_NOTES.gguf;
+  return FIRST_LOAD_NOTES[k]||'First load of this engine: usually several minutes; later loads are faster.';}
 const nowS=()=>Date.now()/1000;
 const failedStart=e=>e.status==='exited'&&!e.ready_at;
 /* VRAM and watts for the session's cards: /api/power matched to preflight devices by PCI address. */
@@ -922,9 +940,10 @@ function agentRows(e){return Object.entries(e.clients||{}).filter(([,c])=>c&&typ
   .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));}
 /* The live block changes every poll; it is rebuilt only when its shape changes so focus and animation survive. */
 function renderSessionLive(e){const box=$('session-live');if(!box)return;
-  const exp=e.load_expected_s||null;const gpus=gpuStats(e).map(([k,v])=>[k,esc(v)]);const agents=agentRows(e);
+  const exp=e.load_expected_s!=null?e.load_expected_s:null;const last=e.load_last_s!=null?e.load_last_s:null;
+  const gpus=gpuStats(e).map(([k,v])=>[k,esc(v)]);const agents=agentRows(e);
   const tail=S.tails[e.id]?.lines||[];
-  const sig=JSON.stringify([e.id,e.status,failedStart(e),exp,gpus,e.tok_s,e.requests,e.tokens_in,e.tokens_out,agents,tail,e.error,e.exitcode]);
+  const sig=JSON.stringify([e.id,e.status,failedStart(e),exp,last,e.kind,gpus,e.tok_s,e.requests,e.tokens_in,e.tokens_out,agents,tail,e.error,e.exitcode]);
   if(sig!==S.sig.live){S.sig.live=sig;
     if(e.status==='starting'){
       box.innerHTML=`<div class="load"><div class="load-line numbers"><span id="load-elapsed"></span><span id="load-usual"></span></div>
@@ -944,7 +963,8 @@ function renderSessionLive(e){const box=$('session-live');if(!box)return;
     else box.innerHTML='';}
   if(e.status==='starting'){const t=nowS()-(e.launch_ts||e.started_at||nowS());
     $('load-elapsed').textContent=`${elapsed(t)} elapsed`;
-    $('load-usual').textContent=!exp?'First load of this recipe: no estimate yet':t>exp?`Usually about ${elapsed(exp)}; taking longer`:`Usually about ${elapsed(exp)}`;
+    const usual=exp?(t>exp?`Usually about ${elapsed(exp)}; taking longer`:`Usually about ${elapsed(exp)}`):firstLoadNote(e);
+    $('load-usual').textContent=exp&&last!=null&&Math.round(last)!==Math.round(exp)?`${usual} · last load ${elapsed(last)}`:usual;
     if(exp){const pct=Math.min(95,t/exp*100);$('load-fill').style.width=`${pct.toFixed(1)}%`;$('load-bar').setAttribute('aria-valuenow',Math.round(pct));}}}
 /* Last 3 log lines of a failed load: fetched once per log file, not on every poll. */
 async function fetchTail(e){S.tails[e.id]={key:e.log,lines:[]};
@@ -1132,6 +1152,7 @@ async function poll(){if(S.polled)return;S.polled=true;
     else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
     const power=await api('/api/power');S.power=power.power||[];
     renderLibrary();renderEngineSwitch();renderDownloads();renderClients();renderGpus();renderAvailability();renderAction();renderHardware();
+    if(!S.ctxDirty){const c=liveSessionCtx();if(c!=null&&Number($('context').value)!==c){$('context').value=c;renderContext();}}
     renderUpdate(state.update);
     if(!S.welcomeChecked){S.welcomeChecked=true;maybeWelcome();}}
   catch(e){error('connection-error',S.restarting?restartText():`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
@@ -1463,8 +1484,8 @@ $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('con
   catch(e){$('confirm-download').disabled=false;error('action-error',e.message);}};
 function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAvailability();renderAction();refreshPlan();}
 for(const id of['port','kv','prefill','cache','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
-$('context').addEventListener('input',renderContext);
-$('context').addEventListener('change',()=>{renderContext();renderAction();refreshPlan();});
+$('context').addEventListener('input',()=>{S.ctxDirty=true;renderContext();});
+$('context').addEventListener('change',()=>{S.ctxDirty=true;renderContext();renderAction();refreshPlan();});
 $('gpu').addEventListener('change',()=>onConfigChange());
 $('client').addEventListener('change',renderAction);
 for(const id of['advanced','cookbook']){try{$(id).open=localStorage.getItem('b70-'+id)==='open';}catch(e){}
