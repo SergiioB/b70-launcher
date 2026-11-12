@@ -27,7 +27,7 @@ button{padding:8px 12px;min-height:40px;cursor:pointer;font-weight:500}
 button:hover{background:var(--border)}
 button:disabled{cursor:default;color:var(--subtle);opacity:.7}
 input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}
-input[type=checkbox]{min-height:0;accent-color:var(--link)}
+input[type=checkbox]{min-height:0;accent-color:var(--link);width:16px;height:16px;flex:none}
 /* WebKitGTK draws native GTK selects and spinners that ignore the dark theme; draw our own. */
 select{appearance:none;-webkit-appearance:none;padding-inline-end:34px;cursor:pointer;
   background:var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%23a3aab6' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 12px center/10px 10px}
@@ -1125,7 +1125,7 @@ function renderAction(){const r=recipe();const button=$('primary');
       status='Selected card is in use';}
     else if(S.plan?.error){text='Launch blocked';status=S.plan.error;button.disabled=true;}
     else{text='Launch recipe';S.action='launch';
-      status=`GPU ${selected.join(' + ')} · ${fmt($('context').value)} ctx · port ${$('port').value}`;}}
+      status=`GPU ${selected.join(' + ')} · ${fmt(S.plan?.ctx ?? Number($('context').value))} ctx · port ${$('port').value}`;}}
   button.textContent=S.request?'Working…':text;
   $('launch-status').textContent=status;
   renderSession();}
@@ -1312,7 +1312,7 @@ function renderStorage(){const st=S.storage;if(!st||S.dialogKind!=='storage')ret
     <div class="st-list" role="group" aria-label="Storage items">${vis.length?vis.map(stRow).join(''):'<p class="hint" style="padding:12px">Nothing in this view.</p>'}</div>
     <div class="st-foot"><span class="sel" role="status">${sel.length?`${sel.length} selected · <b>${gib(total)}</b> to free`:'Nothing selected'}</span>
       <button type="button" class="st-danger" id="st-delete" ${sel.length?'':'disabled'}>Delete selected…</button></div>
-    ${S.stConfirm&&sel.length?`<div class="st-confirm" role="alertdialog" aria-labelledby="st-c-h">
+    ${S.stConfirm&&sel.length?`<div class="st-confirm" aria-labelledby="st-c-h">
       <strong id="st-c-h">Delete ${sel.length} item${sel.length>1?'s':''} (${gib(total)}) permanently?</strong>
       <ul>${sel.map(i=>`<li>${esc(i.name)} · ${gib(i.size_bytes)}${i.kind==='image'?' · docker image rm':''}</li>`).join('')}</ul>
       <p class="hint">Models are deleted from disk, not moved to the trash. Images are removed with docker image rm; layers shared with another image stay.</p>
