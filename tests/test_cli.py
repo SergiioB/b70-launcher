@@ -481,6 +481,17 @@ class TestCliE2E(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("_b70", out)
 
+    def test_list_marks_setup_needed(self):
+        rc, out, _ = self.b70("list", "-e", "xestrata")
+        self.assertEqual(rc, 0)
+        self.assertIn("⚙ setup", out)
+
+    def test_show_lists_missing_settings(self):
+        rc, out, _ = self.b70("show", "qwen38-flashnext-iq3s", "-e", "xestrata")
+        self.assertEqual(rc, 0)
+        self.assertIn("setup needed", out)
+        self.assertIn("xestrata_root", out)
+
     def test_interactive_picker_hides_held_models_and_stars_only_recommended(self):
         import io
         _, out, _ = self.b70("--json", "list")

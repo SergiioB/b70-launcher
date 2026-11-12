@@ -33,7 +33,8 @@ def scan_response():
             det = det or {}
             matches[model['id']][engine] = {'detected': bool(det), 'path': det.get('path'),
                                            'size_mib': det.get('size_mib'), 'ctx_native': det.get('ctx'),
-                                           'reason': reason}
+                                           'reason': reason,
+                                           'needs': scan.recipe_needs(model, engine, det)}
     probe = Path(catalog.SETTINGS.get('models_dir') or '~').expanduser()
     while not probe.is_dir() and probe != probe.parent:
         probe = probe.parent

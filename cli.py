@@ -791,8 +791,10 @@ def cmd_list(g, a):
                 continue
             det = matches.get(m["id"], {}).get(eng, {})
             detected = det.get("detected")
+            needs = det.get("needs") or []
             held = bool((rec.get("operator_hold") or "").strip())
-            mark = yellow("⏸ held") if held else (green("● detected") if detected else dim("○ —"))
+            mark = yellow("⏸ held") if held else (green("● detected") if detected
+                      else yellow("⚙ setup") if needs else dim("○ —"))
             best = yellow("★") if (eng == m.get("recommended_engine") and not held) else " "
             rid_prefix = f"{m['id']}-{eng}-"
             live = red("▶ live") if any(r.startswith(rid_prefix) for r in running) else ""
@@ -805,7 +807,7 @@ def cmd_list(g, a):
     print(bold(f"  B70 recipes  {dim('catalog ' + str(recipes.get('catalog_ver', '?')))}"))
     print(table(rows, ["MODEL", "NAME", "ENGINE", "KIND", "CTX", "ARTIFACT", ""],
                 drop=(1, 3)))
-    print(f"\n  {dim('★ recommended   CTX validated context   ● on disk   ▶ running')}")
+    print(f"\n  {dim('★ recommended   CTX validated context   ● on disk   ⚙ setup needed   ▶ running')}")
     print(f"  {dim('launch one:')} b70 launch <model> [-e engine]   {dim('detail:')} b70 show <model>")
     return 0
 
@@ -854,6 +856,11 @@ def cmd_show(g, a):
             if note:
                 print(dim(wrap(note, "    ")))
         print(f"    artifact: {dmark}")
+        needs = det.get("needs") or []
+        if needs and not det.get("detected"):
+            print(f"    {yellow('setup needed:')}")
+            for n in needs:
+                print(f"      {yellow(n['setting'])} — {dim(n['hint'])}")
         if hold:
             print(f"    {yellow('hold:')} {yellow(hold)}")
         else:

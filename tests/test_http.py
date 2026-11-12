@@ -326,6 +326,17 @@ class TestServer(unittest.TestCase):
             code, out = self.post("/api/settings", {"scan_dirs": bad})
             self.assertEqual(code, 400, bad)
 
+    def test_scan_matches_carry_needs(self):
+        """A recipe that misses a setting says so in /api/scan, not only at launch."""
+        code, body = self.get("/api/scan")
+        self.assertEqual(code, 200)
+        xs = body["matches"]["qwen38-flashnext-iq3s"]["xestrata"]
+        self.assertIn("xestrata_root", {n["setting"] for n in xs["needs"]})
+        # every match entry has the field, ready recipes carry an empty list
+        for engines in body["matches"].values():
+            for match in engines.values():
+                self.assertIn("needs", match)
+
     def test_settings_pcie_links(self):
         # strict validation: bad address, generation, width, shape or type
         for bad in ([], "x", 7, {"nope": {"gen": 4, "width": 8}},
