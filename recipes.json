@@ -288,7 +288,7 @@
         },
         "xestrata": {
           "kind": "xestrata",
-          "model_path": "/data/sata1/engines/strata/models-iq3xxs/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
+          "model_path": "",
           "ctx": 350000,
           "ctx_max": 350000,
           "ctx_note": "350K YaRN is experimental; accuracy beyond the 262K native window has not been established.",
@@ -298,17 +298,18 @@
             0,
             1
           ],
-          "py_exe": "/data/sata1/engines/xestrata/.venv/bin/python",
-          "server_script": "/data/sata1/engines/xestrata/serve/server.py",
-          "config_file": "/home/sergio/.config/xestrata/xestrata-iq3_xxs.json",
+          "py_exe": ".venv/bin/python",
+          "server_script": "serve/server.py",
+          "config_file": "~/.config/xestrata/xestrata-iq3_xxs.json",
           "download": {
             "kind": "file",
             "name": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
             "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS",
             "match": "flash-next",
+            "prefer": ["IQ3_XXS"],
             "quant": "IQ3_XXS GGUF (76 GB) + MTP draft"
           },
-          "recipe_ver": "2026-10-18",
+          "recipe_ver": "2026-11-12",
           "ver": "2026-10-18",
           "prefill": "See matched quant comparison in the cookbook",
           "reasoning_effort_supported": true,
@@ -320,7 +321,7 @@
             "xhigh"
           ],
           "vision_supported": true,
-          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+          "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
           "rope_scaling": "yarn",
           "rope_scale": 1.33514,
           "yarn_orig_ctx": 262144
@@ -1407,18 +1408,18 @@
       "recipes": {
         "xestrata": {
           "kind": "xestrata",
-          "model_path": "/data/sata1/models/qwen38-flashnext-iq3s/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+          "model_path": "",
           "ctx": 262144,
           "ctx_max": 350000,
           "ctx_note": "262K native default; 350K YaRN is experimental, quality beyond native context is not validated.",
           "gpus": [0, 1],
-          "py_exe": "/data/sata1/engines/xestrata/.venv/bin/python",
-          "server_script": "/data/sata1/engines/xestrata/serve/server.py",
+          "py_exe": ".venv/bin/python",
+          "server_script": "serve/server.py",
           "config_file": "~/.config/xestrata/xestrata-iq3_s.json",
           "served_model_name": "qwen3.8-flash-next-iq3_s",
           "vision_supported": true,
-          "vision_exe": "/data/sata1/engines/xestrata/dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
-          "mmproj": "/data/sata1/models/qwen38-flashnext-vision/mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+          "vision_exe": "dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
+          "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
           "reasoning_effort_supported": true,
           "reasoning_effort_options": ["none", "low", "medium", "high", "xhigh"],
           "download": {
@@ -1431,7 +1432,7 @@
             "match": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002",
             "quant": "IQ3_S: 54.82 GB first shard + shared 28.80 GB lookup"
           },
-          "recipe_ver": "2026-10-19"
+          "recipe_ver": "2026-11-12"
         }
       }
     }

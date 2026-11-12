@@ -247,8 +247,26 @@ it via `sudo -n` containerd/dockerd when down and never deletes its state),
 
 ### `kind: xestrata` (engine `xestrata`)
 
-Runs a local XeStrata server using `py_exe`, `server_script` and `config_file`.
-The GGUF in `model_path` must match the native pack and tokenizer named in that config.
+Runs a local XeStrata server from the user's own XeStrata checkout — the
+launcher neither builds nor ships XeStrata. Settings
+(`settings-override.json` only, like `llama_bin`): `xestrata_root` — the
+checkout, an absolute path. All engine files resolve inside it:
+
+| field | meaning | default |
+|---|---|---|
+| `py_exe` | server's venv Python, relative to the checkout | `.venv/bin/python` |
+| `server_script` | server entry point, relative to the checkout | `serve/server.py` |
+| `vision_exe` | CPU vision encoder, relative to the checkout | empty (config's own value) |
+| `config_file` | user-level XeStrata config (`~` expands) | none — the recipe must name it |
+| `mmproj` | vision projector: a bare basename resolved through the last model scan, or an explicit `~`/absolute path | empty |
+| `model_path` | ships **empty**; a host that keeps the GGUF outside the scan roots pins it with `recipe_overrides` in `settings-override.json` (detection then goes through `download.name`/scan matching like every portable recipe) | empty |
+
+A real launch is refused, with every missing piece named, when the checkout,
+the venv Python, the server script, the config file, or (with vision on) the
+encoder or projector is missing; a dry run renders with a warning instead, and
+an unset `xestrata_root` warning says exactly which setting to fill in.
+
+The GGUF must match the native pack and tokenizer named in that config.
 IQ3_S and IQ3_XXS require separate packs; they can share the byte-identical PLE lookup shard and MTP files.
 
 The launcher copies the config to a temporary file at execution time. `ctx` changes `--max-context`;
@@ -260,6 +278,8 @@ capacity setting, not a long-context quality claim. Dry runs do not modify files
 For vision, set `vision_exe` and `mmproj` or retain them in the config. The wrapper uses the selected
 quant's `--native` shard as the encoder's language-model file and rejects missing files.
 The CPU encoder avoids allocating GPU weights; vision accuracy must still be checked with real images.
+Relative fields that name a path outside the checkout (`../`, absolute) fail
+the build — the same `safe_artifact` rule the Strata paths follow.
 
 ### `kind: strata` (engine `strata`)
 
@@ -389,5 +409,5 @@ the cache-off overrides and the caller's `extra` flags. The build result's
   `open_harness` probes terminals itself.
 - `POST /api/settings` can write only `scan_dirs`, `models_dir`, `open_with`,
   and `sync_clients`; `settings-override.json` also accepts `ovms_repo`,
-  `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, and
-  `recipe_overrides` when edited by hand.
+  `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`,
+  and `recipe_overrides` when edited by hand.

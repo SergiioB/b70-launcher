@@ -509,7 +509,7 @@ posted at a time; a `null` entry removes that override and a `null` map clears
 all of them. Invalid values → `400`. It invalidates the cached preflight and
 does not rescan unless other keys are posted with it. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
-`exl3_data_root`, `strata_root`, `strata_data`, `agent_dir`, and
+`exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`, `agent_dir`, and
 `recipe_overrides`.
 
 ### `POST /api/shutdown`

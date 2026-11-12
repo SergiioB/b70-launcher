@@ -297,6 +297,24 @@ A dry run (`b70 launch qwen38-flashnext-strata --dry-run`) lists anything still 
 
 On Windows the launcher can't run Strata, but the engine itself can run natively: [docs/strata-windows.md](docs/strata-windows.md) has patches for this branch, a tuned IQ3_S config (~99 tok/s on two B70s) and the pitfalls (int8 KV needs a JIT build with oneAPI 2026.0; `--ple-io mmap` instead of `direct`).
 
+## XeStrata: engine location setting
+
+The XeStrata recipes (`qwen38-flashnext`, `qwen38-flashnext-iq3s`, engine `xestrata`) run a native
+XeStrata server from your own checkout. The recipes are portable — no machine
+paths ship in the catalog. Point the launcher at your checkout in
+`settings-override.json`:
+
+```json
+{"xestrata_root": "/home/<you>/xestrata"}
+```
+
+It expects the checkout's `.venv/bin/python`, `serve/server.py` (recipe fields
+`py_exe` / `server_script` override these, relative to the root), and the user
+config under `~/.config/xestrata/` (recipe field `config_file`). The GGUF is
+found through the model folders like every recipe — a host that keeps it
+outside them pins `model_path` with `recipe_overrides`. A dry run
+(`b70 launch qwen38-flashnext -e xestrata --dry-run`) names anything missing.
+
 ## What is new in 0.4.0
 
 - **Native app window.** The UI opens in a standalone WebKitGTK window (`webwindow.py`, spawned with the system `python3`) instead of a Chromium tab. Closing the window quits the app cleanly: downloads are cancelled and per-session token usage is stored. `--browser` and `--no-open` keep the old behavior; without `python3-gi` the launcher falls back to a browser app window automatically.
@@ -331,7 +349,7 @@ The installer does not overwrite system files but does replace an existing user-
 - **Card count:** Recipes with an explicit multi-card topology run on that many identified, accessible B70 cards; the app blocks them when fewer are usable. On hosts with more than two cards any card combination can be chosen (up to 8 cards), but only one- and two-card recipes are shipped and only two-card setups have been run. Other recipes follow their own engine/device configuration; a dry run previews the exact command without launching it.
 - **Windows:** Python source may open the UI, but GPU launch is intentionally blocked. WSL2/Docker passthrough is not validated; the Linux desktop archive/installer is not a Windows installer.
 
-`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `open_with`, `sync_clients`, `meter_clients`, `pcie_links`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, `meter_clients`, and `pcie_links` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
+`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`, `open_with`, `sync_clients`, `meter_clients`, `pcie_links`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, `meter_clients`, and `pcie_links` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
 
 The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). Every request needs the per-port token — `POST /api/window` mints a one-time nonce URL that swaps itself for an `HttpOnly` cookie, and same-box scripts read `token-<port>` from the state directory; POSTs additionally need the `X-Launcher-Token` header plus Host/Origin checks. The one exception is the agent gateway under `/gw/` (see `docs/api.md`): it needs no token, refuses requests from web pages (any `Origin` header), and only forwards to a running engine — the same access the engine port already gives local processes. Do not expose the port through a proxy, and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them. While an engine runs, closing the window leaves the background service up for the agents.
 
