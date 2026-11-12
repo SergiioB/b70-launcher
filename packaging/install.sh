@@ -166,20 +166,45 @@ case :${PATH:-}: in
        The application menu entry works regardless (it uses an absolute path).
        To run 'b70-launcher' from a terminal, add this line to ~/.profile or your
        shell's rc file, then open a new terminal:
-           export PATH=\"\$HOME/.local/bin:\$PATH\"
-       Or invoke the full path directly: $bin/b70-launcher" ;;
+           export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
 esac
+
+# --- first-run suggestion (catalog's reviewed first_run, read at install time) ---
+first_run_hint=""
+if [ -f "$root/recipes.json" ]; then
+    first_run_hint=$("$py" - "$root/recipes.json" 2>/dev/null <<'PY' || :
+import json, sys
+try:
+    fr = json.load(open(sys.argv[1])).get("first_run") or {}
+    m, e = str(fr.get("model") or ""), str(fr.get("engine") or "")
+    if m and e:
+        print(m, e)
+except Exception:
+    pass
+PY
+)
+fi
+set -- $first_run_hint
 
 # --- summary ------------------------------------------------------------------
 say "Installed:"
-say "  app files : $app"
-say "  commands  : $bin/b70-launcher (UI/daemon) + $bin/b70 (headless CLI)"
-say "  menu entry: $desktop_dir/b70-launcher.desktop"
-say "  icons     : $icons_root/*/apps/b70-launcher.*"
+say "  app     : $app"
+say "  bin     : $bin/b70-launcher (UI/daemon) + $bin/b70 (headless CLI)"
+say "  menu    : $desktop_dir/b70-launcher.desktop"
+say "  icons   : $icons_root/*/apps/b70-launcher.*"
 say "State (usage history, logs, settings overrides) lives in $state_dir and is preserved across reinstalls."
 if [ -f "$app/uninstall.sh" ]; then
     say "Uninstall : sh $app/uninstall.sh   (keeps state; --purge also removes it)"
 else
-    say "Uninstall : remove $app, $bin/b70-launcher, $desktop_dir/b70-launcher.desktop, and the hicolor icon files (keeps $state_dir)"
+    say "Uninstall : remove the app, bin, menu and icon paths above   (keeps the state directory)"
 fi
 say "No engine, model, Docker image, or power setting changed."
+say ""
+say "Next:"
+say "  b70 doctor                       check Docker, GPUs and driver access"
+say "  b70 list                         browse the model catalog"
+if [ "$#" -eq 2 ]; then
+    say "  b70 launch $1 -e $2   suggested first run (offers its download first)"
+else
+    say "  b70 launch <model> -e <engine>   pick one from 'b70 list'"
+fi

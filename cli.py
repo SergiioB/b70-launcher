@@ -1667,7 +1667,7 @@ def cmd_test(g, a):
         return 1
     toks = out.get("tokens") or 0
     lat = out.get("elapsed_s") or 0
-    rate = f"{toks / lat:.1f} tok/s approx" if lat else "-"
+    rate = f"{toks / lat:.1f} tok/s end to end, includes the wait for the first token" if lat else "-"
     print(f"{OK} {bold(rid or 'port ' + str(port))} answered in {lat}s ({toks} tok, {rate})")
     print(f"  {dim('model:')} {out.get('model')}")
     print()
@@ -1915,6 +1915,18 @@ def cmd_usage(g, a):
     print()
     print(bold("  All time"))
     print(table(_usage_rows(clients, agent), heads, aligns, drop=(4,)))
+    speed = (doc.get("speed") or {}).get("by_model") or []
+    if speed:
+        print()
+        print(bold("  Speed by model") + dim("   decode = streamed tok/s after the first token"))
+        rows = [[f"{r['model']} · {r['engine']}"[:38], r["requests"],
+                 f"{r['decode_tps_median']:.1f}" if r.get("decode_tps_median") is not None else "-",
+                 f"{r['decode_tps_p10']:.0f}-{r['decode_tps_p90']:.0f}" if r.get("decode_tps_p10") is not None else "-",
+                 f"{r['ttft_s_median']:.2f}s" if r.get("ttft_s_median") is not None else "-",
+                 f"{r['prefill_tps_median']:.0f}" if r.get("prefill_tps_median") is not None else "-",
+                 f"{r['j_per_ktok']:.0f}" if r.get("j_per_ktok") is not None else "-"] for r in speed]
+        print(table(rows, ["MODEL · ENGINE", "REQS", "DECODE", "P10-P90", "TTFT", "PREFILL", "J/1K TOK"],
+                    ["<", ">", ">", ">", ">", ">", ">"]))
     by_model = doc.get("by_model") or {}
     if by_model:
         rows = _usage_rows(by_model, last_used=False)
@@ -1923,6 +1935,113 @@ def cmd_usage(g, a):
         print(table(rows[:10], ["MODEL", "REQUESTS", "TOKENS IN", "TOKENS OUT"],
                     ["<", ">", ">", ">"]))
     return 0
+
+
+def _gib(n):
+    n = n or 0
+    return f"{n / 1073741824:.1f} GiB" if n >= 107374182 else f"{n / 1048576:.0f} MiB"
+
+
+def _bar(used, total, width=24):
+    frac = 0 if not total else min(1.0, used / total)
+    n = round(frac * width)
+    return "█" * n + "░" * (width - n)
+
+
+def cmd_storage(g, a):
+    """Disk use by models, partial downloads and engine images; `rm` removes items."""
+    c = daemon_client(g)
+    doc = c.get("/api/storage", timeout=90)
+    if g.json:
+        jprint(doc)
+        return 0
+    print(bold("  storage"))
+    for v in doc.get("volumes", []):
+        pct = 100 * v["used_bytes"] / v["total_bytes"] if v["total_bytes"] else 0
+        warn = red if pct >= 95 else yellow if pct >= 85 else green
+        print(f"  {v['mount']:<14} {warn(_bar(v['used_bytes'], v['total_bytes']))} {pct:3.0f}%   "
+              f"{_gib(v['free_bytes'])} free of {_gib(v['total_bytes'])}   "
+              f"{dim('launcher: ' + _gib(v['managed_bytes']))}")
+    kinds = {"models": "model", "images": "image", "partials": "partial"}
+    want = kinds.get(getattr(a, "kind", None) or "")
+    rows = []
+    for it in doc.get("items", []):
+        if want and it["kind"] != want:
+            continue
+        if it["kind"] == "image" and not it.get("managed") and not want:
+            continue    # other Docker images are not ours; `--kind images` lists the managed ones only
+        if it["kind"] == "image" and not it.get("managed"):
+            continue
+        use = ", ".join(sorted({f"{u['model_id']}:{u['engine']}" for u in it.get("used_by", [])})) or "-"
+        mark = green("●") if it["in_use"] else (yellow("↻") if it.get("suggested") else " ")
+        rows.append([it["id"], mark, it["kind"], _gib(it["size_bytes"]), it["name"][:46], use[:34]])
+    print()
+    if not rows:
+        print(f"  {dim('nothing to show')}")
+    else:
+        print(table(rows, ["ID", "", "KIND", "SIZE", "NAME", "USED BY"], ["<", "<", "<", ">", "<", "<"]))
+    s = doc.get("summary", {})
+    print(f"\n  {dim('●  in use   ↻ suggested')}   models {_gib(s.get('models_bytes'))} · "
+          f"images {_gib(s.get('images_bytes'))} · partials {_gib(s.get('partial_bytes'))}")
+    if s.get("suggested_count"):
+        print(f"  {s['suggested_count']} suggested, {_gib(s['suggested_bytes'])} free to reclaim:  "
+              f"b70 storage rm --suggested")
+    for d in doc.get("daemons", []):
+        if not d.get("ok"):
+            print(f"  {WARN} {d['name']}: {d.get('error') or 'not reachable'}")
+    return 0
+
+
+def cmd_storage_rm(g, a):
+    c = daemon_client(g)
+    doc = c.get("/api/storage", timeout=90)
+    items = doc.get("items", [])
+    chosen = []
+    for q in a.items:
+        ql = q.lower()
+        hit = [i for i in items if i["id"] == q or i["id"].split(":")[-1].startswith(ql)
+               or ql == i["name"].lower()]
+        if not hit:
+            hit = [i for i in items if ql in i["name"].lower()]
+        if not hit:
+            raise CliError(f"no storage item matches '{q}' — see: b70 storage")
+        if len(hit) > 1:
+            raise CliError(f"'{q}' matches {len(hit)} items ({', '.join(i['id'] for i in hit[:4])}); use the id")
+        chosen.append(hit[0])
+    if a.suggested:
+        chosen += [i for i in items if i.get("suggested") and i.get("deletable")]
+    seen, uniq = set(), []
+    for i in chosen:
+        if i["id"] not in seen:
+            seen.add(i["id"])
+            uniq.append(i)
+    if not uniq:
+        raise CliError("nothing selected — pass an id/name or --suggested")
+    total = sum(i["size_bytes"] for i in uniq)
+    for i in uniq:
+        why = "" if i["deletable"] else f"  {red('refused: ' + (i.get('why_kept') or 'not deletable'))}"
+        print(f"  {i['kind']:<8} {_gib(i['size_bytes']):>10}  {i['name']}{why}")
+    print(f"  {bold('total')} {_gib(total)}")
+    if a.dry_run:
+        r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq], "dry_run": True}, timeout=120)
+        print(f"  {dim('dry run: nothing was deleted')}  would free {_gib(r.get('freed_bytes'))}")
+        return 0
+    if not a.yes:
+        if not sys.stdin.isatty():
+            raise CliError("refusing to delete without a terminal; pass -y")
+        if input("  delete these permanently? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("  cancelled")
+            return 1
+    r = c.post("/api/storage/delete", {"ids": [i["id"] for i in uniq]}, timeout=900)
+    bad = 0
+    for row in r.get("results", []):
+        if row.get("ok"):
+            print(f"  {OK} {row['name']}  {_gib(row['size_bytes'])}")
+        else:
+            bad += 1
+            print(f"  {ERR} {row.get('name', row['id'])}: {row.get('error')}")
+    print(f"  freed {_gib(r.get('freed_bytes'))}")
+    return 1 if bad else 0
 
 
 def cmd_doctor(g, a):
@@ -2290,6 +2409,17 @@ def build_parser():
 
     s = add("usage", aliases=["tokens"], help="tokens each agent used, today and all time")
     s.set_defaults(fn=cmd_usage)
+
+    s = add("storage", aliases=["disk"], help="what models, partial downloads and engine images use on disk")
+    s.add_argument("--kind", choices=["models", "images", "partials"], help="show one kind only")
+    s.set_defaults(fn=cmd_storage)
+
+    s = add("rm", aliases=["storage-rm"], help="delete models, partial downloads or engine images (see: b70 storage)")
+    s.add_argument("items", nargs="*", help="item id or name from `b70 storage`")
+    s.add_argument("--suggested", action="store_true", help="also delete everything marked suggested")
+    s.add_argument("--dry-run", action="store_true", help="list what would be deleted and the space freed")
+    s.add_argument("-y", "--yes", action="store_true", help="do not ask")
+    s.set_defaults(fn=cmd_storage_rm)
 
     s = add("doctor", help="preflight: GPUs, blockers, scan roots")
     s.set_defaults(fn=cmd_doctor)

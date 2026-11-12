@@ -10,7 +10,7 @@
   <a href="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml"><img src="https://github.com/SergiioB/b70-launcher/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
-# B70 Launcher 0.6.21 (Linux source)
+# B70 Launcher 0.6.22 (Linux source)
 
 Local desktop launcher for LLM inference on the Intel Arc Pro B70. Model library → recipe pick (vLLM XPU / llama.cpp SYCL / OpenVINO / EXL3) → inspect the exact command → launch & test. Pure Python stdlib — no pip install, no bundled binaries.
 
@@ -55,6 +55,16 @@ b70 agent pi                 # open an agent on it: pi, omp, droid, codex or dee
 b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
+
+## What is new in 0.6.22
+
+- **Storage manager.** Click Storage in the header (or run `b70 storage`) to see free space on every disk, then every model, unfinished download and pinned engine image with its exact size, the recipes that use it and when you last launched it. `b70 rm` and the dialog delete by id, never by path, and refuse anything a running server or container uses, anything outside your model folders, and Docker images no recipe pins. Models are deleted, not moved to a trash.
+- **Speed and energy per request.** Every request an agent sends through the launcher is recorded with its time to first token, decode tokens per second after the first token, prefill rate and the energy the card drew. Usage and `b70 usage` show the medians per model. The Test prompt speed is now labelled end to end, because it included the wait for the first token.
+- **Reviewed first run.** The catalog carries `first_run` (Qwen3.8-27B on EXL3). `b70 doctor` suggests it, and the old "best default" badge is gone from Qwen3.6-35B.
+- **Portable XeStrata recipes.** The catalog no longer contains the author's machine paths. Set `xestrata_root` in settings (and `model_path` for the pack you downloaded); a launch preview names whatever is missing.
+- **Installer prints the next steps.** After the install it shows `b70 doctor`, `b70 list` and the first-run launch command.
+- **Honest first-load estimate.** The session card shows the last measured load time for a recipe, or says that a first load compiles kernels and usually takes several minutes. The Context box follows the running session.
+- **Fixes.** An idle card no longer reads 100% busy. Scan folders can no longer be a system folder or your home's parent. The update notice opens `xecores.com/start#install-launcher`. Launch errors name the field and range that is wrong.
 
 ## What is new in 0.6.21
 
@@ -297,6 +307,24 @@ A dry run (`b70 launch qwen38-flashnext-strata --dry-run`) lists anything still 
 
 On Windows the launcher can't run Strata, but the engine itself can run natively: [docs/strata-windows.md](docs/strata-windows.md) has patches for this branch, a tuned IQ3_S config (~99 tok/s on two B70s) and the pitfalls (int8 KV needs a JIT build with oneAPI 2026.0; `--ple-io mmap` instead of `direct`).
 
+## XeStrata: engine location setting
+
+The XeStrata recipes (`qwen38-flashnext`, `qwen38-flashnext-iq3s`, engine `xestrata`) run a native
+XeStrata server from your own checkout. The recipes are portable — no machine
+paths ship in the catalog. Point the launcher at your checkout in
+`settings-override.json`:
+
+```json
+{"xestrata_root": "/home/<you>/xestrata"}
+```
+
+It expects the checkout's `.venv/bin/python`, `serve/server.py` (recipe fields
+`py_exe` / `server_script` override these, relative to the root), and the user
+config under `~/.config/xestrata/` (recipe field `config_file`). The GGUF is
+found through the model folders like every recipe — a host that keeps it
+outside them pins `model_path` with `recipe_overrides`. A dry run
+(`b70 launch qwen38-flashnext -e xestrata --dry-run`) names anything missing.
+
 ## What is new in 0.4.0
 
 - **Native app window.** The UI opens in a standalone WebKitGTK window (`webwindow.py`, spawned with the system `python3`) instead of a Chromium tab. Closing the window quits the app cleanly: downloads are cancelled and per-session token usage is stored. `--browser` and `--no-open` keep the old behavior; without `python3-gi` the launcher falls back to a browser app window automatically.
@@ -316,9 +344,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.21-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.21-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.21-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.22-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.22-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.22-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space (for Strata's locally built image, the `docker build` command instead). Containers see only the selected card(s). Some recipe images use mutable tags.
 
@@ -331,7 +359,7 @@ The installer does not overwrite system files but does replace an existing user-
 - **Card count:** Recipes with an explicit multi-card topology run on that many identified, accessible B70 cards; the app blocks them when fewer are usable. On hosts with more than two cards any card combination can be chosen (up to 8 cards), but only one- and two-card recipes are shipped and only two-card setups have been run. Other recipes follow their own engine/device configuration; a dry run previews the exact command without launching it.
 - **Windows:** Python source may open the UI, but GPU launch is intentionally blocked. WSL2/Docker passthrough is not validated; the Linux desktop archive/installer is not a Windows installer.
 
-`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `open_with`, `sync_clients`, `meter_clients`, `pcie_links`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, `meter_clients`, and `pcie_links` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
+`settings.json` lists portable defaults; per-machine values live in `${XDG_STATE_HOME:-~/.local/state}/b70-launcher/settings-override.json` — `scan_dirs`, `models_dir`, `ovms_repo`, `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`, `open_with`, `sync_clients`, `meter_clients`, `pcie_links`, `agent_dir`, and `recipe_overrides` (`{"<model_id>": {"<engine>": {field: value}}}`, re-applied over every recipe update). `POST /api/settings` writes `scan_dirs`, `models_dir`, `open_with`, `sync_clients`, `meter_clients`, and `pcie_links` (applied on the next scan, no restart); edit the file for the rest. The same state directory holds `servers-state.json` (engine re-adoption), `usage-history.json`, `client-usage.json` (tokens per agent), `recipes-remote.json` (applied recipe updates), `logs/` (newest 20 kept, plus `daemon.log` for CLI-started daemons), and the per-port API token `token-<port>` (mode 0600).
 
 The launcher API binds `127.0.0.1:7570` (override with `--port`); launched engines publish on `127.0.0.1` only (default port 8000). Every request needs the per-port token — `POST /api/window` mints a one-time nonce URL that swaps itself for an `HttpOnly` cookie, and same-box scripts read `token-<port>` from the state directory; POSTs additionally need the `X-Launcher-Token` header plus Host/Origin checks. The one exception is the agent gateway under `/gw/` (see `docs/api.md`): it needs no token, refuses requests from web pages (any `Origin` header), and only forwards to a running engine — the same access the engine port already gives local processes. Do not expose the port through a proxy, and do not share a desktop session with untrusted users. Quit the UI by closing the window (or Ctrl-C when started in a terminal): usage is stored on exit and running engines stay alive and are re-adopted on the next start — use the app's Stop button to remove them. While an engine runs, closing the window leaves the background service up for the agents.
 

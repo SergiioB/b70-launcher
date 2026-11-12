@@ -382,3 +382,15 @@ class TestAppWindowChildWait(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestIdleClock(unittest.TestCase):
+    """An idle xe card reports act_freq 0; the requested cur_freq (max clock) must not read as 100% busy."""
+
+    def test_act_freq_zero_is_idle_not_missing(self):
+        from unittest import mock
+        reads = {"act_freq": 0, "cur_freq": 2800}
+        with mock.patch.object(hardware, "_read_int", lambda p: reads[Path(p).name]):
+            self.assertEqual(hardware._act_freq("0000:10:00.0"), 0)
+        with mock.patch.object(hardware, "_read_int", lambda p: None if Path(p).name == "act_freq" else 2800):
+            self.assertEqual(hardware._act_freq("0000:10:00.0"), 2800)

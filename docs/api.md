@@ -82,7 +82,7 @@ Full launcher state; the UI polls it every ~2.5 s (power every ~1.5 s).
   "running":  ["server entries, see POST /api/launch"],
   "version":  "0.6.17",
   "is_win":   false,
-  "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/match"},
+  "update":   {"checked": true, "has_update": false, "latest_version": "", "message": "", "download_url": "https://xecores.com/start#install-launcher"},
 "recipe_notices": {"<model_id>:<engine>": {"model_id", "engine", "model_name", "local_ver", "remote_ver", "note", "recommended", "is_new", "can_apply"}},
   "recipes_remote": {"checked": true, "catalog_ver": "2026-10-15.2", "recipes_url": "...", "entries": {"<model_id>:<engine>": {"ver", "note", "recommended"}}},
   "clients": {"pi": {"installed", "openable"}, "omp": {...}, "droid": {...}, "codex": {...}, "deepseek": {...},
@@ -202,7 +202,7 @@ for with `Accept: text/plain` (Strata answers JSON without it)
 ### `GET /api/usage`
 
 `{"sessions": [last 50 records], "totals": {tokens_in, tokens_out, requests,
-sessions}, "clients": {...}, "today": {...}, "by_model": {...}}`.
+sessions}, "clients": {...}, "today": {...}, "by_model": {...}, "speed": {...}}`.
 `sessions`/`totals` come from `usage-history.json` (500 records kept on disk). A
 session record: `{id, model, engine, port, started, ended, status, tokens_in,
 tokens_out, requests, peak_tok_s, artifact_mib}`.
@@ -214,6 +214,46 @@ requests that went through the client gateway (below) and are stored in
 `client-usage.json` in the state directory (one row per day, one year kept). A
 request the agent cancelled counts as a request, not an error; an engine reply
 other than HTTP 200 counts as an error and is printed in the daemon output.
+
+`speed` is `{"by_model": [...], "recent": [newest 25 requests], "total_requests"}`
+from `request-log.jsonl` in the state directory (the newest 2,000 requests). One
+line per finished gateway request: `ts, client, model, engine, port, gpus, ctx,
+ok, stream, tokens_in, tokens_out, wall_s` and, when measurable, `ttft_s`
+(seconds to the first generated token, streaming only), `decode_tps` (streamed
+tokens per second after the first token), `prefill_tps` (prompt tokens over
+`ttft_s`; includes queueing and prompt-cache hits), `overall_tps` (tokens over
+wall time, the only speed a non-streamed request has), and `card_j`, `avg_w`,
+`j_per_ktok` (joules the engine's card or cards drew during the request, from the
+xe hwmon `energy1_input` counter; it is the whole card, so a second job on it
+inflates the figure). `by_model` rows give median, p10 and p90 decode speed, median
+and p90 `ttft_s`, median prefill and energy per 1,000 generated tokens, per
+model + engine. Failed requests are logged but excluded from the statistics.
+
+### `GET /api/storage`
+
+What the launcher's files occupy. `{"ts", "volumes": [{mount, total_bytes,
+used_bytes, free_bytes, managed_bytes, paths}], "items": [...], "daemons":
+[{name, socket, ok, error}], "summary": {models_bytes, images_bytes,
+partial_bytes, suggested_bytes, suggested_count}, "roots", "scan_state"}`. Each
+item is `{id, kind: model|partial|image, name, path, size_bytes, used_by:
+[{model_id, name, engine, role?}], last_launched, in_use, deletable, why_kept,
+suggested, hint}`; images add `daemon, socket, image_id, managed, created`.
+Model sizes are a recursive byte count. Image sizes are what `docker image ls`
+prints (disk use); layers shared with another image free less. Images that no
+recipe pins (your own containers) are listed with `managed: false` and are never
+deletable here. `suggested` marks old `.part` files (untouched for 15 minutes or
+more) and pinned images no downloaded model uses. The snapshot is cached for 30 s;
+`POST /api/storage/refresh` rebuilds it.
+
+### `POST /api/storage/delete`
+
+`{"ids": ["model:ab12…", …], "dry_run": false}`. Ids come from the latest
+snapshot; the API never takes a path. Refused per item: a running server uses it,
+a container uses the image, the image is not a pinned launcher image, the path is
+outside every scan root, is a scan root, or is a link. Models are deleted from
+disk (not moved to a trash); images go through `docker image rm` without
+`--force`. Returns `{"results": [{id, name, ok, size_bytes, error?}],
+"freed_bytes", "dry_run", "snapshot"}`.
 
 ## Client gateway `/gw/<client>/<engine_port>/v1/...`
 
@@ -469,7 +509,7 @@ posted at a time; a `null` entry removes that override and a `null` map clears
 all of them. Invalid values → `400`. It invalidates the cached preflight and
 does not rescan unless other keys are posted with it. No other
 settings key is writable here; edit the file for `ovms_repo`, `llama_bin`,
-`exl3_data_root`, `strata_root`, `strata_data`, `agent_dir`, and
+`exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`, `agent_dir`, and
 `recipe_overrides`.
 
 ### `POST /api/shutdown`

@@ -229,8 +229,13 @@ class Bld:
             warns.append(f"ctx {self.ctx} > engine ceiling {recipe['ctx_max']} for this recipe — clamping.")
             self.ctx = recipe["ctx_max"]
         max_ctx = 350000 if recipe.get("kind") == "xestrata" else 262144
-        if not 1 <= self.port <= 65535 or not 1 <= self.slots <= 128 or not 512 <= self.ctx <= max_ctx:
-            raise BuildError("Port, slots, or context out of range.")
+        # name the offending field — the user sees these in the UI status line
+        if not 1 <= self.port <= 65535:
+            raise BuildError(f"Port must be between 1 and 65535 (got {self.port}).")
+        if not 1 <= self.slots <= 128:
+            raise BuildError(f"Parallel slots must be between 1 and 128 (got {self.slots}).")
+        if not 512 <= self.ctx <= max_ctx:
+            raise BuildError(f"Context must be between 512 and {max_ctx} tokens (got {self.ctx}).")
         gpus = cfg.get("gpus")
         if gpus is None:
             gpus = default_gpus(recipe)

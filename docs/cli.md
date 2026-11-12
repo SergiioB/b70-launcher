@@ -47,7 +47,9 @@ Stdlib only, Python 3.9+, no GUI dependencies. Installed as
 | `b70 open [ui|rid|port]` | open UI or engine endpoint; prints the URL + SSH hint when headless |
 | `b70 env [rid]` | `export OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL_NAME` |
 | `b70 agent <client> [rid]` | open a coding agent (`pi`, `omp`, `droid`, `codex`, `deepseek`) on a running model |
-| `b70 usage` | tokens each agent used: today, all time, and per model |
+| `b70 usage` | tokens each agent used: today, all time, per model, and decode speed, time to first token and energy per model |
+| `b70 storage` | disk use by models, partial downloads and engine images, with the recipes that use each (`--kind models|images|partials`) |
+| `b70 rm <id|name>…` | delete storage items (`--suggested`, `--dry-run`, `-y`); refuses anything a running server or container uses |
 | `b70 doctor` | render nodes, B70 identification, blockers, scan roots |
 | `b70 scan` | detected artifacts + per-recipe matches (`--roots a,b` to set roots) |
 | `b70 recipes-update [model]` | apply the published recipe catalog overlay (`-e` limits it to one engine, `--check` only lists what is newer) |
@@ -83,7 +85,24 @@ loading is refused until it is ready.
 
 `b70 usage` reads `GET /api/usage`. Agents only show up after they have sent
 traffic through the gateway; until then it prints
-`No agent traffic recorded yet.`
+`No agent traffic recorded yet.` Every gateway request also gets a speed record
+(decode tok/s after the first token, time to first token, prefill rate, and the
+joules the card drew); `b70 usage` prints the per-model medians and
+`b70 usage --json` carries the 25 newest requests under `speed.recent`.
+
+## Disk space
+
+```sh
+b70 storage                  # volumes with free space, then every model, partial download and engine image
+b70 storage --kind images    # pinned engine images only
+b70 rm qwen3.8-27b-bf16 --dry-run   # what would go, and the space it frees
+b70 rm --suggested -y        # old partial downloads and pinned images no downloaded model uses
+```
+
+Ids and names come from `b70 storage`. `rm` never takes a path: it resolves the
+id against the daemon's own scan and refuses a model a running server uses, an
+image a container uses, anything outside your model folders, and Docker images
+the recipes do not pin. Models are deleted from disk, not moved to a trash.
 
 ## `b70 launch` — every knob maps to the recipe API
 

@@ -27,7 +27,7 @@ button{padding:8px 12px;min-height:40px;cursor:pointer;font-weight:500}
 button:hover{background:var(--border)}
 button:disabled{cursor:default;color:var(--subtle);opacity:.7}
 input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}
-input[type=checkbox]{min-height:0;accent-color:var(--link)}
+input[type=checkbox]{min-height:0;accent-color:var(--link);width:16px;height:16px;flex:none}
 /* WebKitGTK draws native GTK selects and spinners that ignore the dark theme; draw our own. */
 select{appearance:none;-webkit-appearance:none;padding-inline-end:34px;cursor:pointer;
   background:var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%23a3aab6' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 12px center/10px 10px}
@@ -71,6 +71,37 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .hardware{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
 .usage-btn{min-height:28px;padding:3px 10px;font-size:var(--caption);border-radius:8px;color:var(--muted);background:var(--bg);border-color:var(--border)}
 .usage-btn:hover{color:var(--text)}
+/* Storage manager */
+.chip-btn{cursor:pointer;background:var(--bg)} .chip-btn:hover{background:var(--border)}
+.st-vols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-block-end:14px}
+.st-vol{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.st-vol h3{margin:0 0 6px;font-size:var(--caption);color:var(--muted);font-weight:500;display:flex;justify-content:space-between;gap:8px}
+.st-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--border)}
+.st-bar i{display:block;height:100%}
+.st-bar .other{background:var(--subtle)} .st-bar .mine{background:var(--link)}
+.st-vol.warn .st-bar .other{background:var(--warn)} .st-vol.crit .st-bar .other{background:var(--err)}
+.st-vol .meta{margin-block-start:6px;display:block}
+.st-legend{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-4px 0 10px}.st-legend .sw{width:10px;height:10px;border-radius:2px;display:inline-block;margin-inline:8px 0}.st-legend .sw:first-child{margin-inline-start:0}.st-legend .sw.mine{background:var(--link)}.st-legend .sw.other{background:var(--subtle)}
+.st-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-block-end:8px}
+.st-tools .seg button{min-height:30px;padding:3px 12px;font-size:var(--caption);border-radius:0}
+.st-tools .seg{display:inline-flex;flex-wrap:wrap;max-width:100%}
+.st-tools .seg button:first-child{border-radius:6px 0 0 6px}.st-tools .seg button:last-child{border-radius:0 6px 6px 0}
+.st-tools .seg button[aria-pressed=true]{background:var(--border);color:var(--text);border-color:var(--link)}
+.st-list{max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:10px}
+.st-row{display:grid;grid-template-columns:26px minmax(0,1fr) 84px;gap:10px;align-items:start;padding:9px 12px;border-block-end:1px solid var(--border)}
+.st-row:last-child{border-block-end:0}
+.st-row.locked{opacity:.62}
+.st-row .nm{font-weight:500;overflow-wrap:anywhere}
+.st-row .sub{display:block;color:var(--muted);font-size:var(--caption);overflow-wrap:anywhere}
+.st-row .sz{text-align:end;font-variant-numeric:tabular-nums;font-weight:500}
+.st-row .why{color:var(--warn)}
+.st-kind{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border);border-radius:4px;padding:0 5px;margin-inline-end:6px;color:var(--muted)}
+.st-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-block-start:12px}
+.st-foot .sel{font-variant-numeric:tabular-nums}
+button.st-danger{border-color:var(--err);color:var(--err)} button.st-danger:hover:not(:disabled){background:var(--err);color:#fff}
+.st-confirm{border:1px solid var(--err);border-radius:10px;padding:12px;margin-block-start:12px}
+.st-confirm ul{margin:6px 0 10px;padding-inline-start:18px;max-height:18vh;overflow:auto}
+
 .chip{font-size:var(--caption);background:var(--bg);border:1px solid var(--border);border-radius:8px;
   padding:4px 8px;display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
 .chip .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--subtle)}
@@ -584,11 +615,16 @@ const liveEngine=m=>S.servers.find(e=>e.model_id===m.id&&live(e)&&m.recipes[e.en
 function pickEngine(m){const engs=Object.keys(m.recipes);const rec=m.recipes[m.recommended_engine]?m.recommended_engine:null;
   const last=S.lastEngine[m.id];if(last&&m.recipes[last])return last;
   return liveEngine(m)||(rec&&detected(m,rec)?rec:null)||engs.find(e=>detected(m,e))||rec||engs[0];}
+/* The context field follows a running session of this recipe (the session
+   was started with that override) until the user edits the field by hand. */
+function liveSessionCtx(port){const e=sessionFor(S.model,S.engine,port!=null?port:Number($('port').value));
+  return e&&live(e)&&e.ctx?e.ctx:null;}
 function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
   S.engine=engine&&m.recipes[engine]?engine:pickEngine(m);S.lastEngine[id]=S.engine;
   S.selection++;S.plan=null;S.downloadPlan=null;$('download-confirm').hidden=true;error('action-error','');
   const r=recipe();
-  $('context').value=validatedCtx(r)||r.ctx||32768;
+  S.ctxDirty=false;
+  $('context').value=liveSessionCtx(port)||(validatedCtx(r)||r.ctx||32768);
   $('context').max=r.ctx_max||262144;
   renderSelection();refreshPlan();
   if(port){$('port').value=port;}
@@ -873,6 +909,19 @@ function sessionStatus(e){if(e.status==='running')return['running','Ready','Serv
   if(e.status==='starting')return['starting',e.phase||'Starting','Loading; the endpoint is not accepting requests yet'];
   if(e.status==='exited')return['exited',`Exited${e.exitcode==null?'':' ('+e.exitcode+')'}`,'The engine process ended'];
   return['',e.status||'',''];}
+/* Honest first-load note per engine kind, shown until this machine has a
+   measured load of the recipe. Derived from what the engine does before its
+   first answer, not from a fabricated time. */
+const FIRST_LOAD_NOTES={
+  exl3:'First load compiles kernels: usually several minutes; later loads are faster.',
+  strata:'First load builds engine caches: usually several minutes; later loads are faster.',
+  xestrata:'First load builds engine caches: usually several minutes; later loads are faster.',
+  gguf:'First load compiles SYCL kernels: usually one to three minutes; later loads are faster.',
+  ovms:'First load builds the model cache: usually a few minutes; later loads are faster.'};
+function firstLoadNote(e){const k=String(e.kind||'');
+  if(k.startsWith('vllm'))return FIRST_LOAD_NOTES.exl3;
+  if(k.startsWith('gguf'))return FIRST_LOAD_NOTES.gguf;
+  return FIRST_LOAD_NOTES[k]||'First load of this engine: usually several minutes; later loads are faster.';}
 const nowS=()=>Date.now()/1000;
 const failedStart=e=>e.status==='exited'&&!e.ready_at;
 /* VRAM and watts for the session's cards: /api/power matched to preflight devices by PCI address. */
@@ -891,9 +940,10 @@ function agentRows(e){return Object.entries(e.clients||{}).filter(([,c])=>c&&typ
   .sort((a,b)=>(b[1].requests||0)-(a[1].requests||0));}
 /* The live block changes every poll; it is rebuilt only when its shape changes so focus and animation survive. */
 function renderSessionLive(e){const box=$('session-live');if(!box)return;
-  const exp=e.load_expected_s||null;const gpus=gpuStats(e).map(([k,v])=>[k,esc(v)]);const agents=agentRows(e);
+  const exp=e.load_expected_s!=null?e.load_expected_s:null;const last=e.load_last_s!=null?e.load_last_s:null;
+  const gpus=gpuStats(e).map(([k,v])=>[k,esc(v)]);const agents=agentRows(e);
   const tail=S.tails[e.id]?.lines||[];
-  const sig=JSON.stringify([e.id,e.status,failedStart(e),exp,gpus,e.tok_s,e.requests,e.tokens_in,e.tokens_out,agents,tail,e.error,e.exitcode]);
+  const sig=JSON.stringify([e.id,e.status,failedStart(e),exp,last,e.kind,gpus,e.tok_s,e.requests,e.tokens_in,e.tokens_out,agents,tail,e.error,e.exitcode]);
   if(sig!==S.sig.live){S.sig.live=sig;
     if(e.status==='starting'){
       box.innerHTML=`<div class="load"><div class="load-line numbers"><span id="load-elapsed"></span><span id="load-usual"></span></div>
@@ -913,7 +963,8 @@ function renderSessionLive(e){const box=$('session-live');if(!box)return;
     else box.innerHTML='';}
   if(e.status==='starting'){const t=nowS()-(e.launch_ts||e.started_at||nowS());
     $('load-elapsed').textContent=`${elapsed(t)} elapsed`;
-    $('load-usual').textContent=!exp?'First load of this recipe: no estimate yet':t>exp?`Usually about ${elapsed(exp)}; taking longer`:`Usually about ${elapsed(exp)}`;
+    const usual=exp?(t>exp?`Usually about ${elapsed(exp)}; taking longer`:`Usually about ${elapsed(exp)}`):firstLoadNote(e);
+    $('load-usual').textContent=exp&&last!=null&&Math.round(last)!==Math.round(exp)?`${usual} · last load ${elapsed(last)}`:usual;
     if(exp){const pct=Math.min(95,t/exp*100);$('load-fill').style.width=`${pct.toFixed(1)}%`;$('load-bar').setAttribute('aria-valuenow',Math.round(pct));}}}
 /* Last 3 log lines of a failed load: fetched once per log file, not on every poll. */
 async function fetchTail(e){S.tails[e.id]={key:e.log,lines:[]};
@@ -961,7 +1012,7 @@ function renderSession(){const e=currentSession();const box=$('session');
       </div>
       <p class="client-line">${openState}</p>
       <p class="test-line ${t.state==='passed'?'good':t.state==='failed'?'danger':''}">${
-        t.state==='passed'?`Test answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s`:''} — <button class="mini" type="button" id="view-answer">view answer</button>`
+        t.state==='passed'?`Test answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s end to end (includes the wait for the first token; real speed is in Usage)`:''} — <button class="mini" type="button" id="view-answer">view answer</button>`
         :t.state==='running'?'Testing answer…'
         :t.state==='failed'?`Test failed: ${esc(t.error||'no answer')}`
         :cls==='running'?'Not tested yet':'Test runs once the endpoint is ready'}</p>
@@ -1014,7 +1065,7 @@ function renderHardware(power=S.power){const devices=deviceList();const compact=
       `cap ${c.p.cap_w??d.power_cap_w??'?'} W`].filter(Boolean).join(' · ');
     return`<button type="button" class="chip ${c.cls}${hot?' hot':''}" data-hardware title="${esc(title)}" aria-label="${esc(title)}">
       <span class="dot"></span>GPU ${i}${compact?'':telemetry?` · <b>${telemetry}</b>`:''} ${vbar}${compact?(c.watts?`<b>${c.watts}</b>`:''):c.vram||` · ${esc(c.state)}`}</button>`;}).join('')
-    +`<span class="chip" title="Free space on the model download disk">Disk ${S.scan?.free_gb==null?'?':S.scan.free_gb} GiB free</span>`;
+    +`<button type="button" class="chip chip-btn" id="storage-open" aria-haspopup="dialog" title="Manage models and engine images on disk">Storage · ${S.scan?.free_gb==null?'?':S.scan.free_gb} GiB free</button>`;
   if(html!==S.sig.hw){S.sig.hw=html;$('hardware').innerHTML=html;}
   if(S.dialogKind==='hardware'&&$('dialog').open)renderHardwareTable();}
 
@@ -1074,7 +1125,7 @@ function renderAction(){const r=recipe();const button=$('primary');
       status='Selected card is in use';}
     else if(S.plan?.error){text='Launch blocked';status=S.plan.error;button.disabled=true;}
     else{text='Launch recipe';S.action='launch';
-      status=`GPU ${selected.join(' + ')} · ${fmt($('context').value)} ctx · port ${$('port').value}`;}}
+      status=`GPU ${selected.join(' + ')} · ${fmt(S.plan?.ctx ?? Number($('context').value))} ctx · port ${$('port').value}`;}}
   button.textContent=S.request?'Working…':text;
   $('launch-status').textContent=status;
   renderSession();}
@@ -1101,6 +1152,7 @@ async function poll(){if(S.polled)return;S.polled=true;
     else if(S.scan?.ts!==state.scan.ts){await refreshScan();}
     const power=await api('/api/power');S.power=power.power||[];
     renderLibrary();renderEngineSwitch();renderDownloads();renderClients();renderGpus();renderAvailability();renderAction();renderHardware();
+    if(!S.ctxDirty){const c=liveSessionCtx();if(c!=null&&Number($('context').value)!==c){$('context').value=c;renderContext();}}
     renderUpdate(state.update);
     if(!S.welcomeChecked){S.welcomeChecked=true;maybeWelcome();}}
   catch(e){error('connection-error',S.restarting?restartText():`Launcher unavailable: ${e.message}. Check the daemon, then reload.`);$('primary').disabled=true;}
@@ -1185,20 +1237,108 @@ function usageTable(id,title,head,rows,cells,empty){
   return`<h3 id="${id}">${esc(title)}</h3>`+(rows.length?`<div class="table-wrap"><table class="nums" aria-labelledby="${id}">
     <thead><tr>${head.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(r=>`<tr>${cells(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:`<p class="hint">${esc(empty)}</p>`);}
+const f1=(v,d=1)=>v==null?'–':Number(v).toFixed(d);
+function speedTables(u){const sp=u.speed||{},rows=sp.by_model||[],rec=sp.recent||[];
+  if(!rows.length)return'';
+  const m=rows.map(r=>`<tr><td>${esc(r.model)}<span class="sub"> · ${esc(r.engine)}</span></td><td>${fmt(r.requests)}</td>
+    <td><b>${f1(r.decode_tps_median)}</b><span class="sub"> ${r.decode_tps_p10!=null?`(${f1(r.decode_tps_p10,0)}–${f1(r.decode_tps_p90,0)})`:''}</span></td>
+    <td>${r.ttft_s_median!=null?f1(r.ttft_s_median,2)+' s':'–'}</td><td>${r.prefill_tps_median!=null?fmt(Math.round(r.prefill_tps_median)):'–'}</td>
+    <td>${r.j_per_ktok!=null?f1(r.j_per_ktok,0):'–'}</td></tr>`).join('');
+  const last=rec.slice(0,10).map(r=>`<tr><td>${esc(String(r.ts).slice(5,16))}</td><td>${esc(clientLabel(r.client))}</td><td>${esc(r.model)}</td>
+    <td>${fmt(r.tokens_in)}</td><td>${fmt(r.tokens_out)}</td><td>${r.decode_tps!=null?f1(r.decode_tps):(r.overall_tps!=null?f1(r.overall_tps)+'*':'–')}</td>
+    <td>${r.ttft_s!=null?f1(r.ttft_s,2)+' s':'–'}</td><td>${r.avg_w!=null?f1(r.avg_w,0)+' W':'–'}</td><td>${r.ok?'':'<span class="danger">failed</span>'}</td></tr>`).join('');
+  return`<h3 id="usage-speed">Speed by model</h3><div class="table-wrap"><table class="nums" aria-labelledby="usage-speed"><thead><tr>
+    <th scope="col">Model</th><th scope="col">Requests</th><th scope="col">Decode tok/s, median (p10–p90)</th><th scope="col">First token</th>
+    <th scope="col">Prefill tok/s</th><th scope="col">J per 1k tokens</th></tr></thead><tbody>${m}</tbody></table></div>
+    <p class="hint">Decode is the streamed rate after the first token. Prefill includes queueing and prompt-cache hits. Energy is what the whole card drew during each request, so another job on the same card raises it.</p>
+    <h3 id="usage-recent">Recent requests</h3><div class="table-wrap"><table class="nums" aria-labelledby="usage-recent"><thead><tr>
+    <th scope="col">Time</th><th scope="col">Agent</th><th scope="col">Model</th><th scope="col">In</th><th scope="col">Out</th>
+    <th scope="col">tok/s</th><th scope="col">First token</th><th scope="col">Card power</th><th scope="col"></th></tr></thead><tbody>${last}</tbody></table></div>
+    <p class="hint">* a request that was not streamed: tokens over wall time, which includes the prompt.</p>`;}
 function usageBody(u){const today=usageRows(u.today),all=usageRows(u.clients),models=usageRows(u.by_model);
   if(!today.length&&!all.length&&!models.length)
-    return'<p class="hint">No agent traffic yet. Open Pi, OMP, Droid, Codex or DeepSeek from a running model and it will show here.</p>';
+    return'<p class="hint">No agent traffic yet. Open Pi, OMP, Droid, Codex or DeepSeek from a running model and it will show here. Speed and energy are recorded per request from then on.</p>';
   const agentCells=time=>([k,c])=>[esc(clientLabel(k)),fmt(c.requests||0),fmt(c.tokens_in||0),fmt(c.tokens_out||0),
     esc(String(c.last_used||'').slice(time?11:0,16))];
   const head=['Agent','Requests','Tokens in','Tokens out','Last used'];
   return'<p class="hint">Requests that agents sent through the launcher.</p>'
+    +speedTables(u)
     +usageTable('usage-today','Today',head,today,agentCells(true),'No agent traffic today.')
     +usageTable('usage-all','All time',head,all,agentCells(false),'No agent traffic yet.')
     +usageTable('usage-models','By model',['Model','Requests','Tokens in','Tokens out'],models,
       ([k,c])=>[esc(k),fmt(c.requests||0),fmt(c.tokens_in||0),fmt(c.tokens_out||0)],'No model traffic yet.');}
-async function showUsage(){openDialog('Usage','<p class="hint">Loading…</p>');S.dialogKind='usage';
+async function showUsage(){openDialog('Usage','<p class="hint">Loading…</p>');S.dialogKind='usage';$('dialog').classList.add('wide');
   try{const u=await api('/api/usage');if(S.dialogKind==='usage')$('dialog-content').innerHTML=usageBody(u);}
   catch(ex){if(S.dialogKind==='usage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
+
+
+/* ---------- storage manager ---------- */
+const GIB=1073741824;
+const gib=n=>{n=Number(n)||0;return n>=GIB/10?(n/GIB).toFixed(1)+' GiB':(n/1048576).toFixed(0)+' MiB';};
+S.storage=null;S.stFilter='all';S.stSel=new Set();S.stConfirm=false;
+const ST_KIND={model:'Model',image:'Image',partial:'Partial'};
+function stVisible(){const items=(S.storage?.items||[]).filter(i=>!(i.kind==='image'&&!i.managed));
+  return S.stFilter==='all'?items:S.stFilter==='suggested'?items.filter(i=>i.suggested):items.filter(i=>i.kind===S.stFilter);}
+function stRow(i){const use=(i.used_by||[]).map(u=>`${esc(u.name)} · ${esc(u.engine)}${u.role?` (${esc(u.role)})`:''}`);
+  const bits=[use.length?`Used by ${use.slice(0,3).join(', ')}${use.length>3?` +${use.length-3}`:''}`:'',
+    i.last_launched?`Last launched ${esc(i.last_launched.slice(0,10))}`:'',i.hint?esc(i.hint):''].filter(Boolean);
+  const dis=!i.deletable;
+  return`<div class="st-row${dis?' locked':''}"><input type="checkbox" data-st="${esc(i.id)}" aria-label="Select ${esc(i.name)}"
+      ${S.stSel.has(i.id)?'checked':''} ${dis?'disabled':''}>
+    <div><span class="nm"><span class="st-kind">${ST_KIND[i.kind]||esc(i.kind)}</span>${esc(i.name)}</span>
+      <span class="sub">${esc(i.path)}</span>${bits.length?`<span class="sub">${bits.join(' · ')}</span>`:''}
+      ${dis&&i.why_kept?`<span class="sub why">Kept: ${esc(i.why_kept)}</span>`:''}</div>
+    <span class="sz">${gib(i.size_bytes)}</span></div>`;}
+function stVolumes(){return(S.storage?.volumes||[]).map(v=>{const pct=v.total_bytes?v.used_bytes/v.total_bytes*100:0;
+  const mine=v.total_bytes?v.managed_bytes/v.total_bytes*100:0,other=Math.max(0,pct-mine);
+  const cls=pct>=95?'crit':pct>=85?'warn':'';
+  return`<div class="st-vol ${cls}"><h3><span>${esc(v.mount)}</span><span class="numbers">${pct.toFixed(0)}% used</span></h3>
+    <div class="st-bar" role="img" aria-label="${esc(v.mount)}: launcher files ${gib(v.managed_bytes)}, other files ${gib(v.used_bytes-v.managed_bytes)}, free ${gib(v.free_bytes)}">
+      <i class="mine" style="width:${mine.toFixed(1)}%"></i><i class="other" style="width:${other.toFixed(1)}%"></i></div>
+    <span class="meta numbers">${gib(v.free_bytes)} free of ${gib(v.total_bytes)} · launcher ${gib(v.managed_bytes)}</span></div>`;}).join('');}
+function renderStorage(){const st=S.storage;if(!st||S.dialogKind!=='storage')return;
+  const vis=stVisible(),sel=[...S.stSel].map(id=>st.items.find(i=>i.id===id)).filter(i=>i&&i.deletable);
+  const total=sel.reduce((a,i)=>a+i.size_bytes,0),sum=st.summary||{};
+  const count=k=>st.items.filter(i=>k==='all'?!(i.kind==='image'&&!i.managed):k==='suggested'?i.suggested:i.kind===k&&!(i.kind==='image'&&!i.managed)).length;
+  const tabs=[['all','All'],['model','Models'],['image','Engine images'],['partial','Partial downloads'],['suggested','Suggested']];
+  const bad=(st.daemons||[]).filter(d=>!d.ok);
+  $('dialog-content').innerHTML=`<p class="hint">Models and engine images the launcher found or pins. Sizes are exact on-disk bytes. Nothing is removed until you confirm.</p>
+    <div class="st-vols">${stVolumes()}</div>
+    <p class="meta st-legend"><span class="sw mine"></span>Launcher models and images <span class="sw other"></span>Other files on the disk</p>
+    <div class="st-tools"><span class="seg" role="group" aria-label="Filter">${tabs.map(([k,l])=>`<button type="button" data-stf="${k}" aria-pressed="${S.stFilter===k}">${l} · ${count(k)}</button>`).join('')}</span>
+      <button type="button" id="st-suggested" ${sum.suggested_count?'':'disabled'}>Select suggested${sum.suggested_count?` (${gib(sum.suggested_bytes)})`:''}</button>
+      <button type="button" id="st-refresh">Refresh</button></div>
+    ${bad.length?`<p class="warning">${bad.map(d=>esc(d.name)+': '+esc(d.error||'not reachable')).join(' · ')}</p>`:''}
+    <div class="st-list" role="group" aria-label="Storage items">${vis.length?vis.map(stRow).join(''):'<p class="hint" style="padding:12px">Nothing in this view.</p>'}</div>
+    <div class="st-foot"><span class="sel" role="status">${sel.length?`${sel.length} selected · <b>${gib(total)}</b> to free`:'Nothing selected'}</span>
+      <button type="button" class="st-danger" id="st-delete" ${sel.length?'':'disabled'}>Delete selected…</button></div>
+    ${S.stConfirm&&sel.length?`<div class="st-confirm" aria-labelledby="st-c-h">
+      <strong id="st-c-h">Delete ${sel.length} item${sel.length>1?'s':''} (${gib(total)}) permanently?</strong>
+      <ul>${sel.map(i=>`<li>${esc(i.name)} · ${gib(i.size_bytes)}${i.kind==='image'?' · docker image rm':''}</li>`).join('')}</ul>
+      <p class="hint">Models are deleted from disk, not moved to the trash. Images are removed with docker image rm; layers shared with another image stay.</p>
+      <div class="actions"><button type="button" class="st-danger" id="st-confirm-go">Delete permanently</button>
+      <button type="button" id="st-cancel">Cancel</button></div></div>`:''}`;}
+async function showStorage(force=false){
+  if(S.dialogKind!=='storage'){openDialog('Storage','<p class="hint">Scanning disks and Docker…</p>');S.dialogKind='storage';$('dialog').classList.add('wide');S.stSel=new Set();S.stConfirm=false;}
+  try{S.storage=force?await api('/api/storage/refresh',{}):await api('/api/storage');renderStorage();}
+  catch(ex){if(S.dialogKind==='storage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
+async function storageDelete(){const ids=[...S.stSel];$('st-confirm-go').disabled=true;$('st-confirm-go').textContent='Deleting…';
+  try{const r=await api('/api/storage/delete',{ids});S.storage=r.snapshot||S.storage;S.stSel=new Set();S.stConfirm=false;
+    const fail=r.results.filter(x=>!x.ok);renderStorage();
+    toast(fail.length?`Freed ${gib(r.freed_bytes)}; ${fail.length} not removed: ${fail[0].error}`:`Freed ${gib(r.freed_bytes)}`);
+    refreshScan().catch(()=>{});}
+  catch(ex){error('dialog-error',ex.message);S.stConfirm=false;renderStorage();}}
+document.addEventListener('click',e=>{if(S.dialogKind!=='storage'&&!e.target.closest('#storage-open'))return;
+  const t=e.target.closest('button,input');if(!t)return;
+  if(t.id==='storage-open'){S.stFilter='all';showStorage();return;}
+  if(t.dataset.stf){S.stFilter=t.dataset.stf;renderStorage();}
+  else if(t.id==='st-refresh')showStorage(true);
+  else if(t.id==='st-suggested'){S.storage.items.filter(i=>i.suggested&&i.deletable).forEach(i=>S.stSel.add(i.id));S.stFilter='suggested';renderStorage();}
+  else if(t.id==='st-delete'){S.stConfirm=true;renderStorage();$('st-confirm-go')?.focus();}
+  else if(t.id==='st-cancel'){S.stConfirm=false;renderStorage();}
+  else if(t.id==='st-confirm-go')storageDelete();});
+document.addEventListener('change',e=>{const id=e.target.dataset?.st;if(!id||S.dialogKind!=='storage')return;
+  e.target.checked?S.stSel.add(id):S.stSel.delete(id);S.stConfirm=false;renderStorage();});
 
 /* ---------- dialogs, copy, logs ---------- */
 function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').classList.remove('narrow','wide');
@@ -1233,7 +1373,7 @@ async function showLogs(entry){S.logOffset=null;
     catch(e){error('dialog-error',e.message);clearInterval(S.logTimer);}};
   await update();S.logTimer=setInterval(update,1500);}
 async function viewAnswer(entry){const t=entry.test||{};
-  openDialog('Server answer',`<p class="${t.state==='passed'?'good':'error'}">${esc(t.state==='passed'?`Answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s`:''}`:t.error||'Test failed')}</p>
+  openDialog('Server answer',`<p class="${t.state==='passed'?'good':'error'}">${esc(t.state==='passed'?`Answered in ${t.elapsed_s}s${t.tok_s!=null?` · ${t.tok_s} tok/s end to end (includes the wait for the first token; real speed is in Usage)`:''}`:t.error||'Test failed')}</p>
     ${t.reasoning?`<h3>Reasoning</h3><pre>${esc(t.reasoning)}</pre>`:''}
     <h3>Answer</h3><pre>${esc(t.answer)}</pre>`);}
 
@@ -1344,8 +1484,8 @@ $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('con
   catch(e){$('confirm-download').disabled=false;error('action-error',e.message);}};
 function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAvailability();renderAction();refreshPlan();}
 for(const id of['port','kv','prefill','cache','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
-$('context').addEventListener('input',renderContext);
-$('context').addEventListener('change',()=>{renderContext();renderAction();refreshPlan();});
+$('context').addEventListener('input',()=>{S.ctxDirty=true;renderContext();});
+$('context').addEventListener('change',()=>{S.ctxDirty=true;renderContext();renderAction();refreshPlan();});
 $('gpu').addEventListener('change',()=>onConfigChange());
 $('client').addEventListener('change',renderAction);
 for(const id of['advanced','cookbook']){try{$(id).open=localStorage.getItem('b70-'+id)==='open';}catch(e){}

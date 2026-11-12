@@ -488,8 +488,12 @@ def best_default(b70s, devices):
     first = catalog.RECIPES["models"][0] if catalog.RECIPES.get("models") else {"id": "", "recipes": {}}
     if b70s:
         vram = sum((d.get("vram_total_mib") or 0) for d in b70s)
-        model = catalog.find_model("qwen36-35b") or first
-        return {"model_id": model.get("id", ""), "engine": next(iter(model.get("recipes", {})), ""),
+        # the cookbook's reviewed first run, carried in the catalog as `first_run`
+        fr = catalog.RECIPES.get("first_run") or {}
+        model = catalog.find_model(fr.get("model") or "") or catalog.find_model("qwen36-35b") or first
+        engine = fr.get("engine") if fr.get("engine") in (model.get("recipes") or {}) else \
+            (model.get("recommended_engine") or next(iter(model.get("recipes", {})), ""))
+        return {"model_id": model.get("id", ""), "engine": engine,
                 "reason": f"{len(b70s)}× Arc Pro B70 detected"
                           + (f" · {vram / 1024:.0f} GB total" if vram else "")}
     return {"model_id": first.get("id", ""), "engine": next(iter(first.get("recipes", {})), ""),
@@ -527,9 +531,11 @@ def _vram_mm(pci):
 
 
 def _act_freq(pci):
+    """Actual GT clock in MHz. 0 means idle (RC6); only fall back to cur_freq, the clock the
+    driver *requested* and which sits at the maximum on an idle card, when act_freq is absent."""
     for rel in ("tile0/gt0/freq0/act_freq", "tile0/gt0/freq0/cur_freq"):
         v = _read_int(Path(f"/sys/bus/pci/devices/{pci}/{rel}"))
-        if v:
+        if v is not None:
             return v
     return None
 
@@ -578,7 +584,7 @@ def power_probe():
                 "vram_total_gb": total_gb,
                 "vram_used_gb": used_gb,
             }
-            if freq and maxfreq:
+            if freq is not None and maxfreq:
                 entry["util_pct"] = max(0, min(100, round(freq / maxfreq * 100)))
             prev = POWER_PREV.get(pci)
             if energy is not None and prev and now > prev[0] and energy >= prev[1]:
@@ -590,6 +596,27 @@ def power_probe():
         except OSError:
             continue
     return out
+
+
+def energy_uj(indices):
+    """Cumulative card energy in microjoules for the given GPU indices (xe hwmon order), or None."""
+    if IS_WIN or not indices:
+        return None
+    total, idx, found = 0, 0, False
+    want = {int(i) for i in indices}
+    for hm in sorted(Path("/sys/class/hwmon").glob("hwmon*")):
+        try:
+            if (hm / "name").read_text().strip() != "xe":
+                continue
+        except OSError:
+            continue
+        if idx in want:
+            e = _read_int(hm / "energy1_input")
+            if e is not None:
+                total += e
+                found = True
+        idx += 1
+    return total if found else None
 
 
 def vram_probe():

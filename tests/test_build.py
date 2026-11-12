@@ -336,6 +336,16 @@ class TestBuildValidation(LauncherStateCase):
         self.assertIn("error", builders.build(cfg(model_id="qwen36-35b",
                         engine="llamacpp", slots=-1)))
 
+    def test_range_errors_name_the_offending_field(self):
+        # the UI status line shows this text — it must say which setting is wrong
+        cases = [("port", 0, "Port must be between 1 and 65535"),
+                 ("slots", 0, "Parallel slots must be between 1 and 128"),
+                 ("ctx", 100, "Context must be between 512 and 262144 tokens")]
+        for key, value, message in cases:
+            with self.subTest(key=key):
+                b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp", **{key: value}))
+                self.assertTrue(b.get("error", "").startswith(message), b.get("error"))
+
     def test_falsy_numeric_fields_rejected(self):
         # explicit 0 is a value, not "unset" — out-of-range port/slots must error
         b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",
@@ -559,6 +569,16 @@ class TestLoadPhases(LauncherStateCase):
         item = {i["id"]: i for i in runtime.servers_snapshot()}["next"]
         self.assertEqual(item["status"], "starting")
         self.assertAlmostEqual(item["load_expected_s"], 50, delta=2)
+        self.assertAlmostEqual(item["load_last_s"], 60, delta=2)  # the newest kept measurement
+
+    def test_never_loaded_recipe_has_no_estimates(self):
+        entry = self._entry("fresh", free_port(), "")
+        entry["model_id"], entry["engine"] = "never-loaded", "vllm"
+        runtime.RUNNING["fresh"] = entry
+        item = {i["id"]: i for i in runtime.servers_snapshot()}["fresh"]
+        self.assertIsNone(item["load_expected_s"])
+        self.assertIsNone(item["load_last_s"])
+        del runtime.RUNNING["fresh"]
 
 
 class TestExl3Builder(LauncherStateCase):

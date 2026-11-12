@@ -98,3 +98,20 @@ class TestCatalogUpdates(support_env.LauncherStateCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestFirstRunDefault(unittest.TestCase):
+    """The suggested first launch follows the catalog's reviewed first_run, not the first model."""
+
+    def test_catalog_declares_a_resolvable_first_run(self):
+        from b70launcher import catalog
+        fr = catalog.RECIPES.get("first_run") or {}
+        model = catalog.find_model(fr.get("model", ""))
+        self.assertIsNotNone(model, "first_run.model is not in the catalog")
+        self.assertIn(fr.get("engine"), model["recipes"])
+
+    def test_best_default_uses_first_run(self):
+        from b70launcher import hardware
+        b70 = [{"vram_total_mib": 32656, "b70": True}]
+        got = hardware.best_default(b70, b70)
+        self.assertEqual((got["model_id"], got["engine"]), ("qwen38-27b", "exl3"))

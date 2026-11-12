@@ -6,6 +6,7 @@ Run:  cd b70-launcher && python3 -m unittest discover -s tests -v
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
 try:
     import support_env
@@ -196,6 +197,60 @@ class TestDetectDirectPath(LauncherStateCase):
         scan.SCAN["items"] = {"gguf": {}, "snapshots": {}}
         # ~/models/... does not exist under the fake HOME -> None, not a guess
         self.assertIsNone(scan.detect(model("qwen38-27b"), "vllm"))
+
+
+class TestDetectXeStrata(LauncherStateCase):
+    """The portable XeStrata recipes ship an empty model_path: detection goes
+    through download.name / family matching like every portable recipe."""
+
+    def setUp(self):
+        super().setUp()
+        self.dir = DISK / "xestrata"
+        self.dir.mkdir(parents=True, exist_ok=True)
+        scan.SCAN["items"] = {"gguf": {}, "snapshots": {}}
+
+    def _add(self, name):
+        p = write_file(self.dir / name)
+        scan.SCAN["items"]["gguf"][name.lower()] = str(p)
+        return p
+
+    def test_shipped_recipes_have_no_direct_path(self):
+        for mid in ("qwen38-flashnext", "qwen38-flashnext-iq3s"):
+            r = model(mid)["recipes"]["xestrata"]
+            self.assertEqual(r.get("model_path"), "", mid)
+
+    def test_exact_download_name_detects(self):
+        self._add("Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf")
+        det = scan.detect(model("qwen38-flashnext"), "xestrata")
+        self.assertIsNotNone(det)
+        self.assertFalse(det["variant"])
+
+    def test_wrong_quant_family_file_does_not_satisfy_xestrata(self):
+        # the llama.cpp AP quant is family ("flash-next") but not IQ3_XXS;
+        # the XeStrata engine needs the exact pack — prefer filters it out
+        self._add("Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf")
+        det, reason = scan.detect_status(model("qwen38-flashnext"), "xestrata")
+        self.assertIsNone(det)
+        self.assertTrue(reason, "wrong-quant family file must not satisfy the recipe")
+
+    def test_iq3s_exact_match_detects(self):
+        self._add("Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf")
+        det = scan.detect(model("qwen38-flashnext-iq3s"), "xestrata")
+        self.assertIsNotNone(det)
+        self.assertFalse(det["variant"])
+
+    def test_host_override_path_wins_over_pool(self):
+        # a host that pins model_path via recipe_overrides keeps direct detection
+        target = FAKE_HOME / "engines" / "strata" / "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf"
+        write_file(target)
+        self.addCleanup(lambda: __import__("shutil").rmtree(
+            FAKE_HOME / "engines", ignore_errors=True))
+        m = model("qwen38-flashnext")
+        with mock.patch.dict(m["recipes"]["xestrata"], {"model_path": str(target)}):
+            det = scan.detect(m, "xestrata")
+        self.assertIsNotNone(det)
+        self.assertEqual(det["path"], str(target))
+        self.assertFalse(det["variant"])
 
 
 class TestResolveCtx(LauncherStateCase):
