@@ -7,6 +7,7 @@ this module reads nothing).
 import json
 import re
 import time
+import urllib.parse
 import urllib.request
 
 from . import paths
@@ -52,11 +53,34 @@ _MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
 
+# Types a published field must have. A recipe is data, so a wrong type is a rejected field,
+# not an exception inside a builder (and never a non-string inside a docker argv).
+_INT_FIELDS = ("ctx", "ctx_max", "ctx_safe", "spec_tokens", "inner_port", "tp")
+_NUM_FIELDS = ("power", "spec_p_min", "gmu", "gmu_safe", "gmu_safe_budget")
+_STR_FIELDS = ("ctx_note", "dtype", "kv", "prefill", "split_mode", "tensor_split", "offload_tensors",
+               "tool_parser", "reasoning_parser", "search_name", "cim_long_ctx", "recipe_ver", "perf", "topology")
+
+
+def _field_type_ok(name, value):
+    if name in _INT_FIELDS:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if name in _NUM_FIELDS:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if name in _STR_FIELDS:
+        return isinstance(value, str)
+    return True
+
 
 def _url_ok(url):
     """Remote fetches stay on https; plain http only for localhost test rigs."""
-    return url.startswith("https://") or url.startswith("http://127.0.0.1") \
-        or url.startswith("http://localhost")
+    try:
+        parts = urllib.parse.urlsplit(str(url))
+    except ValueError:
+        return False
+    if parts.scheme == "https" and parts.hostname:
+        return True
+    # test rigs: the host must BE the loopback name, not merely start with it
+    return parts.scheme == "http" and parts.hostname in ("127.0.0.1", "localhost", "::1")
 
 
 def load():
@@ -133,7 +157,12 @@ def save_override(keys):
 
 def _sanitize_remote_recipe(r):
     """Strip a published recipe to fields allowed over the wire."""
-    out = {k: r[k] for k in REMOTE_RECIPE_FIELDS if k in r}
+    out = {k: r[k] for k in REMOTE_RECIPE_FIELDS if k in r and _field_type_ok(k, r[k])}
+    if "download" in out and not isinstance(out["download"], dict):
+        out.pop("download")
+    for key in ("kv_options", "prefill_options"):
+        if key in out and not (isinstance(out[key], list) and all(isinstance(v, str) for v in out[key])):
+            out.pop(key)
     dm = r.get("draft_model")  # bare artifact names only — resolved via scan
     if dm is not None and _DRAFT_RE.fullmatch(str(dm)):
         out["draft_model"] = str(dm)
