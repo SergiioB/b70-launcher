@@ -199,6 +199,64 @@ class TestDetectDirectPath(LauncherStateCase):
         self.assertIsNone(scan.detect(model("qwen38-27b"), "vllm"))
 
 
+class TestRecipeNeeds(LauncherStateCase):
+    """recipe_needs(): the settings a recipe needs before it can launch."""
+
+    def setUp(self):
+        super().setUp()
+        scan.SCAN["items"] = {"gguf": {}, "snapshots": {}}
+
+    def needs(self, mid, engine, det=None):
+        return scan.recipe_needs(model(mid), engine, det)
+
+    def test_xestrata_needs_its_root_when_unset(self):
+        catalog.SETTINGS["xestrata_root"] = ""
+        out = {n["setting"] for n in self.needs("qwen38-flashnext-iq3s", "xestrata")}
+        self.assertIn("xestrata_root", out)
+        # this recipe is downloadable: no model_path need
+        self.assertNotIn("model_path", out)
+
+    def test_xestrata_root_set_removes_the_need(self):
+        catalog.SETTINGS["xestrata_root"] = str(FAKE_HOME / "xestrata")
+        out = self.needs("qwen38-flashnext-iq3s", "xestrata")
+        self.assertEqual(out, [])
+
+    def test_no_download_no_path_no_detection_needs_model_path(self):
+        # the legacy flash-next xestrata recipe has no repo: it must be located
+        out = {n["setting"] for n in self.needs("qwen38-flashnext", "xestrata")}
+        self.assertIn("model_path", out)
+
+    def test_detection_clears_the_model_path_need(self):
+        p = write_file(DISK / "needs" / "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf")
+        scan.SCAN["items"]["gguf"][p.name.lower()] = str(p)
+        det = scan.detect(model("qwen38-flashnext"), "xestrata")
+        self.assertIsNotNone(det)
+        out = {n["setting"] for n in self.needs("qwen38-flashnext", "xestrata", det)}
+        self.assertNotIn("model_path", out)
+
+    def test_a_recipe_path_set_needs_no_model_path(self):
+        # a direct path that does not exist yet is not a "needs setup":
+        # the launch error names it instead
+        m = model("qwen38-flashnext")
+        m["recipes"]["xestrata"] = dict(m["recipes"]["xestrata"], model_path="/data/models/pack.gguf")
+        out = {n["setting"] for n in self.needs("qwen38-flashnext", "xestrata")}
+        self.assertNotIn("model_path", out)
+
+    def test_downloadable_recipes_need_nothing(self):
+        for mid, eng in (("qwen36-35b", "llamacpp"), ("qwen38-27b", "exl3")):
+            self.assertEqual(self.needs(mid, eng), [], mid)
+
+    def test_strata_needs_its_root(self):
+        catalog.SETTINGS["strata_root"] = ""
+        out = {n["setting"] for n in self.needs("qwen38-flashnext-strata", "strata")}
+        self.assertIn("strata_root", out)
+
+    def test_every_need_carries_a_hint(self):
+        for n in self.needs("qwen38-flashnext", "xestrata"):
+            self.assertTrue(n["hint"].strip(), n)
+            self.assertTrue(n["setting"].strip(), n)
+
+
 class TestDetectXeStrata(LauncherStateCase):
     """The portable XeStrata recipes ship an empty model_path: detection goes
     through download.name / family matching like every portable recipe."""

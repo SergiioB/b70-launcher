@@ -87,20 +87,40 @@ header{display:flex;gap:16px;align-items:center;justify-content:space-between;fl
 .st-tools .seg{display:inline-flex;flex-wrap:wrap;max-width:100%}
 .st-tools .seg button:first-child{border-radius:6px 0 0 6px}.st-tools .seg button:last-child{border-radius:0 6px 6px 0}
 .st-tools .seg button[aria-pressed=true]{background:var(--border);color:var(--text);border-color:var(--link)}
+.st-tools select,.st-tools input[type=search]{min-height:30px;padding:3px 8px;font-size:var(--caption);
+  border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:auto}
+.st-tools input[type=search]{flex:1 1 130px;min-width:110px}
+.st-tools label{display:inline-flex;gap:6px;align-items:center;font-size:var(--caption);color:var(--muted)}
 .st-list{max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:10px}
-.st-row{display:grid;grid-template-columns:26px minmax(0,1fr) 84px;gap:10px;align-items:start;padding:9px 12px;border-block-end:1px solid var(--border)}
+.st-group{margin-block-end:2px}
+.st-group-h{display:flex;gap:8px 14px;align-items:baseline;flex-wrap:wrap;padding:6px 12px;
+  position:sticky;top:0;background:var(--surface);border-block-end:1px solid var(--border);z-index:1;
+  font-size:var(--caption);color:var(--muted)}
+.st-group-h .disk{font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.st-group-h .free-after{color:var(--ok);font-weight:600}
+.st-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 12px;border-block-end:1px solid var(--border)}
 .st-row:last-child{border-block-end:0}
 .st-row.locked{opacity:.62}
+.st-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .st-row .nm{font-weight:500;overflow-wrap:anywhere}
 .st-row .sub{display:block;color:var(--muted);font-size:var(--caption);overflow-wrap:anywhere}
 .st-row .sz{text-align:end;font-variant-numeric:tabular-nums;font-weight:500}
 .st-row .why{color:var(--warn)}
+.st-acts{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .st-kind{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border);border-radius:4px;padding:0 5px;margin-inline-end:6px;color:var(--muted)}
 .st-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-block-start:12px}
 .st-foot .sel{font-variant-numeric:tabular-nums}
 button.st-danger{border-color:var(--err);color:var(--err)} button.st-danger:hover:not(:disabled){background:var(--err);color:#fff}
 .st-confirm{border:1px solid var(--err);border-radius:10px;padding:12px;margin-block-start:12px}
 .st-confirm ul{margin:6px 0 10px;padding-inline-start:18px;max-height:18vh;overflow:auto}
+.st-plan{border:1px solid var(--link);border-radius:10px;padding:12px;margin-block-start:12px}
+.st-plan ul{margin:6px 0 10px;padding-inline-start:18px;max-height:18vh;overflow:auto}
+.st-modes{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0}
+.st-modes label{display:inline-flex;gap:6px;align-items:center;font-weight:500}
+.st-modes .hint{font-weight:400}
+.st-job{border:1px solid var(--link);border-radius:10px;padding:8px 12px;margin-block-start:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.st-job.done{border-color:var(--border)}
+.st-job .loadbar{flex:1 1 120px;margin:0}
 
 .chip{font-size:var(--caption);background:var(--bg);border:1px solid var(--border);border-radius:8px;
   padding:4px 8px;display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
@@ -149,8 +169,8 @@ button.st-danger{border-color:var(--err);color:var(--err)} button.st-danger:hove
 .state .dot{width:7px;height:7px;border-radius:50%;flex:none;border:1px solid var(--subtle);background:transparent}
 .st-ok .dot,.st-run .dot{border-color:var(--ok);background:var(--ok)}
 .st-run{color:var(--ok)}
-.st-hold .dot,.st-need .dot{border-color:var(--warn)}
-.st-need{color:var(--warn)}
+.st-hold .dot,.st-need .dot,.st-setup .dot{border-color:var(--warn)}
+.st-need,.st-setup{color:var(--warn)}
 .st-dlg{color:var(--link)}.st-dlg .dot{border-color:var(--link);background:var(--link)}
 .head-logo{width:26px;height:26px;flex:none;border-radius:4px;object-fit:contain}
 .vbar{display:inline-block;width:38px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;flex:none;margin-inline:6px 4px}
@@ -539,6 +559,7 @@ function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTi
 const model=()=>S.state?.recipes.models.find(m=>m.id===S.model);
 const recipe=()=>model()?.recipes[S.engine];
 const match=()=>S.scan?.matches[S.model]?.[S.engine];
+const needsOf=(m,eng)=>(S.scan?.matches[m.id]?.[eng]?.needs)||[];
 const clients=()=>S.state?.clients||{};
 const deviceList=()=>S.state?.preflight.devices||[];
 const engineLabel=id=>S.state?.recipes.engines.find(e=>e.id===id)?.label||id;
@@ -635,16 +656,18 @@ function diskState(mt,r){mt=mt||{};if(mt.detected)return['ok','On disk'];
   if(r.download?.repo)return['dl','Download'];
   if(String(mt.reason||'').startsWith('incompatible'))return['bad','Incompatible'];
   return['none','Not on disk'];}
-/* What a library row or engine button says: held and missing cards win over disk state. */
-function availability(mt,r){if(r.operator_hold)return['hold','Held'];
+/* What a library row or engine button says: held and missing cards win over disk state,
+   and a missing setting (setup) beats every disk state — the recipe cannot run as-is. */
+function availability(mt,r,m,eng){if(r.operator_hold)return['hold','Held'];
+  if(m&&eng&&needsOf(m,eng).length)return['setup','Setup needed'];
   const cc=cardsCheck(r);if(!cc.enough)return['need',`Needs ${cc.need} GPUs`];
   return diskState(mt,r);}
 const engineState=(m,eng)=>{const dl=dlFor(m.id,eng);
   if(dl&&ACTIVE_DL.includes(dl.state))return['dlg',dl.state==='downloading'?`${Math.round(dl.pct||0)}%`:'Starting'];
-  return availability(S.scan?.matches[m.id]?.[eng],m.recipes[eng]);};
+  return availability(S.scan?.matches[m.id]?.[eng],m.recipes[eng],m,eng);};
 function modelState(m){if(liveEngine(m))return['run','Running'];
   const st=Object.keys(m.recipes).map(e=>engineState(m,e));
-  for(const k of['dlg','ok','dl','need','hold']){const x=st.find(s=>s[0]===k);if(x)return x;}
+  for(const k of['dlg','ok','dl','need','setup','hold']){const x=st.find(s=>s[0]===k);if(x)return x;}
   return['none','Not on disk'];}
 function libraryModels(){const words=$('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const onDisk=$('on-disk').checked;const out=[];
@@ -812,13 +835,19 @@ function renderClients(){const c=clients();const prev=$('client').value;
 
 /* Rebuilt only when its inputs change, so focus on its buttons survives the 2.5 s poll. */
 function renderAvailability(){const r=recipe(),mt=match();if(!r)return;
-  const box=$('availability');const rows=[];
+  const box=$('availability');const rows=[]
   const dl=dlFor(S.model,S.engine);const cc=cardsCheck(r);
   const sel=selectedGpus();const used=(sel.length===cc.need?sel:defaultGpus(r)).map(devAt).filter(Boolean);
-  const sig=JSON.stringify([recipeKey(),mt,dl,S.scan?.free_gb,S.plan?.variant,cc.usable.length,used.map(d=>[d.index,d.pcie,d.busy])]);
+  const needs=needsOf(model()||{id:S.model},S.engine);
+  const sig=JSON.stringify([recipeKey(),mt,dl,S.scan?.free_gb,S.plan?.variant,cc.usable.length,used.map(d=>[d.index,d.pcie,d.busy]),needs]);
   if(sig===S.sig.avail&&box.childElementCount)return;S.sig.avail=sig;
   const[cls]=diskState(mt,r);
   const freeDisk=S.scan?.free_gb==null?'':` · ${S.scan.free_gb} GiB free disk`;
+  if(needs.length&&!(dl&&ACTIVE_DL.includes(dl.state))){
+    rows.push(`<div class="avail hold"><span class="lead"><span class="dot"></span>Setup needed</span>
+      <span class="detail">This recipe needs a setting this machine has not provided:
+        ${needs.map(n=>`<br><code>${esc(n.setting)}</code> — ${esc(n.hint)}`).join('')}</span>
+      <span class="actions"><button type="button" id="open-setup">Open settings</button></span></div>`);}
   if(dl&&ACTIVE_DL.includes(dl.state)){const pct=Math.min(100,dl.pct||0);
     rows.push(`<div class="avail dlg"><span class="lead"><span class="dot"></span>Downloading</span>
       <span class="detail numbers"><span aria-live="off">${esc(dlLine(dl))}</span>${dlFile(dl)?`<br><span class="meta">${esc(dlFile(dl))}</span>`:''}
@@ -1276,19 +1305,63 @@ async function showUsage(){openDialog('Usage','<p class="hint">Loading…</p>');
 const GIB=1073741824;
 const gib=n=>{n=Number(n)||0;return n>=GIB/10?(n/GIB).toFixed(1)+' GiB':(n/1048576).toFixed(0)+' MiB';};
 S.storage=null;S.stFilter='all';S.stSel=new Set();S.stConfirm=false;
+S.stSort='size';S.stSearch='';S.stAnchor=null;S.stPlan=false;S.stMode='trash';S.stJob=null;S.stJobTimer=null;
 const ST_KIND={model:'Model',image:'Image',partial:'Partial'};
-function stVisible(){const items=(S.storage?.items||[]).filter(i=>!(i.kind==='image'&&!i.managed));
-  return S.stFilter==='all'?items:S.stFilter==='suggested'?items.filter(i=>i.suggested):items.filter(i=>i.kind===S.stFilter);}
+const ST_SORTS=[['size','Largest'],['name','Name'],['last','Last launched'],['kind','Kind']];
+const ST_TABS=[['all','All'],['model','Models'],['image','Engine images'],['partial','Partial downloads'],['suggested','Suggested']];
+const stAll=()=>(S.storage?.items||[]).filter(i=>!(i.kind==='image'&&!i.managed));
+function stFiltered(){let items=stAll();
+  if(S.stFilter==='suggested')items=items.filter(i=>i.suggested);
+  else if(S.stFilter!=='all')items=items.filter(i=>i.kind===S.stFilter);
+  const q=S.stSearch.trim().toLowerCase();
+  if(q)items=items.filter(i=>[i.name,i.path,(i.used_by||[]).map(u=>`${u.name} ${u.engine}`).join(' ')].join(' ').toLowerCase().includes(q));
+  return items;}
+function stSorted(items){const cmp={name:(a,b)=>a.name.localeCompare(b.name),
+    last:(a,b)=>String(b.last_launched||'').localeCompare(String(a.last_launched||''))||a.name.localeCompare(b.name),
+    kind:(a,b)=>a.kind.localeCompare(b.kind)||b.size_bytes-a.size_bytes,
+    size:(a,b)=>b.size_bytes-a.size_bytes||a.name.localeCompare(b.name)}[S.stSort];
+  return[...items].sort(cmp);}
+const stVisible=()=>stSorted(stFiltered());
+const stItem=id=>stAll().find(i=>i.id===id);
+const stVol=mount=>(S.storage?.volumes||[]).find(v=>v.mount===mount);
+function stGroups(vis){const groups=[],byMount=new Map();
+  for(const i of vis){const key=i.mount||'';
+    if(!byMount.has(key)){byMount.set(key,{mount:key,items:[]});groups.push(byMount.get(key));}
+    byMount.get(key).items.push(i);}
+  return groups;}
+function stToggle(id,range){const vis=stVisible();const idx=vis.findIndex(i=>i.id===id);
+  if(idx<0||!vis[idx].deletable)return;
+  if(range&&S.stAnchor!=null){const a=Math.min(S.stAnchor,idx),b=Math.max(S.stAnchor,idx);
+    for(let k=a;k<=b;k++)if(vis[k].deletable)S.stSel.add(vis[k].id);}
+  else S.stSel.has(id)?S.stSel.delete(id):S.stSel.add(id);
+  S.stAnchor=idx;S.stConfirm=false;S.stPlan=false;stSyncSelection();stRenderFoot();stRenderPanel();
+  const row=$('st-list').querySelector(`.st-row[data-strow="${CSS.escape(id)}"]`);if(row)row.focus();}
 function stRow(i){const use=(i.used_by||[]).map(u=>`${esc(u.name)} · ${esc(u.engine)}${u.role?` (${esc(u.role)})`:''}`);
   const bits=[use.length?`Used by ${use.slice(0,3).join(', ')}${use.length>3?` +${use.length-3}`:''}`:'',
     i.last_launched?`Last launched ${esc(i.last_launched.slice(0,10))}`:'',i.hint?esc(i.hint):''].filter(Boolean);
   const dis=!i.deletable;
-  return`<div class="st-row${dis?' locked':''}"><input type="checkbox" data-st="${esc(i.id)}" aria-label="Select ${esc(i.name)}"
+  const acts=i.kind==='image'
+    ?`<button type="button" class="mini" data-st-copy="${esc(i.image_id||i.path)}">Copy id</button>`
+    :`<button type="button" class="mini" data-st-copy="${esc(i.path)}">Copy path</button>
+      <button type="button" class="mini" data-st-open="${esc(i.id)}">Open folder</button>`;
+  return`<div class="st-row${dis?' locked':''}" tabindex="0" data-strow="${esc(i.id)}"
+      aria-label="${esc(i.name)}, ${gib(i.size_bytes)}${dis?`, kept: ${esc(i.why_kept||'')}`:''}">
+    <input type="checkbox" data-st="${esc(i.id)}" aria-label="Select ${esc(i.name)}"
       ${S.stSel.has(i.id)?'checked':''} ${dis?'disabled':''}>
     <div><span class="nm"><span class="st-kind">${ST_KIND[i.kind]||esc(i.kind)}</span>${esc(i.name)}</span>
       <span class="sub">${esc(i.path)}</span>${bits.length?`<span class="sub">${bits.join(' · ')}</span>`:''}
       ${dis&&i.why_kept?`<span class="sub why">Kept: ${esc(i.why_kept)}</span>`:''}</div>
-    <span class="sz">${gib(i.size_bytes)}</span></div>`;}
+    <span class="st-acts"><span class="sz">${gib(i.size_bytes)}</span><span style="display:flex;gap:4px">${acts}</span></span></div>`;}
+function stGroupBlock(g){const v=stVol(g.mount);
+  const sel=g.items.filter(i=>S.stSel.has(i.id));
+  const after=sel.reduce((a,i)=>a+i.size_bytes,0);
+  const label=g.mount||'Not on a scanned disk';
+  return`<section class="st-group" data-mount="${esc(g.mount)}" aria-label="${esc(label)}">
+    <div class="st-group-h"><span class="disk">${esc(label)}</span>
+      ${v?`<span class="numbers">${gib(v.free_bytes)} free of ${gib(v.total_bytes)}</span>`:''}
+      ${after?`<span class="free-after numbers">${gib(after)} free after delete</span>`:''}
+      <span>${g.items.length} item${g.items.length===1?'':'s'}</span></div>
+    ${g.items.map(stRow).join('')}</section>`;}
 function stVolumes(){return(S.storage?.volumes||[]).map(v=>{const pct=v.total_bytes?v.used_bytes/v.total_bytes*100:0;
   const mine=v.total_bytes?v.managed_bytes/v.total_bytes*100:0,other=Math.max(0,pct-mine);
   const cls=pct>=95?'crit':pct>=85?'warn':'';
@@ -1296,56 +1369,156 @@ function stVolumes(){return(S.storage?.volumes||[]).map(v=>{const pct=v.total_by
     <div class="st-bar" role="img" aria-label="${esc(v.mount)}: launcher files ${gib(v.managed_bytes)}, other files ${gib(v.used_bytes-v.managed_bytes)}, free ${gib(v.free_bytes)}">
       <i class="mine" style="width:${mine.toFixed(1)}%"></i><i class="other" style="width:${other.toFixed(1)}%"></i></div>
     <span class="meta numbers">${gib(v.free_bytes)} free of ${gib(v.total_bytes)} · launcher ${gib(v.managed_bytes)}</span></div>`;}).join('');}
-function renderStorage(){const st=S.storage;if(!st||S.dialogKind!=='storage')return;
-  const vis=stVisible(),sel=[...S.stSel].map(id=>st.items.find(i=>i.id===id)).filter(i=>i&&i.deletable);
-  const total=sel.reduce((a,i)=>a+i.size_bytes,0),sum=st.summary||{};
-  const count=k=>st.items.filter(i=>k==='all'?!(i.kind==='image'&&!i.managed):k==='suggested'?i.suggested:i.kind===k&&!(i.kind==='image'&&!i.managed)).length;
-  const tabs=[['all','All'],['model','Models'],['image','Engine images'],['partial','Partial downloads'],['suggested','Suggested']];
-  const bad=(st.daemons||[]).filter(d=>!d.ok);
-  $('dialog-content').innerHTML=`<p class="hint">Models and engine images the launcher found or pins. Sizes are exact on-disk bytes. Nothing is removed until you confirm.</p>
-    <div class="st-vols">${stVolumes()}</div>
+function stSyncSelection(){/* checkboxes + per-disk "free after delete" update in place, so a rapid
+  second click never lands on a detached node and scroll position survives */
+  [...$('st-list').querySelectorAll('input[data-st]')].forEach(c=>{c.checked=S.stSel.has(c.dataset.st);});
+  [...$('st-list').querySelectorAll('.st-group')].forEach(g=>{
+    const mount=g.dataset.mount||'';
+    const after=(S.storage?.items||[]).filter(i=>S.stSel.has(i.id)&&(i.mount||'')===mount)
+      .reduce((a,i)=>a+i.size_bytes,0);
+    const span=g.querySelector('.free-after');
+    if(span)span.textContent=`${gib(after)} free after delete`;
+    else if(after){const h=g.querySelector('.st-group-h');h.insertAdjacentHTML('beforeend',`<span class="free-after numbers">${gib(after)} free after delete</span>`);}});}
+function stShell(){const st=S.storage||{};
+  return`<p class="hint">Models and engine images the launcher found or pins. Sizes are exact on-disk bytes. Nothing is removed until you confirm.</p>
+    <div class="st-vols" id="st-vols">${stVolumes()}</div>
     <p class="meta st-legend"><span class="sw mine"></span>Launcher models and images <span class="sw other"></span>Other files on the disk</p>
-    <div class="st-tools"><span class="seg" role="group" aria-label="Filter">${tabs.map(([k,l])=>`<button type="button" data-stf="${k}" aria-pressed="${S.stFilter===k}">${l} · ${count(k)}</button>`).join('')}</span>
-      <button type="button" id="st-suggested" ${sum.suggested_count?'':'disabled'}>Select suggested${sum.suggested_count?` (${gib(sum.suggested_bytes)})`:''}</button>
+    <div class="st-tools">
+      <span class="seg" id="st-tabs" role="group" aria-label="Filter"></span>
+      <label><span>Sort</span><select id="st-sort" aria-label="Sort items">${ST_SORTS.map(([k,l])=>`<option value="${k}"${S.stSort===k?' selected':''}>${l}</option>`).join('')}</select></label>
+      <input type="search" id="st-search" placeholder="Filter by name, path or model" aria-label="Filter storage items" value="${esc(S.stSearch)}">
+      <button type="button" id="st-suggested">Select suggested</button>
       <button type="button" id="st-refresh">Refresh</button></div>
-    ${bad.length?`<p class="warning">${bad.map(d=>esc(d.name)+': '+esc(d.error||'not reachable')).join(' · ')}</p>`:''}
-    <div class="st-list" role="group" aria-label="Storage items">${vis.length?vis.map(stRow).join(''):'<p class="hint" style="padding:12px">Nothing in this view.</p>'}</div>
-    <div class="st-foot"><span class="sel" role="status">${sel.length?`${sel.length} selected · <b>${gib(total)}</b> to free`:'Nothing selected'}</span>
-      <button type="button" class="st-danger" id="st-delete" ${sel.length?'':'disabled'}>Delete selected…</button></div>
-    ${S.stConfirm&&sel.length?`<div class="st-confirm" aria-labelledby="st-c-h">
-      <strong id="st-c-h">Delete ${sel.length} item${sel.length>1?'s':''} (${gib(total)}) permanently?</strong>
-      <ul>${sel.map(i=>`<li>${esc(i.name)} · ${gib(i.size_bytes)}${i.kind==='image'?' · docker image rm':''}</li>`).join('')}</ul>
-      <p class="hint">Models are deleted from disk, not moved to the trash. Images are removed with docker image rm; layers shared with another image stay.</p>
-      <div class="actions"><button type="button" class="st-danger" id="st-confirm-go">Delete permanently</button>
-      <button type="button" id="st-cancel">Cancel</button></div></div>`:''}`;}
-async function showStorage(force=false){
-  if(S.dialogKind!=='storage'){openDialog('Storage','<p class="hint">Scanning disks and Docker…</p>');S.dialogKind='storage';$('dialog').classList.add('wide');S.stSel=new Set();S.stConfirm=false;}
-  try{S.storage=force?await api('/api/storage/refresh',{}):await api('/api/storage');renderStorage();}
-  catch(ex){if(S.dialogKind==='storage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
-async function storageDelete(){const ids=[...S.stSel];$('st-confirm-go').disabled=true;$('st-confirm-go').textContent='Deleting…';
-  try{const r=await api('/api/storage/delete',{ids});S.storage=r.snapshot||S.storage;S.stSel=new Set();S.stConfirm=false;
-    const fail=r.results.filter(x=>!x.ok);renderStorage();
-    toast(fail.length?`Freed ${gib(r.freed_bytes)}; ${fail.length} not removed: ${fail[0].error}`:`Freed ${gib(r.freed_bytes)}`);
-    refreshScan().catch(()=>{});}
+    <div id="st-docker"></div>
+    <div class="st-list" id="st-list" role="group" aria-label="Storage items by disk"></div>
+    <div id="st-foot"></div>
+    <div id="st-panel"></div>
+    <div id="st-job"></div>`;}
+function stRenderTabs(){const st=S.storage||{};
+  const count=k=>stAll().filter(i=>k==='all'||(k==='suggested'?i.suggested:i.kind===k)).length;
+  $('st-tabs').innerHTML=ST_TABS.map(([k,l])=>`<button type="button" data-stf="${k}" aria-pressed="${S.stFilter===k}">${l} · ${count(k)}</button>`).join('');
+  const sum=st.summary||{};
+  const sug=$('st-suggested');sug.disabled=!sum.suggested_count;
+  sug.textContent=sum.suggested_count?`Select suggested (${gib(sum.suggested_bytes)})`:'Select suggested';}
+function stRenderList(){const vis=stVisible();
+  $('st-list').innerHTML=vis.length?stGroups(vis).map(stGroupBlock).join(''):'<p class="hint" style="padding:12px">Nothing in this view.</p>';}
+function stRenderFoot(){const st=S.storage||{};
+  const sel=[...S.stSel].map(stItem).filter(i=>i&&i.deletable);
+  const total=sel.reduce((a,i)=>a+i.size_bytes,0);
+  const busy=S.stJob&&S.stJob.state==='running';
+  $('st-foot').innerHTML=`<div class="st-foot"><span class="sel" role="status" aria-live="polite">${sel.length?`${sel.length} selected · <b>${gib(total)}</b> to free`:'Nothing selected'}</span>
+      <button type="button" class="st-danger" id="st-delete" ${sel.length&&!busy?'':'disabled'}>Delete selected…</button></div>`;}
+function stRenderPanel(){const st=S.storage||{};
+  const sel=[...S.stSel].map(stItem).filter(i=>i&&i.deletable);
+  const total=sel.reduce((a,i)=>a+i.size_bytes,0);
+  const busy=S.stJob&&S.stJob.state==='running';
+  let html='';
+  if(S.stPlan&&!busy){const sugg=stAll().filter(i=>i.suggested&&i.deletable);
+    const stotal=sugg.reduce((a,i)=>a+i.size_bytes,0);
+    html=sugg.length?`<div class="st-plan" aria-labelledby="st-p-h">
+      <strong id="st-p-h">Select suggested — ${sugg.length} item${sugg.length===1?'':'s'}, ${gib(stotal)}</strong>
+      <p class="hint">Old unfinished downloads and pinned images no downloaded model uses.</p>
+      <ul>${sugg.map(i=>`<li>${esc(i.name)} · ${gib(i.size_bytes)} · ${ST_KIND[i.kind]||esc(i.kind)}${i.mount?` · ${esc(i.mount)}`:''}</li>`).join('')}</ul>
+      <div class="actions"><button type="button" id="st-plan-go">Select these ${sugg.length}</button>
+      <button type="button" id="st-cancel">Cancel</button></div></div>`:'';}
+  else if(S.stConfirm&&sel.length&&!busy){const models=sel.filter(i=>i.kind!=='image');
+    const trashable=models.filter(i=>i.trash_ok).length;
+    const forcedPermanent=models.length-trashable;
+    const mode=S.stMode;
+    const goLabel=mode==='trash'&&trashable
+      ?`Move ${trashable}${forcedPermanent?` + permanently delete ${forcedPermanent}`:''} item${sel.length===1?'':'s'} to trash`
+      :`Delete ${sel.length} item${sel.length===1?'':'s'} permanently`;
+    html=`<div class="st-confirm" aria-labelledby="st-c-h">
+      <strong id="st-c-h">${mode==='trash'&&trashable?'Move to trash':'Delete permanently'} — ${sel.length} item${sel.length===1?'':'s'}, ${gib(total)}?</strong>
+      ${models.length?`<div class="st-modes" role="radiogroup" aria-label="Delete mode">
+        <label><input type="radio" name="st-mode" value="trash" ${mode==='trash'?'checked':''}> Move to trash ${trashable?`(${trashable} of ${models.length} models)`:''}</label>
+        <label><input type="radio" name="st-mode" value="permanent" ${mode==='permanent'?'checked':''}> Delete permanently</label></div>`:''}
+      <ul>${sel.map(i=>`<li>${esc(i.name)} · ${gib(i.size_bytes)}${i.kind==='image'?' · docker image rm':mode==='trash'&&!i.trash_ok?' · no trash on this disk — deleted permanently':''}</li>`).join('')}</ul>
+      <p class="hint">${mode==='trash'&&trashable?'Models move to your desktop trash; restore them from the file manager.':'Models are deleted from disk, not moved to the trash.'} Images are removed with docker image rm; layers shared with another image stay.</p>
+      <div class="actions"><button type="button" class="st-danger" id="st-confirm-go">${goLabel}</button>
+      <button type="button" id="st-cancel">Cancel</button></div></div>`;}
+  $('st-panel').innerHTML=html;}
+function stRenderJob(){const j=S.stJob;
+  if(!j){$('st-job').innerHTML='';return;}
+  if(j.state==='running'){const pct=j.total?Math.round(100*j.done/j.total):0;
+    $('st-job').innerHTML=`<div class="st-job" role="status"><span class="numbers">Deleting ${j.done}/${j.total}${j.current?` · ${esc(j.current)}`:''}…</span>
+      <span class="loadbar" role="progressbar" aria-label="Delete progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></span></div>`;}
+  else{const fail=(j.results||[]).filter(x=>!x.ok);
+    $('st-job').innerHTML=`<div class="st-job done" role="status">Deleting finished — freed ${gib(j.freed_bytes)}${fail.length?` · ${fail.length} not removed: ${esc(fail[0].error)}`:''}. The list below is refreshed.</div>`;}}
+function renderStorage(focusRow){const st=S.storage;if(!st||S.dialogKind!=='storage')return;
+  if(!$('st-shell-flag')){$('dialog-content').innerHTML=stShell();$('dialog-content').insertAdjacentHTML('afterbegin','<i id="st-shell-flag" hidden></i>');
+    $('st-sort').addEventListener('change',()=>{S.stSort=$('st-sort').value;renderStorage();});
+    $('st-search').addEventListener('input',()=>{S.stSearch=$('st-search').value;stRenderTabs();stRenderList();stRenderFoot();stRenderPanel();});}
+  stRenderTabs();stRenderList();stRenderFoot();stRenderPanel();stRenderJob();
+  const bad=(st.daemons||[]).filter(d=>!d.ok);
+  $('st-docker').innerHTML=bad.length?`<p class="warning">${bad.map(d=>esc(d.name)+': '+esc(d.error||'not reachable')).join(' · ')}</p>`:'';
+  if(focusRow)$('dialog-content').querySelector(`.st-row[data-strow="${CSS.escape(focusRow)}"]`)?.focus();}
+async function storageDelete(){const ids=[...S.stSel];if(!ids.length)return;
+  const btn=$('st-confirm-go');btn.disabled=true;btn.textContent='Starting…';
+  try{const r=await api('/api/storage/delete',{ids,mode:S.stMode,async:true});
+    S.stJob=r.job;S.stSel=new Set();S.stConfirm=false;S.stPlan=false;stRenderFoot();stRenderPanel();stRenderJob();stPollJob();}
   catch(ex){error('dialog-error',ex.message);S.stConfirm=false;renderStorage();}}
+function stPollJob(){clearInterval(S.stJobTimer);
+  const tick=async()=>{if(S.dialogKind!=='storage'){clearInterval(S.stJobTimer);S.stJobTimer=null;return;}
+    try{const doc=await api('/api/storage/jobs');
+      const j=(doc.jobs||[]).find(x=>x.id===S.stJob?.id)||(doc.jobs||[]).find(x=>x.state==='running');
+      if(j&&j.id!==S.stJob?.id)S.stSel=new Set();
+      if(j){S.stJob=j;stRenderFoot();stRenderPanel();stRenderJob();}
+      if(!j||j.state!=='running'){clearInterval(S.stJobTimer);S.stJobTimer=null;
+        if(S.stJob)stRenderJob();
+        showStorage(true).then(()=>refreshScan()).catch(()=>{});}}
+    catch(ex){/* next tick */}};
+  tick();S.stJobTimer=setInterval(tick,700);}
+async function showStorage(force=false){
+  if(S.dialogKind!=='storage'){openDialog('Storage','<p class="hint">Scanning disks and Docker…</p>');S.dialogKind='storage';$('dialog').classList.add('wide');
+    S.stSel=new Set();S.stConfirm=false;S.stPlan=false;S.stSearch='';S.stSort='size';S.stAnchor=null;}
+  try{S.storage=force?await api('/api/storage/refresh',{}):await api('/api/storage');renderStorage();
+    const doc=await api('/api/storage/jobs').catch(()=>null);
+    const running=(doc?.jobs||[]).find(x=>x.state==='running');
+    if(running&&!S.stJob){S.stJob=running;stRenderFoot();stRenderPanel();stRenderJob();stPollJob();}}
+  catch(ex){if(S.dialogKind==='storage'){$('dialog-content').innerHTML='';error('dialog-error',ex.message);}}}
+async function stOpenFolder(id){try{const r=await api('/api/storage/open',{id});
+    toast(r.opened?'Opened folder':`Copied path — ${r.error||'folder not opened'}`);
+    if(!r.opened&&r.path)copy(r.path).catch(()=>{});}
+  catch(ex){toast(ex.message);}}
 document.addEventListener('click',e=>{if(S.dialogKind!=='storage'&&!e.target.closest('#storage-open'))return;
   const t=e.target.closest('button,input');if(!t)return;
-  if(t.id==='storage-open'){S.stFilter='all';showStorage();return;}
-  if(t.dataset.stf){S.stFilter=t.dataset.stf;renderStorage();}
-  else if(t.id==='st-refresh')showStorage(true);
-  else if(t.id==='st-suggested'){S.storage.items.filter(i=>i.suggested&&i.deletable).forEach(i=>S.stSel.add(i.id));S.stFilter='suggested';renderStorage();}
-  else if(t.id==='st-delete'){S.stConfirm=true;renderStorage();$('st-confirm-go')?.focus();}
-  else if(t.id==='st-cancel'){S.stConfirm=false;renderStorage();}
-  else if(t.id==='st-confirm-go')storageDelete();});
+  if(t.id==='storage-open'){S.stFilter='all';S.stJob=null;S.trigger=t;S.triggerId='storage-open';S.triggerPinned=true;showStorage();return;}
+  if(t.dataset?.st&&t.type==='checkbox'&&e.shiftKey){e.preventDefault();stToggle(t.dataset.st,true);return;}
+  if(t.dataset?.stCopy){copy(t.dataset.stCopy).catch(ex=>toast(ex.message));return;}
+  if(t.dataset?.stOpen){stOpenFolder(t.dataset.stOpen);return;}
+  if(t.name==='st-mode'){S.stMode=t.value;stRenderPanel();$('st-confirm-go')?.focus();return;}
+  if(t.dataset.stf){S.stFilter=t.dataset.stf;S.stAnchor=null;renderStorage();return;}
+  if(t.id==='st-refresh'){showStorage(true);return;}
+  if(t.id==='st-suggested'){S.stPlan=true;S.stConfirm=false;renderStorage();$('st-plan-go')?.focus();return;}
+  if(t.id==='st-plan-go'){stAll().forEach(i=>{if(i.suggested&&i.deletable)S.stSel.add(i.id);});S.stFilter='suggested';S.stPlan=false;renderStorage();return;}
+  if(t.id==='st-delete'){S.stConfirm=true;S.stPlan=false;renderStorage();$('st-confirm-go')?.focus();return;}
+  if(t.id==='st-cancel'){S.stConfirm=false;S.stPlan=false;renderStorage();return;}
+  if(t.id==='st-confirm-go')storageDelete();});
 document.addEventListener('change',e=>{const id=e.target.dataset?.st;if(!id||S.dialogKind!=='storage')return;
-  e.target.checked?S.stSel.add(id):S.stSel.delete(id);S.stConfirm=false;renderStorage();});
+  e.target.checked?S.stSel.add(id):S.stSel.delete(id);
+  S.stAnchor=stVisible().findIndex(i=>i.id===id);S.stConfirm=false;S.stPlan=false;
+  stSyncSelection();stRenderFoot();stRenderPanel();});
+$('dialog-content').addEventListener('keydown',e=>{if(S.dialogKind!=='storage')return;
+  const row=e.target.closest('.st-row');if(!row)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();
+    const rows=[...$('dialog-content').querySelectorAll('.st-row')];
+    const next=rows[Math.max(0,Math.min(rows.length-1,rows.indexOf(row)+(e.key==='ArrowDown'?1:-1)))];
+    if(next){next.focus();next.scrollIntoView({block:'nearest'});}return;}
+  if(e.key===' '||e.key==='Enter'){e.preventDefault();stToggle(row.dataset.strow,e.shiftKey);}});
 
 /* ---------- dialogs, copy, logs ---------- */
 function openDialog(title,html){clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').classList.remove('narrow','wide');
-  if(!$('dialog').open)S.trigger=document.activeElement;
+  if(!$('dialog').open){
+    if(!S.triggerPinned){S.trigger=document.activeElement;S.triggerId=document.activeElement&&document.activeElement.id||null;}
+    S.triggerPinned=false;}
   $('dialog-title').textContent=title;$('dialog-content').innerHTML=html;error('dialog-error','');
   if(!$('dialog').open)$('dialog').showModal();}
-function closeDialog(){if(S.dialogKind==='welcome')welcomeDone();clearInterval(S.logTimer);S.logTimer=null;S.dialogKind='';$('dialog').close();S.trigger?.focus();}
+function closeDialog(){if(S.dialogKind==='welcome')welcomeDone();clearInterval(S.logTimer);S.logTimer=null;
+  clearInterval(S.stJobTimer);S.stJobTimer=null;S.dialogKind='';$('dialog').close();
+  // the header re-renders every poll, so the stored element can be detached: fall back by id
+  const t=(S.trigger&&S.trigger.isConnected)?S.trigger:(S.triggerId?$(S.triggerId):null);
+  t?.focus();}
 async function copy(text){if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Copied');return;}
   catch(e){/* WebKit may require the fallback inside the user gesture. */}}
   const input=document.createElement('textarea');input.value=text;input.setAttribute('aria-label','Copy text');
@@ -1365,6 +1538,28 @@ function showFolders(download=false){const roots=S.state.settings.scan_dirs||[];
     catch(e){error('dialog-error',e.message);}};
   $('browse-files').onclick=()=>{openDialog('Detected model files',(S.scan?.catalog||[]).map(f=>
     `<p><strong>${esc(f.name)}</strong><br><code>${esc(f.path)}</code></p>`).join('')||'<p>No files found. Add their folder, then wait for the scan.</p>');};}
+function showSetup(){const m=model();if(!m)return;const needs=needsOf(m,S.engine);if(!needs.length)return;
+  const settingsKeys=needs.filter(n=>n.setting!=='model_path');
+  const wantsPath=needs.some(n=>n.setting==='model_path');
+  const override={};
+  settingsKeys.forEach(n=>{override[n.setting]=`/home/you/${n.setting.includes('xestrata')?'xestrata':'Strata'}`});
+  if(wantsPath){const inner={};inner[S.engine]={model_path:'/data/models/'+m.id};override.recipe_overrides={[m.id]:inner};}
+  const snippet=JSON.stringify(override,null,2);
+  openDialog('Setup needed',`<p class="hint">This recipe needs a setting this machine has not provided. Paste this into
+    <code>settings-override.json</code> in the launcher state folder, edit the paths, then restart the launcher.</p>
+    <ul>${needs.map(n=>`<li><code>${esc(n.setting)}</code> — ${esc(n.hint)}</li>`).join('')}</ul>
+    <label for="setup-snippet">settings-override.json</label>
+    <pre id="setup-snippet" tabindex="0">${esc(snippet)}</pre>
+    <div class="actions">
+      <button id="copy-snippet" type="button">Copy snippet</button>
+      <button id="open-state" type="button">Open settings folder</button>
+      ${wantsPath?'<button id="setup-folders" type="button">Model folders</button>':''}
+    </div>`);
+  $('copy-snippet').onclick=()=>copy(snippet).catch(e=>error('dialog-error',e.message));
+  $('open-state').onclick=async()=>{try{const r=await api('/api/settings/open',{});
+      toast(r.opened?'Opened the settings folder':`Settings folder: ${r.path||''}`);if(!r.opened&&r.path)copy(r.path).catch(()=>{});}
+    catch(e){error('dialog-error',e.message);}};
+  $('setup-folders')?.addEventListener('click',()=>showFolders());}
 async function showLogs(entry){S.logOffset=null;
   openDialog(`${entry.model_name||entry.model} logs`,'<pre id="log-text" tabindex="0" aria-label="Engine log"></pre>');
   const update=async()=>{if(!$('dialog').open)return;
@@ -1444,6 +1639,7 @@ document.addEventListener('click',async e=>{
     catch(err){S.updateError=err.message;}
     renderUpdate(S.state?.update,true);return;}
   if(e.target.closest('#open-folders')){showFolders();return;}
+  if(e.target.closest('#open-setup')){showSetup();return;}
   const stop=e.target.closest('#session-stop');if(stop){const entry=currentSession();
     if(entry&&confirm(`Stop ${entry.model_name||entry.model} on :${entry.port}?`)){
       try{await api('/api/stop',{id:entry.id});await poll();}catch(ex){toast(ex.message);}}return;}
@@ -1475,7 +1671,10 @@ $('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;S
 $('folders').onclick=()=>showFolders();
 $('usage').onclick=()=>showUsage();
 $('close-dialog').onclick=closeDialog;
-$('dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
+$('dialog').addEventListener('cancel',e=>{e.preventDefault();
+  // Esc closes the in-dialog confirm/plan first; the dialog itself survives
+  if(S.dialogKind==='storage'&&(S.stConfirm||S.stPlan)){S.stConfirm=false;S.stPlan=false;renderStorage();return;}
+  closeDialog();});
 $('cancel-confirm').onclick=()=>{$('download-confirm').hidden=true;S.downloadPlan=null;};
 $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('confirm-download').disabled=true;
   try{const result=await api('/api/download',{model_id:S.model,engine:S.engine,confirm:true});

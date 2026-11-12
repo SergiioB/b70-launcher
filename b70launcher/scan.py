@@ -402,6 +402,45 @@ def detect_status(model, engine):
     return _detect_impl(model, engine)
 
 
+# recipe kind -> the settings key its engine checkout lives under, and what
+# the key should point at (the native engines are never shipped by the launcher)
+KIND_SETTINGS = {
+    "xestrata": ("xestrata_root", "your XeStrata checkout folder"),
+    "strata": ("strata_root", "your Strata checkout folder"),
+}
+
+
+def recipe_needs(model, engine, det=None):
+    """Settings this recipe needs that the user has not provided yet.
+
+    [{setting, hint}] — empty when the recipe is ready to launch or download:
+    * a native-engine recipe needs its checkout setting (xestrata_root,
+      strata_root) when unset;
+    * a recipe with no download repo, no direct artifact path and nothing
+      detected on disk needs the model's location — `model_path` via
+      recipe_overrides, or its folder added to the model folders.
+    This is the dry-run "recipe needs …" warning made cheap and queryable,
+    so the library can show "setup" before a launch is attempted.
+    """
+    if not model:
+        return []
+    recipe = (model.get("recipes") or {}).get(engine) or {}
+    out = []
+    setting = KIND_SETTINGS.get(str(recipe.get("kind") or ""))
+    if setting and not str(catalog.SETTINGS.get(setting[0]) or "").strip():
+        out.append({"setting": setting[0], "hint": setting[1]})
+    if not det:
+        dl = recipe.get("download") or {}
+        has_direct = any(
+            str(recipe.get(k) or "").strip() and not str(recipe.get(k)).startswith("http")
+            for k in ("gguf", "model_path", "source_model"))
+        if not dl.get("repo") and not has_direct:
+            out.append({"setting": "model_path",
+                        "hint": "where the model files are — set model_path in "
+                                "recipe_overrides, or add their folder to the model folders"})
+    return out
+
+
 def resolve_ctx(model, engine, det):
     """Default context: the recipe's tested value, never above the model's own
     limit (config.json on disk) or the engine ceiling (ctx_max)."""

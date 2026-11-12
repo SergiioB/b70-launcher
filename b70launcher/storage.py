@@ -21,8 +21,10 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 from . import catalog, downloads, paths, scan
@@ -324,6 +326,7 @@ def _model_items(now):
                          else "a running server is using it" if busy else None),
             "suggested": False,
             "hint": None if used_by else _model_hint(c.get("name") or ""),
+            "trash_ok": trash_ok(path),
         })
     # partial downloads: <file>.part inside a scan root
     seen = set()
@@ -352,6 +355,7 @@ def _model_items(now):
                                     "deletable": not active,
                                     "why_kept": "touched in the last 15 minutes, a download may be running" if active else None,
                                     "suggested": not active,
+                                    "trash_ok": trash_ok(e.path),
                                     "hint": "Unfinished download; a new download of this file restarts from zero"
                                             if not active else None})
                         except OSError:
@@ -495,7 +499,72 @@ def invalidate():
 
 
 # ---------------------------------------------------------------- delete
-def _delete_model(item):
+def _trash_dirs():
+    """(files, info) dirs of the freedesktop home trash."""
+    base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "Trash"
+    return base / "files", base / "info"
+
+
+def _trash_ready():
+    """Ensure the freedesktop home trash exists; False when it cannot be made."""
+    files, info = _trash_dirs()
+    try:
+        files.mkdir(parents=True, exist_ok=True)
+        info.mkdir(parents=True, exist_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+def trash_ok(path):
+    """True when `path` can move into the home trash: the freedesktop home
+    trash only serves its own filesystem; a model on another disk would need
+    a copy, so those stay permanent (with a note)."""
+    try:
+        if not _trash_ready():
+            return False
+        files, _info = _trash_dirs()
+        return os.stat(files).st_dev == os.lstat(path).st_dev
+    except OSError:
+        return False
+
+
+def _unique_trash_name(name):
+    """'model' -> 'model', 'model.2', 'model.3'… (freedesktop trash spec)."""
+    files, info = _trash_dirs()
+    candidate = name
+    n = 1
+    while (files / candidate).exists() or (info / (candidate + ".trashinfo")).exists():
+        n += 1
+        candidate = f"{name}.{n}"
+    return candidate
+
+
+def _trash_model(item):
+    """Move a model/partial into the home trash, .trashinfo written first.
+    Raises ValueError/OSError like the permanent delete; never copies across
+    disks."""
+    files, info_dir = _trash_dirs()
+    src = Path(os.path.realpath(item["path"]))
+    if not trash_ok(item["path"]):
+        raise ValueError("trash unavailable for this disk")
+    dest_name = _unique_trash_name(src.name)
+    info = info_dir / (dest_name + ".trashinfo")
+    body = ("[Trash Info]\nPath=" + urllib.parse.quote(str(src), safe="/")
+            + "\nDeletionDate=" + time.strftime("%Y-%m-%dT%H:%M:%S") + "\n")
+    paths.atomic_write(info, body)
+    try:
+        os.rename(str(src), str(files / dest_name))
+    except OSError:
+        try:
+            info.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _check_model_path(item):
+    """Guards shared by trash and permanent delete."""
     path = item["path"]
     real = Path(os.path.realpath(path))
     roots = _roots()
@@ -503,10 +572,28 @@ def _delete_model(item):
         raise ValueError("outside the model folders; refusing to delete")
     if os.path.islink(path):
         raise ValueError("is a link; refusing to delete")
+    return real
+
+
+def _delete_model(item, mode="permanent"):
+    """Remove one model/partial. Returns the method used, 'trash' or
+    'permanent', plus a note when the asked-for trash was not possible."""
+    real = _check_model_path(item)
+    if mode == "trash":
+        if trash_ok(item["path"]):
+            _trash_model(item)
+            return "trash", None
+        # cross-device (or no home trash): permanent, but say so
+        if real.is_dir():
+            shutil.rmtree(real)
+        else:
+            real.unlink()
+        return "permanent", ("this disk has no trash — deleted permanently")
     if real.is_dir():
         shutil.rmtree(real)
     else:
         real.unlink()
+    return "permanent", None
 
 
 def _delete_image(item):
@@ -515,10 +602,16 @@ def _delete_image(item):
         raise ValueError(err.splitlines()[-1] if err else "docker image rm failed")
 
 
-def delete(ids, dry_run=False):
-    """Remove the items with these ids. Returns {results, freed_bytes, snapshot}."""
+def delete(ids, dry_run=False, mode="permanent"):
+    """Remove the items with these ids. Returns {results, freed_bytes, snapshot}.
+
+    mode 'trash' moves models/partials into ~/.local/share/Trash when that is
+    on the same filesystem; a cross-device item falls back to a permanent
+    delete with a note. Images always go through `docker image rm`."""
     if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
         raise ValueError("ids must be a non-empty list of item ids")
+    if mode not in ("trash", "permanent"):
+        raise ValueError("mode must be 'trash' or 'permanent'")
     snap = snapshot(force=True)
     by_id = {i["id"]: i for i in snap["items"]}
     results, freed = [], 0
@@ -536,8 +629,12 @@ def delete(ids, dry_run=False):
             freed += item["size_bytes"]
             continue
         try:
-            (_delete_image if item["kind"] == "image" else _delete_model)(item)
-            results.append(dict(row, ok=True))
+            if item["kind"] == "image":
+                _delete_image(item)
+                results.append(dict(row, ok=True, method="docker"))
+            else:
+                method, note = _delete_model(item, mode=mode)
+                results.append(dict(row, ok=True, method=method, note=note))
             freed += item["size_bytes"]
         except (OSError, ValueError) as exc:
             results.append(dict(row, ok=False, error=str(exc)))
@@ -545,4 +642,153 @@ def delete(ids, dry_run=False):
         invalidate()
         scan.start_scan_async(force=True)
     return {"results": results, "freed_bytes": freed, "dry_run": bool(dry_run),
+            "mode": mode,
             "snapshot": snapshot(force=True) if not dry_run else None}
+
+
+# ------------------------------------------------------------ delete jobs
+"""A 50 GB rmtree or a slow `docker image rm` must not hold the request thread:
+the API starts a job and the client polls /api/storage/jobs. One worker per
+job, ids resolved once against the snapshot the job started from."""
+
+JOBS = {}
+_JOBS_LOCK = threading.Lock()
+_JOB_SEQ = [0]
+JOB_KEEP = 10            # finished jobs kept for the status poll
+JOB_TTL = 15 * 60        # …unless older than this
+
+
+def _new_job_id():
+    with _JOBS_LOCK:
+        _JOB_SEQ[0] += 1
+        return "del-%d-%s" % (_JOB_SEQ[0], "%x" % int(time.time() * 1000))
+
+
+def _prune_jobs_locked(now=None):
+    now = now or time.time()
+    finished = sorted((j for j in JOBS.values() if j["state"] != "running"),
+                      key=lambda j: j["finished"] or 0, reverse=True)
+    for j in finished[JOB_KEEP:]:
+        JOBS.pop(j["id"], None)
+    for j in list(JOBS.values()):
+        if j["state"] != "running" and now - (j["finished"] or 0) > JOB_TTL:
+            JOBS.pop(j["id"], None)
+
+
+def start_delete(ids, mode="permanent"):
+    """Validate like delete(), then run it in a worker thread.
+    Returns the new job's status dict (a copy)."""
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise ValueError("ids must be a non-empty list of item ids")
+    if mode not in ("trash", "permanent"):
+        raise ValueError("mode must be 'trash' or 'permanent'")
+    job = {"id": _new_job_id(), "state": "running", "mode": mode, "ids": list(ids),
+           "total": len(ids), "done": 0, "current": None, "results": [],
+           "freed_bytes": 0, "error": None, "started": time.time(), "finished": None}
+    with _JOBS_LOCK:
+        _prune_jobs_locked()
+        JOBS[job["id"]] = job
+    threading.Thread(target=_job_worker, args=(job["id"],), daemon=True).start()
+    return dict(job)
+
+
+def _job_worker(jid):
+    with _JOBS_LOCK:
+        job = JOBS.get(jid)
+    if not job:
+        return
+    try:
+        snap = snapshot(force=True)
+        by_id = {i["id"]: i for i in snap["items"]}
+        for iid in job["ids"]:
+            item = by_id.get(iid)
+            with _JOBS_LOCK:
+                job["current"] = (item or {}).get("name") or iid
+            if not item:
+                _job_record(job, {"id": iid, "ok": False, "error": "not found; refresh the list"})
+                continue
+            row = {"id": iid, "name": item["name"], "kind": item["kind"],
+                   "size_bytes": item["size_bytes"]}
+            if not item["deletable"]:
+                _job_record(job, dict(row, ok=False, error=item["why_kept"] or "not deletable"))
+                continue
+            try:
+                if item["kind"] == "image":
+                    _delete_image(item)
+                    _job_record(job, dict(row, ok=True, method="docker"), item["size_bytes"])
+                else:
+                    method, note = _delete_model(item, mode=job["mode"])
+                    _job_record(job, dict(row, ok=True, method=method, note=note), item["size_bytes"])
+            except (OSError, ValueError) as exc:
+                _job_record(job, dict(row, ok=False, error=str(exc)))
+    except Exception as exc:  # the job dies, never the daemon
+        with _JOBS_LOCK:
+            job["error"] = str(exc)
+    finally:
+        invalidate()
+        scan.start_scan_async(force=True)
+        with _JOBS_LOCK:
+            job["state"] = "error" if job["error"] else "done"
+            job["current"] = None
+            job["finished"] = time.time()
+
+
+def _job_record(job, row, freed=0):
+    with _JOBS_LOCK:
+        job["results"].append(row)
+        job["done"] += 1
+        job["freed_bytes"] += freed
+        job["current"] = None
+
+
+def jobs_status():
+    """Every live job and the last few finished ones, newest first."""
+    with _JOBS_LOCK:
+        _prune_jobs_locked()
+        jobs = sorted(JOBS.values(), key=lambda j: j["started"], reverse=True)
+        return [dict(j) for j in jobs]
+
+
+def job_status(jid):
+    with _JOBS_LOCK:
+        job = JOBS.get(jid)
+        return dict(job) if job else None
+
+
+# ------------------------------------------------------------ open folder
+OPENERS = {"linux": ["xdg-open"], "win32": ["explorer"], "darwin": ["open"]}
+
+
+def open_folder(path):
+    """Open a folder in the desktop file manager. (opened, error): opened is
+    False on a headless session or when no opener exists — the caller shows
+    the path instead."""
+    from . import harness
+    if not harness._display_ok():
+        return False, "no display — copy the path instead"
+    argv = OPENERS.get("win32" if os.name == "nt" else "darwin" if sys.platform == "darwin" else "linux")
+    if not argv or not shutil.which(argv[0]):
+        return False, f"{argv[0]} not found" if argv else "no file manager opener"
+    try:
+        subprocess.Popen(argv + [str(path)], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True, None
+    except OSError as exc:
+        return False, str(exc)
+
+
+def open_item_folder(iid):
+    """Open the folder of a storage item by id (models/partials only).
+    Returns {ok, path, opened, error}."""
+    snap = snapshot()
+    item = next((i for i in snap["items"] if i["id"] == iid), None)
+    if not item:
+        return {"ok": False, "error": "not found; refresh the list"}
+    if item["kind"] == "image":
+        return {"ok": False, "error": "a Docker image has no folder; use docker"}
+    path = Path(item["path"])
+    folder = path.parent if path.is_file() else path
+    if not folder.is_dir():
+        return {"ok": False, "error": "the folder no longer exists"}
+    opened, error = open_folder(folder)
+    return {"ok": opened, "path": str(folder), "opened": opened, "error": error}

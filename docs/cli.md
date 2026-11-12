@@ -48,13 +48,13 @@ Stdlib only, Python 3.9+, no GUI dependencies. Installed as
 | `b70 env [rid]` | `export OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL_NAME` |
 | `b70 agent <client> [rid]` | open a coding agent (`pi`, `omp`, `droid`, `codex`, `deepseek`) on a running model |
 | `b70 usage` | tokens each agent used: today, all time, per model, and decode speed, time to first token and energy per model |
-| `b70 storage` | disk use by models, partial downloads and engine images, with the recipes that use each (`--kind models|images|partials`) |
-| `b70 rm <id|name>…` | delete storage items (`--suggested`, `--dry-run`, `-y`); refuses anything a running server or container uses |
+| `b70 storage` | disk use by models, partial downloads and engine images, with the recipes that use each (`--kind models|images|partials`, `--sort size|name|last|kind`, a positional query filters by name/path/model) |
+| `b70 rm <id|name>…` | remove storage items (`--suggested`, `--dry-run`, `-y`); models go to the desktop trash by default (`--trash`, the default) or are deleted for real with `--permanent`; refuses anything a running server or container uses |
 | `b70 doctor` | render nodes, B70 identification, blockers, scan roots |
 | `b70 scan` | detected artifacts + per-recipe matches (`--roots a,b` to set roots) |
 | `b70 recipes-update [model]` | apply the published recipe catalog overlay (`-e` limits it to one engine, `--check` only lists what is newer) |
 | `b70 version` | CLI / daemon / catalog versions |
-| `b70 completion bash` | bash completion script |
+| `b70 completion bash` | bash completion script (commands, models, running servers, engine names, storage/rm flags) |
 
 Aliases: `ls`, `recipes` → `list`; `ps` → `status`; `ui` → `open ui`;
 `tokens` → `usage`.
@@ -93,16 +93,29 @@ joules the card drew); `b70 usage` prints the per-model medians and
 ## Disk space
 
 ```sh
-b70 storage                  # volumes with free space, then every model, partial download and engine image
-b70 storage --kind images    # pinned engine images only
-b70 rm qwen3.8-27b-bf16 --dry-run   # what would go, and the space it frees
-b70 rm --suggested -y        # old partial downloads and pinned images no downloaded model uses
+b70 storage                          # volumes with free space, then every model, partial download and engine image
+b70 storage --kind images            # pinned engine images only
+b70 storage --sort last qwen         # rows filtered by name/path/model, ordered by last launch
+b70 storage --json | jq '.summary'   # the raw GET /api/storage document
+b70 rm qwen3.8-27b-bf16 --dry-run    # what would go, and the space it frees
+b70 rm --suggested -y                # old partial downloads and pinned images no downloaded model uses
+b70 rm model:ab12cd34ef --permanent  # delete from disk without using the trash
 ```
 
 Ids and names come from `b70 storage`. `rm` never takes a path: it resolves the
 id against the daemon's own scan and refuses a model a running server uses, an
 image a container uses, anything outside your model folders, and Docker images
-the recipes do not pin. Models are deleted from disk, not moved to a trash.
+the recipes do not pin. Models and partial downloads move to your desktop trash
+by default (freedesktop home trash, same filesystem only — an item on another
+disk is deleted permanently and the output says so); `--permanent` skips the
+trash. Engine images always go through `docker image rm`.
+
+`b70 storage --json` prints the snapshot exactly as the daemon serves it
+(`volumes`; `items` with `id/kind/name/path/size_bytes/used_by/last_launched/
+in_use/deletable/why_kept/suggested/hint/trash_ok/mount`; `daemons`; `summary`).
+The shape is documented in `docs/api.md` and covered by the test suite, so
+scripts can rely on it. Background delete jobs (`GET /api/storage/jobs`, what
+the UI polls) are documented there too; the CLI uses the synchronous delete.
 
 ## `b70 launch` — every knob maps to the recipe API
 

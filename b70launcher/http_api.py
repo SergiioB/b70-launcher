@@ -33,7 +33,8 @@ def scan_response():
             det = det or {}
             matches[model['id']][engine] = {'detected': bool(det), 'path': det.get('path'),
                                            'size_mib': det.get('size_mib'), 'ctx_native': det.get('ctx'),
-                                           'reason': reason}
+                                           'reason': reason,
+                                           'needs': scan.recipe_needs(model, engine, det)}
     probe = Path(catalog.SETTINGS.get('models_dir') or '~').expanduser()
     while not probe.is_dir() and probe != probe.parent:
         probe = probe.parent
@@ -193,6 +194,20 @@ def _harness(cfg):
         return {'error': str(exc), 'line': exc.line}, 400
 
 
+def _storage_delete(cfg):
+    """Sync by default (CLI); "async": true starts a background job the UI polls."""
+    if cfg.get('async') and not cfg.get('dry_run'):
+        return {'job': storage.start_delete(cfg.get('ids'), cfg.get('mode') or 'permanent')}
+    return storage.delete(cfg.get('ids'), bool(cfg.get('dry_run')), cfg.get('mode') or 'permanent')
+
+
+def _open_state_folder():
+    """Open the launcher state folder (settings-override.json lives there).
+    No client input: the path is fixed."""
+    opened, error = storage.open_folder(paths.DATA)
+    return {'ok': opened, 'path': str(paths.DATA), 'opened': opened, 'error': error}
+
+
 GET_ROUTES = {
     '/api/state': state_response,
     '/api/scan': scan_response,
@@ -202,6 +217,7 @@ GET_ROUTES = {
     '/api/metrics': telemetry.metrics_snapshot,
     '/api/usage': lambda: dict(telemetry.usage_summary(), **gateway.summary(), speed=requestlog.summary()),
     '/api/storage': storage.snapshot,
+    '/api/storage/jobs': lambda: {'jobs': storage.jobs_status()},
 }
 POST_ROUTES = {
     '/api/build': _preview,
@@ -213,7 +229,9 @@ POST_ROUTES = {
     '/api/test_prompt': runtime.test_prompt,
     '/api/harness': _harness,
     '/api/storage/refresh': lambda cfg: storage.snapshot(force=True),
-    '/api/storage/delete': lambda cfg: storage.delete(cfg.get('ids'), bool(cfg.get('dry_run'))),
+    '/api/storage/delete': _storage_delete,
+    '/api/storage/open': lambda cfg: storage.open_item_folder(cfg.get('id', '')),
+    '/api/settings/open': lambda cfg: _open_state_folder(),
     '/api/recipes/update': lambda cfg: catalog.apply_recipe_update(cfg.get('model_id'), cfg.get('engine')),
     '/api/settings': _settings,
     '/api/update/install': selfupdate.start_install,
