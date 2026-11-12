@@ -159,7 +159,9 @@ def summary(recent=25):
             j = sum(r["card_j"] for r in energy)
             t = sum(r["tokens_out"] for r in energy)
             row["j_per_ktok"] = round(j / t * 1000, 1) if t else None
-            row["avg_w"] = round(statistics.fmean(r["avg_w"] for r in energy if r.get("avg_w")), 1)
+            watts = [r["avg_w"] for r in energy if r.get("avg_w") is not None]
+            if watts:                       # 0.0 W is a real sample, not a missing one
+                row["avg_w"] = round(statistics.fmean(watts), 1)
         rows.append(row)
     rows.sort(key=lambda r: r["last"], reverse=True)
     return {"by_model": rows, "recent": recs[-recent:][::-1], "total_requests": len(recs)}

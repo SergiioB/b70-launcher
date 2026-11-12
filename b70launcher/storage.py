@@ -25,17 +25,21 @@ import threading
 import time
 from pathlib import Path
 
-from . import catalog, paths, scan
+from . import catalog, downloads, paths, scan
 from .locks import LOCK
 from .runtime import RUNNING, docker_cmd
 
 EXL3_SOCK = "/run/b70-exl3-docker.sock"
 CACHE_TTL = 30.0
 PARTIAL_MIN_AGE = 15 * 60     # a .part touched in the last 15 min may be an active download
-LIVE_STATES = ("starting", "loading", "ready", "running", "serving", "stopping")
+# runtime.py keeps "stopping" and "stop_failed" in its reserved set: a failed stop
+# leaves the engine alive with the weights mapped, so its files are not free.
+LIVE_STATES = ("starting", "loading", "ready", "running", "serving", "stopping", "stop_failed")
+DOWNLOAD_STATES = ("queued", "resolving", "downloading")
 
 _CACHE = {"ts": 0.0, "snap": None}
 _CACHE_LOCK = threading.Lock()
+_SCAN_LOCK = threading.Lock()    # one full disk walk at a time
 
 
 # ---------------------------------------------------------------- helpers
@@ -109,6 +113,13 @@ def _under(path, root):
         return True
     except (ValueError, OSError):
         return False
+
+
+def _download_paths():
+    """Destinations an active download is writing into right now."""
+    with LOCK:
+        live = [dict(e) for e in downloads.DOWNLOADS.values() if e.get("state") in DOWNLOAD_STATES]
+    return [str(e[k]) for e in live for k in ("dest", "dest_dir") if e.get(k)]
 
 
 def _running_paths():
@@ -290,6 +301,7 @@ def _model_items(now):
     last = _last_launched()
     run_paths, _imgs, _live = _running_paths()
     run_real = [os.path.realpath(p) for p in run_paths]
+    dl_real = [os.path.realpath(p) for p in _download_paths()]
     items = []
     for c in sc.get("catalog", []):
         path = c.get("path")
@@ -300,13 +312,16 @@ def _model_items(now):
         used_by = owners.get(real, [])
         launched = max((last.get((u["name"], u["engine"]), "") for u in used_by), default="")
         busy = any(real == r or r.startswith(real + os.sep) or real.startswith(r + os.sep) for r in run_real)
+        dl_busy = any(real == d or d.startswith(real + os.sep) or real.startswith(d + os.sep) for d in dl_real)
+        busy = busy or dl_busy
         items.append({
             "id": _item_id("model", real), "kind": "model", "format": c.get("kind"),
             "name": _display_name(c.get("name") or "", path), "path": path,
             "size_bytes": size, "mtime": mtime,
             "used_by": used_by, "last_launched": launched or None,
             "in_use": busy, "deletable": not busy,
-            "why_kept": "a running server is using it" if busy else None,
+            "why_kept": ("a download is writing into it" if dl_busy
+                         else "a running server is using it" if busy else None),
             "suggested": False,
             "hint": None if used_by else _model_hint(c.get("name") or ""),
         })
@@ -410,6 +425,16 @@ def snapshot(force=False):
     with _CACHE_LOCK:
         if not force and _CACHE["snap"] and time.time() - _CACHE["ts"] < CACHE_TTL:
             return _CACHE["snap"]
+    asked = time.time()
+    with _SCAN_LOCK:
+        with _CACHE_LOCK:
+            # a walk that finished after this call asked for one is the answer
+            if _CACHE["snap"] and _CACHE["ts"] >= asked:
+                return _CACHE["snap"]
+        return _build()
+
+
+def _build():
     now = time.time()
     vol_paths = [str(r) for r in _roots()]
     model_dir = Path(str(catalog.SETTINGS.get("models_dir") or "~")).expanduser()
@@ -460,7 +485,7 @@ def snapshot(force=False):
             "items": items, "daemons": daemons, "summary": summary,
             "roots": [str(r) for r in _roots()], "scan_state": sc.get("state")}
     with _CACHE_LOCK:
-        _CACHE.update({"ts": now, "snap": snap})
+        _CACHE.update({"ts": time.time(), "snap": snap})   # finish time: bursts that asked earlier share it
     return snap
 
 

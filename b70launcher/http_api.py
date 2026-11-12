@@ -61,6 +61,17 @@ def state_response():
             'custom_templates': builders.CUSTOM_TEMPLATES}
 
 
+SYSTEM_FOLDERS = ("/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64",
+                  "/proc", "/sys", "/dev", "/root", "/home")
+
+
+def _too_broad(p):
+    """A scan root is the delete boundary: refuse the filesystem root, your home, anything that
+    contains your home, and system folders."""
+    home = Path.home().resolve()
+    return p == Path('/') or p == home or p in home.parents or str(p) in SYSTEM_FOLDERS
+
+
 def _settings(cfg):
     allowed = {'scan_dirs', 'models_dir', 'open_with', 'sync_clients', 'meter_clients', 'pcie_links'}
     if not cfg or set(cfg) - allowed:
@@ -75,7 +86,7 @@ def _settings(cfg):
             if not isinstance(root, str) or not Path(root).expanduser().is_absolute():
                 raise ValueError('Use absolute model folder paths.')
             p = Path(root).expanduser().resolve()
-            if p in (Path('/'), Path.home().resolve()) or not p.is_dir():
+            if _too_broad(p) or not p.is_dir():
                 raise ValueError(f'Choose an existing model folder, not an entire home or filesystem: {root}')
             if str(p) not in cleaned:
                 cleaned.append(str(p))
@@ -85,7 +96,7 @@ def _settings(cfg):
         if not isinstance(raw, str) or not Path(raw).expanduser().is_absolute():
             raise ValueError('Use an absolute download folder path.')
         p = Path(raw).expanduser().resolve()
-        if not p.is_dir() or p in (Path('/'), Path.home().resolve()):
+        if not p.is_dir() or _too_broad(p):
             raise ValueError('Choose an existing download folder, not your home or filesystem root.')
         values['models_dir'] = str(p)
     if 'open_with' in cfg:

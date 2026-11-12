@@ -160,13 +160,18 @@ def handle(handler, method):
     except ValueError:
         req = None
     _CURRENT.span = requestlog.Span(entry) if method == "POST" else None
-    if method == "POST" and rest == "/v1/responses" and isinstance(req, dict):
-        if entry.get("engine") in NATIVE_RESPONSES:
-            return _responses_native(handler, client, entry, req)
-        return _responses_translated(handler, client, entry, req)
-    if method == "POST" and rest in ("/v1/chat/completions", "/v1/completions") and isinstance(req, dict):
-        return _chat(handler, client, entry, rest, req)
-    return _passthrough(handler, entry, method, rest + query, body)
+    try:
+        if method == "POST" and rest == "/v1/responses" and isinstance(req, dict):
+            if entry.get("engine") in NATIVE_RESPONSES:
+                return _responses_native(handler, client, entry, req)
+            return _responses_translated(handler, client, entry, req)
+        if method == "POST" and rest in ("/v1/chat/completions", "/v1/completions") and isinstance(req, dict):
+            return _chat(handler, client, entry, rest, req)
+        return _passthrough(handler, entry, method, rest + query, body)
+    finally:
+        # record() consumes the span; a pass-through request never calls it and must not
+        # leave its start time and energy baseline on this thread.
+        _CURRENT.span = None
 
 
 # ------------------------------------------------------------------ upstream
