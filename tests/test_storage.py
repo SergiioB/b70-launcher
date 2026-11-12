@@ -6,6 +6,7 @@ the isolated temp HOME.
 import os
 import time
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -142,6 +143,84 @@ class TestDeleteGuards(unittest.TestCase):
         with mock.patch.object(storage, "_run", lambda argv, timeout=12: (1, "", "Error: image is being used")):
             with self.assertRaisesRegex(ValueError, "being used"):
                 storage._delete_image({"socket": "", "image_id": "sha256:abc"})
+
+
+class TestTrash(unittest.TestCase):
+    """Move-to-trash (freedesktop home trash) instead of a permanent delete."""
+
+    def setUp(self):
+        self.root = TMP / "st-trash-root"
+        self.root.mkdir(exist_ok=True)
+        self.patch = mock.patch.object(scan, "scan_roots", lambda: [self.root])
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        files, info = storage._trash_dirs()
+        self.trash_files, self.trash_info = files, info
+
+    def test_same_device_trash_moves_and_writes_trashinfo(self):
+        name = "st-unique-%s" % os.getpid()
+        model = write_file(self.root / name / "model.safetensors")
+        method, note = storage._delete_model({"path": str(model.parent)}, mode="trash")
+        self.assertEqual(method, "trash")
+        self.assertIsNone(note)
+        self.assertFalse(model.exists())
+        self.assertTrue((self.trash_files / name).is_dir())
+        info = self.trash_info / (name + ".trashinfo")
+        self.assertTrue(info.is_file())
+        body = info.read_text()
+        self.assertIn("[Trash Info]", body)
+        path_line = urllib.parse.unquote(body.split("Path=")[1].splitlines()[0])
+        self.assertEqual(path_line, str(model.parent))
+        self.assertRegex(body, r"DeletionDate=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+
+    def test_name_collision_gets_a_suffix(self):
+        for i in range(2):
+            d = write_file(self.root / f"r{i}" / "Qwen3.8-27B" / "w.bin")
+            storage._delete_model({"path": str(d.parent)}, mode="trash")
+        self.assertTrue((self.trash_files / "Qwen3.8-27B").exists())
+        self.assertTrue((self.trash_files / "Qwen3.8-27B.2").exists())
+        self.assertTrue((self.trash_info / "Qwen3.8-27B.2.trashinfo").is_file())
+
+    def test_cross_device_falls_back_to_permanent_with_a_note(self):
+        """A model on another filesystem cannot move into the home trash:
+        the delete is permanent and says so in the per-item note."""
+        model = write_file(self.root / "far-model" / "w.bin")
+        with mock.patch.object(storage, "trash_ok", lambda p: False):
+            method, note = storage._delete_model({"path": str(model.parent)}, mode="trash")
+        self.assertEqual(method, "permanent")
+        self.assertIn("no trash", note)
+        self.assertFalse(model.exists())
+
+    def test_trash_ok_false_when_trash_cannot_be_created(self):
+        with mock.patch.object(storage, "_trash_ready", lambda: False):
+            self.assertFalse(storage.trash_ok(str(self.root)))
+
+    def test_delete_reports_the_method_and_refuses_bad_modes(self):
+        model = write_file(self.root / "m-report" / "w.bin")
+        item = {"id": "model:x", "name": "m-report", "kind": "model", "size_bytes": 8,
+                "deletable": True, "why_kept": None, "path": str(model.parent)}
+        with mock.patch.object(storage, "snapshot", return_value={"items": [item]}):
+            out = storage.delete(["model:x"], mode="trash")
+        self.assertTrue(out["results"][0]["ok"])
+        self.assertEqual(out["results"][0]["method"], "trash")
+        self.assertEqual(out["mode"], "trash")
+        with self.assertRaises(ValueError):
+            storage.delete(["model:x"], mode="recycle")
+
+    def test_images_ignore_the_trash_mode(self):
+        calls = []
+
+        def fake_run(argv, timeout=12):
+            calls.append(argv)
+            return 0, "", ""
+
+        item = {"id": "image:x", "name": "img", "kind": "image", "size_bytes": 5,
+                "deletable": True, "why_kept": None, "socket": "", "image_id": "sha256:abc"}
+        with mock.patch.object(storage, "snapshot", return_value={"items": [item]}), \
+                mock.patch.object(storage, "_run", fake_run):
+            out = storage.delete(["image:x"], mode="trash")
+        self.assertEqual(out["results"][0]["method"], "docker")
+        self.assertEqual(calls[0][-3:], ["image", "rm", "sha256:abc"])
 
 
 class TestPartials(unittest.TestCase):
