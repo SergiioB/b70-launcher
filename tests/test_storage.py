@@ -398,3 +398,18 @@ class TestPartials(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReadmeKeepsStandingSections(unittest.TestCase):
+    """The README's 'What is new' notes roll over each release; what Storage, per-request
+    speed/energy and uninstall do must live in standing sections, not only in a note."""
+
+    def test_standing_sections_exist_outside_release_notes(self):
+        import re
+        from pathlib import Path
+        text = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+        body = re.sub(r"## What is new in .*?(?=\n## (?!What is new))", "", text, flags=re.S)
+        for heading in ("## Free disk space (Storage)", "## Speed and energy per request", "## Uninstall"):
+            self.assertIn(heading, body)
+        self.assertIn("b70 rm", body)
+        self.assertIn("uninstall.sh", body)
