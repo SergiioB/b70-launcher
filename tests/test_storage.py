@@ -409,7 +409,7 @@ class TestReadmeKeepsStandingSections(unittest.TestCase):
         from pathlib import Path
         text = (Path(__file__).resolve().parent.parent / "README.md").read_text()
         body = re.sub(r"## What is new in .*?(?=\n## (?!What is new))", "", text, flags=re.S)
-        for heading in ("## Free disk space (Storage)", "## Speed and energy per request", "## Uninstall"):
+        for heading in ("## Storage manager: free disk space", "## Speed and energy per request", "## Uninstall"):
             self.assertIn(heading, body)
         self.assertIn("b70 rm", body)
         self.assertIn("uninstall.sh", body)

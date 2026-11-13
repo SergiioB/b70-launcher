@@ -56,6 +56,10 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.26
+
+- **The Storage section is titled "Storage manager: free disk space".** Searching the docs for "storage manager" now finds it first.
+
 ## What is new in 0.6.25
 
 - **The README keeps its Storage, speed and Uninstall sections.** They had only ever been described inside the rolling "What is new" notes, so the next release removed them. They are now standing sections, and a test fails if they disappear. The 0.6.24 installer fix (the PATH warning no longer claims a menu entry when none was written) ships in this release too.
@@ -351,7 +355,7 @@ outside them pins `model_path` with `recipe_overrides`. A dry run
 - **Engines survive app restarts.** Tracked containers are re-adopted on startup (`servers-state.json` + `docker inspect`), so closing the launcher no longer orphans a running engine from the UI. Container status comes from Docker itself, not the short-lived `docker run -d` client process.
 - **Hardware-aware default.** The preflight builds a profile (B70 count, per-card VRAM, power cap) and pre-selects the best default model + engine for the detected hardware, with the reason shown in the UI.
 
-## Free disk space (Storage)
+## Storage manager: free disk space
 
 Click **Storage** in the header, or run `b70 storage`, to see free space on every disk and then every model, unfinished download and pinned engine image with its exact size, the recipes that use it and when you last launched it. Items are grouped by disk; sort by size, name, last launch or kind, or type in the search box. **Select suggested** first lists exactly what it would select and the total, so nothing is chosen silently.
 
@@ -377,9 +381,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.25-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.25-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.25-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.26-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.26-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.26-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space (for Strata's locally built image, the `docker build` command instead). Containers see only the selected card(s). Some recipe images use mutable tags.
 
