@@ -56,6 +56,10 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.24
+
+- **The installer's PATH warning tells the truth about the menu entry.** When the install path is one a menu entry cannot hold (a quote, backtick, dollar sign or backslash), the warning no longer says the menu entry works; it says none was written and prints the command that starts the launcher.
+
 ## What is new in 0.6.23
 
 - **"Setup needed" before you launch.** A recipe that needs a setting this machine has not provided (`xestrata_root`, `strata_root`, or `model_path` when the model cannot be downloaded and is not on disk) now says so in the model card, on the engine button, in `b70 list` (`⚙ setup`) and in `b70 show` — with the exact setting to fill in. The card's "Open settings" dialog shows a paste-ready `settings-override.json` snippet, a copy button and an "Open settings folder" button.

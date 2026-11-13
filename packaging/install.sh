@@ -180,8 +180,13 @@ fi
 # --- PATH check ---------------------------------------------------------------
 case :${PATH:-}: in
     *":$bin:"*) ;;
-    *) warn "$bin is not in PATH for this shell.
-       The application menu entry works regardless (it uses an absolute path).
+    *) if [ -f "$desktop_dir/b70-launcher.desktop" ]; then
+           menu_note="The application menu entry works regardless (it uses an absolute path)."
+       else
+           menu_note="No menu entry was written; start the launcher with: $exec_path"
+       fi
+       warn "$bin is not in PATH for this shell.
+       $menu_note
        To run 'b70-launcher' from a terminal, add this line to ~/.profile or your
        shell's rc file, then open a new terminal:
            export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;

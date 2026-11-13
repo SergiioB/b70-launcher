@@ -168,7 +168,10 @@ class TestInstallerShellInjection(TempCase):
                 if "%" not in suffix:
                     self.assertFalse(desktop.exists(), "a menu entry cannot represent this path")
                     self.assertIn("menu entry", result.stderr)
+                    self.assertNotIn("menu entry works regardless", result.stderr)
+                    self.assertIn("No menu entry was written", result.stderr)
                 else:
+                    self.assertIn("menu entry works regardless", result.stderr)
                     lines = desktop.read_text().splitlines()
                     exec_lines = [line for line in lines if line.startswith("Exec=")]
                     self.assertEqual(len(exec_lines), 1, desktop.read_text())
