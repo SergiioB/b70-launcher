@@ -20,7 +20,9 @@
   --accent:oklch(.76 .12 205);--accent-ink:oklch(.20 .05 225);--accent-soft:oklch(.76 .12 205/.14);--ring:oklch(.76 .12 205/.30);
   --link:oklch(.78 .10 205);--ok:oklch(.78 .15 158);--warn:oklch(.80 .13 82);--err:oklch(.70 .16 20)}}
 *{box-sizing:border-box}
-html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
+@font-face{font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;
+  src:url("/assets/inter-latin-wght-normal.woff2") format("woff2")}
+html{font-family:"Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}
 button,input,select,textarea{font:inherit;color:inherit}
 button,select,input,textarea{border:1px solid var(--input-border);border-radius:8px;background:var(--raised)}
@@ -217,9 +219,11 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
   padding:3px 9px;background:var(--bg)}
 .fact b{color:var(--muted);font-weight:600}
 .engine-switch{display:flex;flex-wrap:wrap;gap:4px;margin-block:14px 0}
-.engine-switch button{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:6px 12px;border-radius:8px;
+.engine-switch button{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:38px;padding:6px 12px;border-radius:8px;
   color:var(--muted);background:transparent;border-color:transparent}
 .engine-switch button:hover{color:var(--text);background:var(--raised);border-color:transparent}
+.engine-switch .eng-top{display:inline-flex;align-items:center;gap:8px}
+.engine-switch .eng-bot{display:inline-flex;align-items:center;gap:8px;padding-inline-start:24px}
 .engine-switch button img{width:16px;height:16px;object-fit:contain}
 .engine-switch .q{font-size:var(--caption);color:var(--subtle);font-weight:400}
 .engine-switch .rec{font-size:var(--caption);color:var(--link);font-weight:500}
@@ -837,8 +841,8 @@ function renderEngineSwitch(){const m=model();if(!m)return;
   $('engine-switch').innerHTML=engs.map((e,i)=>{const rr=m.recipes[e];const[cls,label]=states[i];const on=e===S.engine;
     return`<button type="button" role="radio" aria-checked="${on}" tabindex="${on?0:-1}" data-switch-engine="${esc(e)}"
       title="${esc(`${engineLabel(e)} · ${rr.download?.quant||rr.kind} · ${label}`)}">
-      <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
-      <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
+      <span class="eng-top"><img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span></span>
+      <span class="eng-bot"><span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</span></button>`;}).join('');
   if(hadFocus)$('engine-switch').querySelector('[aria-checked="true"]')?.focus();}
 function renderSelection(){renderLibrary();const m=model(),r=recipe();
   if(!m||!r){if(S.state)$('recipe-purpose').textContent='Pick a model from the list — engines, sizing and the launch command appear here.';return;}
