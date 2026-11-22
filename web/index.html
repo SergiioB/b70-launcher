@@ -20,7 +20,9 @@
   --accent:oklch(.76 .12 205);--accent-ink:oklch(.20 .05 225);--accent-soft:oklch(.76 .12 205/.14);--ring:oklch(.76 .12 205/.30);
   --link:oklch(.78 .10 205);--ok:oklch(.78 .15 158);--warn:oklch(.80 .13 82);--err:oklch(.70 .16 20)}}
 *{box-sizing:border-box}
-html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
+@font-face{font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;
+  src:url("/assets/inter-latin-wght-normal.woff2") format("woff2")}
+html{font-family:"Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}
 button,input,select,textarea{font:inherit;color:inherit}
 button,select,input,textarea{border:1px solid var(--input-border);border-radius:8px;background:var(--raised)}
@@ -190,8 +192,21 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
 .download-row .loadbar{display:block;margin-block:6px}
 .download-row .loadbar i,.avail.dlg .loadbar i{background:var(--link)}
 .download-row .actions button{min-height:28px;padding:2px 10px;font-size:var(--caption)}
-.credit{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--caption);color:var(--subtle);margin:6px 0 0}
-.credit img{flex:none;opacity:.8}
+.credit{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:var(--caption);color:var(--subtle);margin:6px 0 0}
+.credit>span{flex:1;min-width:0}
+.credit img{opacity:.8;vertical-align:-2px;margin-inline-end:6px}
+.credit .linkish{margin-inline-start:auto;white-space:nowrap}
+/* slim ko-fi strip pinned to the bottom of the library panel */
+.kofi{display:flex;align-items:center;gap:8px;margin:10px -16px -16px;padding:10px 16px;
+  border-block-start:1px solid var(--border);border-radius:0 0 13px 13px;
+  color:var(--subtle);font-size:var(--caption);text-decoration:none}
+.kofi:hover{color:var(--text);background:var(--raised)}
+.kofi-cta{margin-inline-start:auto;display:inline-flex;align-items:center;gap:5px;flex:none;
+  padding:4px 10px;border-radius:8px;font-weight:600;
+  color:var(--warn);background:rgba(229,169,60,.13);border:1px solid rgba(229,169,60,.30);
+  transition:background .15s,border-color .15s}
+.kofi-cta svg{opacity:.9}
+.kofi:hover .kofi-cta{background:rgba(229,169,60,.22);border-color:rgba(229,169,60,.55)}
 .linkish{border:0;background:none;min-height:24px;padding:0 4px;color:var(--link);text-decoration:underline;font-size:inherit;font-weight:400}
 .linkish:hover{background:none;color:var(--text)}
 /* ---- workspace ---- */
@@ -204,9 +219,11 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
   padding:3px 9px;background:var(--bg)}
 .fact b{color:var(--muted);font-weight:600}
 .engine-switch{display:flex;flex-wrap:wrap;gap:4px;margin-block:14px 0}
-.engine-switch button{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:6px 12px;border-radius:8px;
+.engine-switch button{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:38px;padding:6px 12px;border-radius:8px;
   color:var(--muted);background:transparent;border-color:transparent}
 .engine-switch button:hover{color:var(--text);background:var(--raised);border-color:transparent}
+.engine-switch .eng-top{display:inline-flex;align-items:center;gap:8px}
+.engine-switch .eng-bot{display:inline-flex;align-items:center;gap:8px;padding-inline-start:24px}
 .engine-switch button img{width:16px;height:16px;object-fit:contain}
 .engine-switch .q{font-size:var(--caption);color:var(--subtle);font-weight:400}
 .engine-switch .rec{font-size:var(--caption);color:var(--link);font-weight:500}
@@ -488,9 +505,12 @@ button.stop:hover:not(:disabled){background:var(--err);color:#fff;border-color:v
       <div id="download-rows"></div>
     </div>
     <p class="meta" id="scan-status" role="status"></p>
-    <p class="credit"><img src="/assets/github.svg" alt="" width="14" height="14">
-      <span>Recipes from the <a href="https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook" target="_blank" rel="noopener">B70 Inference Cookbook</a> by SergiioB</span>
+    <p class="credit"><span><img src="/assets/github.svg" alt="" width="14" height="14">Recipes from the <a href="https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook" target="_blank" rel="noopener">B70 Inference Cookbook</a> by SergiioB</span>
       <button type="button" class="linkish" data-welcome>About</button></p>
+    <a class="kofi" href="https://ko-fi.com/sergiiobs" target="_blank" rel="noopener">
+      <span>Free &amp; open source. Enjoying it?</span>
+      <span class="kofi-cta"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7h10v6.5a2.5 2.5 0 0 1-2.5 2.5H6a2.5 2.5 0 0 1-2.5-2.5V7z"/><path d="M13.5 8.5h1.25a1.75 1.75 0 0 1 0 3.5H13.5"/><path d="M6.5 2.5v2M9.5 2.5v2"/></svg>Buy me a coffee</span>
+    </a>
   </aside>
 
   <section class="panel" id="run" tabindex="-1" aria-labelledby="recipe-name">
@@ -821,10 +841,11 @@ function renderEngineSwitch(){const m=model();if(!m)return;
   $('engine-switch').innerHTML=engs.map((e,i)=>{const rr=m.recipes[e];const[cls,label]=states[i];const on=e===S.engine;
     return`<button type="button" role="radio" aria-checked="${on}" tabindex="${on?0:-1}" data-switch-engine="${esc(e)}"
       title="${esc(`${engineLabel(e)} · ${rr.download?.quant||rr.kind} · ${label}`)}">
-      <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
-      <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
+      <span class="eng-top"><img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span></span>
+      <span class="eng-bot"><span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</span></button>`;}).join('');
   if(hadFocus)$('engine-switch').querySelector('[aria-checked="true"]')?.focus();}
-function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
+function renderSelection(){renderLibrary();const m=model(),r=recipe();
+  if(!m||!r){if(S.state)$('recipe-purpose').textContent='Pick a model from the list — engines, sizing and the launch command appear here.';return;}
   const prov=getProvider(m);
   $('recipe-kicker').innerHTML=`<span>${esc(prov.label)}</span><span aria-hidden="true">·</span><span>${esc(familyOf(m))}</span>`;
   const h1=$('recipe-name');h1.textContent='';
@@ -924,7 +945,7 @@ function renderGpus(){const r=recipe();if(!r)return;const devices=deviceList();c
   if(!values.length||values.every(v=>v.disabled)){S.sig.gpus='';
     $('gpu').innerHTML=`<option value="" selected>${cc.enough?'No free GPU':`Needs ${need} GPUs`}</option>`;
     $('gpu-hint').textContent=!cc.enough?`This recipe runs on ${need} Arc Pro B70 cards; this computer has ${cc.usable.length} you can use.`
-      :'Every card is in use or inaccessible. Stop a session or check GPU access.';return;}
+      :'Every card is in use or inaccessible. Stop a session, or free a card from the GPU status above.';return;}
   const draft=S.gpuDraft[recipeKey()];
   const wanted=draft&&values.some(v=>v.value===draft&&!v.disabled)?draft:defaultGpus(r).join(',');
   if(sig!==S.sig.gpus){S.sig.gpus=sig;
@@ -1430,7 +1451,8 @@ function showWelcome(){const cards=deviceList().filter(d=>d.b70);
     <p class="hint">Want a model that is not here? <a href="${RECIPE_REQUEST_URL}" target="_blank" rel="noopener">Request a recipe on GitHub</a>
       or add one with a pull request that follows the <a href="${RECIPE_FORMAT_URL}" target="_blank" rel="noopener">recipe format</a>.</p>
     <div class="actions divider"><button type="button" class="primary" id="welcome-start">Get started</button>
-      <a href="${COOKBOOK_URL}" target="_blank" rel="noopener" class="button-link">Open the cookbook</a></div>`);
+      <a href="${COOKBOOK_URL}" target="_blank" rel="noopener" class="button-link">Open the cookbook</a></div>
+    <p class="meta">Free &amp; open source. If it saves you setup time, <a href="https://ko-fi.com/sergiiobs" target="_blank" rel="noopener">buy me a coffee</a>.</p>`);
   S.dialogKind='welcome';$('dialog').classList.add('narrow');$('welcome-start').focus();}
 
 /* ---------- usage ---------- */
@@ -1839,7 +1861,9 @@ document.addEventListener('click',async e=>{
 const focusModel=id=>$('recipe-list').querySelector(`.model[data-model="${CSS.escape(id)}"]`)?.focus();
 $('recipe-list').addEventListener('click',e=>{const co=e.target.closest('[data-company]');if(co){toggleCompany(co.dataset.company);
     $('recipe-list').querySelector(`[data-company="${CSS.escape(co.dataset.company)}"]`)?.focus();return;}
-  const b=e.target.closest('[data-model]');if(b){choose(b.dataset.model);focusModel(b.dataset.model);}});
+  const b=e.target.closest('[data-model]');if(b){choose(b.dataset.model);focusModel(b.dataset.model);
+    /* stacked layout: the workspace sits below the sidebar, so bring it into view */
+    if($('run').getBoundingClientRect().top>innerHeight)$('run').scrollIntoView({block:'start'});}});
 $('recipe-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key)||!e.target.closest('.model'))return;
   const buttons=[...$('recipe-list').querySelectorAll('.model')].filter(b=>!b.closest('[hidden]'));const i=buttons.indexOf(document.activeElement);
   const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
