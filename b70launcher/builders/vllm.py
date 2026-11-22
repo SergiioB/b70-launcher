@@ -350,8 +350,137 @@ def build_generic(b):
             "native": False, "docker_sock": ""}
 
 
+_NATIVE_RECIPE_ENV = re.compile(r"(INK2|VLLM|TRITON|ZE|ONEAPI|SYCL)_[A-Z0-9_]+")
+
+
+def build_native(b):
+    """Native host-venv vLLM XPU server (for out-of-tree XPU plugins such as
+    vllm-inkling2-xpu where no public container image bundles the plugin yet).
+
+    Settings key ``vllm_venv`` (settings-override.json or per-recipe override)
+    names an absolute path to the Python venv containing ``bin/vllm``.
+    """
+    from .. import catalog
+
+    cfg, model, recipe, warns = b.cfg, b.model, b.recipe, b.warns
+    if IS_WIN:
+        raise common.BuildError("Native vLLM XPU is Linux-only.")
+
+    venv_raw = str(recipe.get("vllm_venv") or catalog.SETTINGS.get("vllm_venv") or "").strip()
+    missing = []
+    if not venv_raw:
+        missing.append('the vLLM XPU venv: set "vllm_venv" in settings-override.json '
+                       "(a Python venv with vllm + plugin installed)")
+        vllm_bin = Path("~/vllm-xpu-venv/bin/vllm").expanduser()
+    else:
+        venv_path = Path(venv_raw).expanduser()
+        if not venv_path.is_absolute():
+            raise common.BuildError(f'setting "vllm_venv" must be an absolute path, not {venv_raw!r}')
+        vllm_bin = venv_path / "bin" / "vllm"
+        if not vllm_bin.is_file():
+            missing.append(f"vLLM executable {vllm_bin}")
+
+    model_dir, art_warn = _artifact_dir(b, "vLLM native")
+    if art_warn:
+        warns.append(art_warn)
+
+    if missing:
+        text = "vLLM native recipe needs " + "; ".join(missing)
+        if not cfg.get("dry_run"):
+            raise common.BuildError(text + ".")
+        warns.append(text + " — preview only; a real launch is refused until they exist.")
+
+    recipe_env = recipe.get("env") or {}
+    for k in recipe_env:
+        if not _NATIVE_RECIPE_ENV.fullmatch(k):
+            raise common.BuildError(f"recipe env {k} is not an allowed INK2_/VLLM_/TRITON_/ZE_/ONEAPI_/SYCL_ setting")
+
+    scfg = recipe.get("speculative") or {}
+    use_spec = bool(scfg or recipe.get("spec_tokens")) and cfg.get("mtp", True)
+    if cfg.get("mtp") and not (scfg or recipe.get("spec_tokens")):
+        warns.append("recipe has no speculative-decoding config — --mtp ignored.")
+
+    # Auto-size SWA --max-num-batched-tokens & gmu for single-B70 context envelopes
+    ctx = b.ctx
+    batched = int(recipe.get("batched_tokens", 2048))
+    gmu = float(recipe.get("gmu", 0.93 if use_spec else 0.95))
+    if recipe.get("swa_mbt_profiles"):
+        if use_spec:
+            if ctx > 163840:
+                warns.append("DSpark k=7 max proven context on one B70 is 163,840 (mbt=1024); "
+                             "use --no-mtp for 200K-256K no-spec context.")
+            if ctx > 106496:
+                batched = 1024
+                gmu = 0.95
+            else:
+                batched = 2048
+                gmu = 0.93
+        else:
+            if ctx > 200000:
+                batched = 1024
+                gmu = 0.95
+            elif ctx > 90112:
+                batched = 2048
+                gmu = 0.95
+            else:
+                batched = 2048
+                gmu = 0.88
+
+    kv = common.resolve_kv(b.kv, recipe, common.KV_VLLM, warns)
+    slots = b.slots if cfg.get("slots") is not None else recipe.get("max_num_seqs", 1)
+    served_name = recipe.get("served_model_name", model["name"])
+    serve = [
+        str(vllm_bin), "serve", model_dir,
+        "--host", "127.0.0.1",
+        "--port", str(b.port),
+        "--served-model-name", served_name,
+        "--dtype", recipe.get("dtype", "bfloat16"),
+        "--max-model-len", str(ctx),
+        "--max-num-batched-tokens", str(batched),
+        "--max-num-seqs", str(slots),
+        "--gpu-memory-utilization", f"{gmu:.2f}",
+        _cache_flag(b),
+    ]
+    if kv and kv != "auto":
+        serve += ["--kv-cache-dtype", kv]
+    if use_spec:
+        spec = dict(scfg) if isinstance(scfg, dict) else {"method": "mtp"}
+        spec.setdefault("num_speculative_tokens", recipe.get("spec_tokens", 7))
+        serve += ["--speculative-config", json.dumps(spec)]
+    serve += recipe.get("fixed_flags", []) + b.extra
+
+    # Keep VLLM_RPC_BASE_PATH short under /tmp to stay below Linux's 107-byte sun_path limit.
+    cmd = (
+        'RPC_DIR="$(mktemp -d /tmp/b70-vllm-ipc-XXXXXX)" && '
+        'trap \'rm -rf "$RPC_DIR"\' EXIT && '
+        'export VLLM_RPC_BASE_PATH="$RPC_DIR" && '
+        + "exec " + shlex.join(serve)
+    )
+
+    env = {
+        "ZE_ENABLE_PCI_ID_DEVICE_ORDER": "1",
+        "ZE_AFFINITY_MASK": ",".join(str(g) for g in b.gpus),
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+    }
+    for k, v in recipe_env.items():
+        env[k] = str(v)
+    env.update(b.extra_env)
+
+    _cache_warn(b, use_spec)
+    return {
+        "tokens": ["bash", "-c", cmd],
+        "env": env,
+        "cname": "",
+        "served_name": served_name,
+        "native": True,
+        "effective_binary": str(vllm_bin),
+        "docker_sock": "",
+    }
+
+
 BUILDERS = {
     "vllm-tp2": build_tp2,
     "vllm-mtp": build_mtp,
     "vllm-dflash": build_dflash,
+    "vllm-native": build_native,
 }
