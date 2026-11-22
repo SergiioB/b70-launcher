@@ -102,16 +102,38 @@ def container_env(b):
     return device_env(list(range(len(b.gpus))))
 
 
+def artifact_mount(det):
+    """``(host dir to bind-mount, model path relative to that dir)``.
+
+    An HF hub artifact is a ``snapshots/<rev>`` dir whose files are symlinks
+    into the repo's own ``blobs/`` — the whole ``models--org--repo`` dir must
+    be mounted for those links to resolve inside the container. Anything else
+    is the artifact dir itself (or its parent, for a file)."""
+    p = Path(det["path"])
+    repo = det.get("hf_repo_dir")
+    if repo:
+        try:
+            return str(repo), p.relative_to(str(repo)).as_posix()
+        except ValueError:
+            pass
+    return (str(p.parent), p.name) if p.is_file() else (str(p), "")
+
+
 def container_path(det, fallback):
     """Map an on-disk artifact to its container path and the mount that exposes it.
 
     GGUF files: the parent directory is mounted at /models, file stays by name.
     Snapshot dirs: the dir itself is mounted AT /models/model so the model always
-    has a stable container path regardless of how deep the scan root goes."""
+    has a stable container path regardless of how deep the scan root goes.
+    HF cache snapshots mount their whole repo dir at /models/hf-repo instead —
+    their files are symlinks into the repo's blobs/ (issue #18)."""
     if not det or not det.get("path"):
         return fallback, None, "/models"
     try:
         p = Path(det["path"])
+        if det.get("hf_repo_dir"):
+            src, rel = artifact_mount(det)
+            return f"/models/hf-repo/{rel}", src, "/models/hf-repo"
         if p.is_file():
             src = str(p.parent)
             return "/models/" + p.name, src, "/models"
