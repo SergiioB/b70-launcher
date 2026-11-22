@@ -407,6 +407,7 @@ def detect_status(model, engine):
 KIND_SETTINGS = {
     "xestrata": ("xestrata_root", "your XeStrata checkout folder"),
     "strata": ("strata_root", "your Strata checkout folder"),
+    "vllm-native": ("vllm_venv", "your vLLM XPU venv folder (containing bin/vllm)"),
 }
 
 

@@ -81,7 +81,7 @@ current UI.
 
 | field | meaning |
 |---|---|
-| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `gguf`, `gguf-tiered`, `exl3`, `strata`, `xestrata` |
+| `kind` | selects the command builder: `ovms`, `vllm`, `vllm-mtp`, `vllm-tp2`, `vllm-arext`, `vllm-autoround`, `vllm-dflash`, `vllm-native`, `gguf`, `gguf-tiered`, `exl3`, `strata`, `xestrata` |
 | `image` | container image (ignored when a `llama_bin` native path exists) |
 | `ctx` | default context; clamped by `ctx_max` |
 | `ctx_max` | hard ceiling; user ctx above it is clamped with a warning |
@@ -207,6 +207,16 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   default 7).
 - `vllm-autoround`: generic path + `--enforce-eager` via `fixed_flags` and the
   FP16 crash-guard warning.
+- `vllm-native`: runs a local host-venv `vllm serve` (Linux-only) for out-of-tree
+  XPU plugins such as `vllm-inkling2-xpu`. Settings (`settings-override.json` or
+  per-recipe override): `vllm_venv` — absolute path to the venv containing
+  `bin/vllm`. Automatically sets `ZE_ENABLE_PCI_ID_DEVICE_ORDER=1`,
+  `ZE_AFFINITY_MASK`, `VLLM_WORKER_MULTIPROC_METHOD=spawn`, and a short
+  `/tmp/b70-vllm-ipc-*` `VLLM_RPC_BASE_PATH`. When `swa_mbt_profiles: true` is
+  set, `--max-num-batched-tokens` and `--gpu-memory-utilization` auto-adapt to
+  the requested context and speculation state (e.g. `mbt=2048` up to `106K`
+  DSpark / `200K` no-spec, `mbt=1024` for `163K` DSpark / `256K` no-spec).
+  Allowed `env` prefixes: `INK2_`, `VLLM_`, `TRITON_`, `ZE_`, `ONEAPI_`, `SYCL_`.
 
 Every `vllm*` kind passes `--enable-prefix-caching` by default and
 `--no-enable-prefix-caching` when the recipe sets `prefix_caching: false` or the

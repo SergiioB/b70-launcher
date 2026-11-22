@@ -7,6 +7,7 @@
   "ovms_repo": "~/models/ovms-repo",
   "models_dir": "~/models",
   "llama_bin": "",
+  "vllm_venv": "",
   "exl3_data_root": "~/.local/share/b70-exl3",
   "strata_root": "",
   "strata_data": "",

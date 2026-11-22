@@ -63,6 +63,7 @@ HF_APPROVED_REPOS = {
     "ornith-ai/Ornith-1.0-35B-GGUF",
     "dzannotti/Qwen3.8-Flash-Next-MTP-GGUF",
     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+    "thinkingmachines/Inkling-2-Mini",
 }
 
 SPACE_HEADROOM = 1.05  # require free >= remaining bytes * 1.05

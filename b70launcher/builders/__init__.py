@@ -164,7 +164,10 @@ def build(cfg):
         if det and det.get("variant"):
             warns.append(f"using your local \"{det.get('found_name')}\" — recipe default was "
                          f"{dl.get('name') or dl.get('search') or dl.get('dest') or 'the listed quant'}")
-        if cfg.get("use_docker") is False and not recipe.get("kind", "").startswith("gguf"):
+        if cfg.get("use_docker") is False and not (
+            recipe.get("kind", "").startswith("gguf")
+            or recipe.get("kind") in ("xestrata", "vllm-native")
+        ):
             warns.append("--native ignored: this engine only runs in a container.")
         b = Bld(cfg, model, engine, recipe, det, warns)
         builder = _kind_builder(recipe.get("kind", ""))

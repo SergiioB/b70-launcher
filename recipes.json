@@ -1,5 +1,5 @@
 {
-  "catalog_ver": "2026-10-19",
+  "catalog_ver": "2026-11-22",
   "first_run": {
     "model": "qwen38-27b",
     "engine": "exl3",
@@ -38,7 +38,7 @@
       "id": "xestrata",
       "label": "XeStrata (Strata 0.1.45)",
       "tag": "XeStrata",
-      "tagline": "Native SYCL · two-card MoE serving",
+      "tagline": "Native SYCL \u00b7 two-card MoE serving",
       "note": "Native SYCL/Level-Zero engine with host-mirror expert streaming, layer split / expert parallelism across 2\u00d7 B70s, and MTP 4 spec decoding."
     },
     {
@@ -306,7 +306,9 @@
             "name": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf",
             "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS",
             "match": "flash-next",
-            "prefer": ["IQ3_XXS"],
+            "prefer": [
+              "IQ3_XXS"
+            ],
             "quant": "IQ3_XXS GGUF (76 GB) + MTP draft"
           },
           "recipe_ver": "2026-11-12",
@@ -495,7 +497,7 @@
         "~16 GB"
       ],
       "recommended_engine": "exl3",
-      "badge": "FIRST RUN · EXL3",
+      "badge": "FIRST RUN \u00b7 EXL3",
       "recommendation": "Dense 27B model for balanced performance. EXL3 4bpw is the primary route \u2014 full 262K context on a single card."
     },
     {
@@ -1399,11 +1401,24 @@
     {
       "id": "qwen38-flashnext-iq3s",
       "name": "Qwen3.8-Flash-Next IQ3_S",
-      "arch": "MoE · GSQ-RCO IQ3_S",
+      "arch": "MoE \u00b7 GSQ-RCO IQ3_S",
       "brand": "qwen",
       "blurb": "Higher-bit Flash-Next quant on two B70s. Uses a separate XeStrata pack and config; shares the lookup shard and MTP weights.",
-      "tags": [{"t": "IQ3_S", "c": "violet"}, {"t": "2× B70", "c": "green"}],
-      "chips": ["LLM", "IQ3_S", "~84 GB"],
+      "tags": [
+        {
+          "t": "IQ3_S",
+          "c": "violet"
+        },
+        {
+          "t": "2\u00d7 B70",
+          "c": "green"
+        }
+      ],
+      "chips": [
+        "LLM",
+        "IQ3_S",
+        "~84 GB"
+      ],
       "recommended_engine": "xestrata",
       "recipes": {
         "xestrata": {
@@ -1412,7 +1427,10 @@
           "ctx": 262144,
           "ctx_max": 350000,
           "ctx_note": "262K native default; 350K YaRN is experimental, quality beyond native context is not validated.",
-          "gpus": [0, 1],
+          "gpus": [
+            0,
+            1
+          ],
           "py_exe": ".venv/bin/python",
           "server_script": "serve/server.py",
           "config_file": "~/.config/xestrata/xestrata-iq3_s.json",
@@ -1421,11 +1439,19 @@
           "vision_exe": "dist/usr/lib/x86_64-linux-gnu/xestrata/engine/strata-vision-cpu",
           "mmproj": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
           "reasoning_effort_supported": true,
-          "reasoning_effort_options": ["none", "low", "medium", "high", "xhigh"],
+          "reasoning_effort_options": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
           "download": {
             "kind": "file",
             "name": "IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
-            "extra_files": ["IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"],
+            "extra_files": [
+              "IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+            ],
             "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
             "revision": "ed59f92082b1e93c0e96d60a8b11aab089b52f09",
             "search": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S",
@@ -1433,6 +1459,93 @@
             "quant": "IQ3_S: 54.82 GB first shard + shared 28.80 GB lookup"
           },
           "recipe_ver": "2026-11-12"
+        }
+      }
+    },
+    {
+      "id": "inkling2-mini",
+      "name": "Inkling 2 Mini",
+      "arch": "Looped MoE 26.4B (3.4B/5.4B active)",
+      "brand": "thinkingmachines",
+      "blurb": "Native NVFP4/MXFP8 looped MoE on ONE 32 GB B70 (vLLM XPU + PR #69186 + opt-in CUTLASS Xe2): up to 80.4 tok/s decode & 3,920 tok/s prefill with DSpark k=7 (106K-163K), or 200K-256K context no-spec.",
+      "badge": "NATIVE NVFP4/MXFP8 \u00b7 UP TO 256K ON 1\u00d7 B70",
+      "tags": [
+        {
+          "t": "1\u00d7 B70",
+          "c": "green"
+        },
+        {
+          "t": "256K max",
+          "c": "cyan"
+        },
+        {
+          "t": "DSpark k=7",
+          "c": "violet"
+        }
+      ],
+      "subtitle": "26.4B Looped MoE \u2022 Native NVFP4/MXFP8 \u2022 1\u00d7 B70",
+      "chips": [
+        "LLM",
+        "MoE",
+        "Reasoning",
+        "Native NVFP4/MXFP8",
+        "~18 GB"
+      ],
+      "recommended_engine": "vllm",
+      "recommendation": "Primary 1\u00d7 B70 route (2026-11-22): unmodified native NVFP4/MXFP8 checkpoint via vLLM XPU + vllm-inkling2-xpu + PR #69186. Default launches DSpark k=7 up to 106K (163K at mbt=1024; 80.4->55.3 tok/s card sampling, 99.2 @ effort=0.2, 8/8 tasks PASS with INK2_CUTLASS_MOE=1). Use --no-mtp for 200K-256K max context.",
+      "recipes": {
+        "vllm": {
+          "kind": "vllm-native",
+          "model_path": "",
+          "served_model_name": "inkling-2-mini",
+          "dtype": "bfloat16",
+          "kv": "auto",
+          "kv_options": [
+            "auto"
+          ],
+          "ctx": 106496,
+          "ctx_safe": 90112,
+          "ctx_max": 262144,
+          "ctx_note": "106K DSpark @ mbt=2048 (163K @ mbt=1024); use --no-mtp for 200K-256K no-spec on 1\u00d7 B70.",
+          "batched_tokens": 2048,
+          "max_num_seqs": 1,
+          "gmu": 0.93,
+          "swa_mbt_profiles": true,
+          "power": 230,
+          "prefix_caching": false,
+          "prefix_caching_note": "Prefix caching stays off on vLLM XPU speculative/packed stacks until multi-turn corruption checks pass.",
+          "speculative": {
+            "method": "dspark",
+            "num_speculative_tokens": 7
+          },
+          "fixed_flags": [
+            "--language-model-only",
+            "--block-size",
+            "64",
+            "-cc.mode=none",
+            "-cc.cudagraph_mode=FULL_DECODE_ONLY",
+            "--reasoning-parser",
+            "inkling",
+            "--enable-auto-tool-choice",
+            "--tool-call-parser",
+            "inkling"
+          ],
+          "perf": "1\u00d7 B70 (230 W, card sampling): 80.4->55.3 tok/s (0-104K) & 3,920->2,891 tok/s prefill w/ CUTLASS Xe2 + DSpark (8/8 PASS, 160K @ 46.2 tok/s); no-spec 54.5->26.3 tok/s (0-198K), 256K proven @ 23.1 tok/s.",
+          "download": {
+            "kind": "snapshot",
+            "repo": "thinkingmachines/Inkling-2-Mini",
+            "revision": "ed40e7da625f594fc9c4990f5f66be24873c22d7",
+            "search": "Inkling-2-Mini",
+            "match": [
+              "inkling-2-mini",
+              "inkling2-mini"
+            ],
+            "dest": "Inkling-2-Mini-native-ed40e7da",
+            "quant": "Native NVFP4 (L0-19) / MXFP8 (L20-23) + BF16 dense/KV (~18.4 GB)"
+          },
+          "recipe_ver": "2026-11-22",
+          "recipe_note": "Requires local vllm_venv (vLLM XPU + vllm-inkling2-xpu + PR #69186; optional INK2_CUTLASS_MOE=1). See cookbook docs/inkling2-mini/INKLING2-MINI-VLLM-XPU.md.",
+          "recipe_recommended": true
         }
       }
     }
