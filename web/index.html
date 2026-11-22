@@ -199,25 +199,26 @@ progress{display:block;width:100%;height:8px;accent-color:var(--link);margin-blo
 .kicker{display:flex;align-items:center;gap:8px;font-size:var(--caption);letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);font-weight:600;margin-block-end:4px}
 .recipe-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-block:8px 0}
 .purpose{color:var(--muted);max-width:80ch}
-.meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-block:10px 0}
-.fact{font-size:var(--small);color:var(--subtle);border:1px solid var(--border);border-radius:8px;
+.meta-row{display:flex;gap:6px;flex-wrap:wrap;margin-block:10px 0}
+.fact{font-size:var(--small);color:var(--subtle);border:1px solid transparent;border-radius:8px;
   padding:3px 9px;background:var(--bg)}
 .fact b{color:var(--muted);font-weight:600}
-.engine-switch{display:flex;flex-wrap:wrap;gap:6px;margin-block:14px 0}
+.engine-switch{display:flex;flex-wrap:wrap;gap:4px;margin-block:14px 0}
 .engine-switch button{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:6px 12px;border-radius:8px;
-  color:var(--muted);background:var(--bg);border-color:var(--border)}
-.engine-switch button:hover{color:var(--text);background:var(--raised)}
+  color:var(--muted);background:transparent;border-color:transparent}
+.engine-switch button:hover{color:var(--text);background:var(--raised);border-color:transparent}
 .engine-switch button img{width:16px;height:16px;object-fit:contain}
 .engine-switch .q{font-size:var(--caption);color:var(--subtle);font-weight:400}
 .engine-switch .rec{font-size:var(--caption);color:var(--link);font-weight:500}
 .engine-switch button[aria-checked=true]{color:var(--text);border-color:var(--accent);background:var(--accent-soft)}
 
 /* availability banner */
-.avail{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;
-  padding:10px 12px;margin-block:14px 0;background:var(--bg);flex-wrap:wrap}
+.avail{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);
+  border-inline-start:3px solid var(--border);border-radius:8px;
+  padding:8px 12px;margin-block:14px 0;background:var(--bg);flex-wrap:wrap}
 .avail .lead{display:inline-flex;align-items:center;gap:7px;font-weight:600;white-space:nowrap}
 .avail .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.avail.ok{border-color:var(--ok)}.avail.dl,.avail.hold{border-color:var(--warn)}.avail.bad{border-color:var(--err)}.avail.dlg{border-color:var(--link)}
+.avail.ok{border-inline-start-color:var(--ok)}.avail.dl,.avail.hold{border-inline-start-color:var(--warn)}.avail.bad{border-inline-start-color:var(--err)}.avail.dlg{border-inline-start-color:var(--link)}
 .avail.ok .dot{background:var(--ok)}.avail.dl .dot,.avail.hold .dot{background:var(--warn)}.avail.bad .dot{background:var(--err)}.avail.dlg .dot{background:var(--link)}
 .avail.dlg .loadbar{display:block;margin-block:8px 6px;height:6px}
 .avail.dlg .loadbar i{height:100%}
@@ -296,7 +297,7 @@ table.nums th{font-size:var(--caption);color:var(--subtle);font-weight:600}
 .field input,.field select{width:100%;margin-block:6px 2px}
 .field.full{grid-column:1/-1}
 /* segmented pill groups: context presets and the hidden-control pill switches */
-.seg{display:inline-flex;gap:2px;flex-wrap:wrap;max-width:100%;border:1px solid var(--border);
+.seg{display:inline-flex;gap:2px;flex-wrap:wrap;max-width:100%;
   border-radius:10px;background:var(--bg);padding:3px}
 .seg button{border:0;background:transparent;border-radius:7px;min-height:30px;padding:4px 12px;
   font-size:var(--small);color:var(--muted);font-weight:500}
@@ -306,7 +307,7 @@ table.nums th{font-size:var(--caption);color:var(--subtle);font-weight:600}
 .seg button:disabled{opacity:.45;cursor:not-allowed}
 .seg button b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--subtle);margin-inline-start:6px}
 .seg button[aria-checked=true] b,.seg button[aria-pressed=true] b{color:var(--accent)}
-.field .seg{display:flex}
+.field .seg{display:flex;margin-block-start:6px}
 .field .seg button{flex:1 1 auto}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:6px}
 .presets button{min-height:30px;padding:3px 12px;font-size:var(--small);color:var(--muted)}
@@ -373,11 +374,12 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
 .flabel{display:block;font-weight:500;margin-block-end:6px}
 
 /* ---- status badges (recipe meta pills, card roles) ---- */
-.fact.badge{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
-.fact.perf{border-color:var(--ok);color:var(--ok)}
+.fact.badge{color:var(--accent);background:var(--accent-soft)}
+.fact.perf{color:var(--ok);background:color-mix(in oklab,var(--ok) 11%,var(--bg))}
+.hint-inline{font-size:var(--caption);color:var(--subtle);font-weight:400;letter-spacing:0;text-transform:none}
 
 /* ---- GPU cards in the Hardware dialog ---- */
-.gpu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.gpu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:12px}
 .gpu-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--bg);min-width:0}
 .gpu-card.warn{border-color:color-mix(in oklab,var(--warn) 45%,var(--border))}
 .gpu-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-block-end:8px}
@@ -387,8 +389,8 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
   border:1px solid var(--border);color:var(--muted);white-space:nowrap;line-height:1.5}
 .gpu-badge.display{border-color:color-mix(in oklab,var(--warn) 55%,var(--border));color:var(--warn)}
 .gpu-badge.dedicated{border-color:color-mix(in oklab,var(--ok) 45%,var(--border));color:var(--ok)}
-.gpu-stats{display:flex;gap:6px;flex-wrap:wrap;margin-block:6px}
-.gpu-stats .fact{padding:2px 8px}
+.gpu-stats{display:flex;gap:4px 14px;flex-wrap:wrap;margin-block:6px}
+.gpu-stats .fact{padding:0;border:0;background:none}
 .mem-line{display:flex;justify-content:space-between;gap:10px;font-size:var(--caption);color:var(--muted);margin-block-start:8px}
 .mem-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-block-start:4px}
 .mem-bar i{display:block;height:100%;border-radius:3px;background:var(--ok)}
@@ -507,7 +509,7 @@ button.stop:hover:not(:disabled){background:var(--err);color:#fff;border-color:v
       <div class="field full">
         <label for="context">Context tokens</label>
         <input id="context" type="number" min="512" step="1">
-        <div class="presets seg" id="ctx-presets"></div>
+        <div class="seg" id="ctx-presets"></div>
         <p class="ctx-note" id="context-hint"></p>
       </div>
       <div class="field">
@@ -539,22 +541,20 @@ button.stop:hover:not(:disabled){background:var(--err);color:#fff;border-color:v
         <p class="hint" id="cache-hint">Off is for testing and benchmarks.</p>
       </div>
       <div class="field">
-        <span class="flabel" id="mtp-label">Speculative decoding</span>
+        <span class="flabel" id="mtp-label">Speculative decoding <span class="hint-inline">· draft model when provided</span></span>
         <input type="checkbox" id="mtp" checked hidden aria-labelledby="mtp-label">
         <div class="seg" id="mtp-pills" role="radiogroup" aria-labelledby="mtp-label" data-pill-for="mtp">
           <button type="button" role="radio" data-pill="true" aria-checked="false">On</button>
           <button type="button" role="radio" data-pill="false" aria-checked="false">Off</button>
         </div>
-        <p class="hint">Draft model (MTP/DFlash), when the recipe provides one.</p>
       </div>
       <div class="field" id="vision-field" hidden>
-        <span class="flabel" id="vision-label">Vision</span>
+        <span class="flabel" id="vision-label">Vision <span class="hint-inline">· image input</span></span>
         <input type="checkbox" id="vision" hidden aria-labelledby="vision-label">
         <div class="seg" id="vision-pills" role="radiogroup" aria-labelledby="vision-label" data-pill-for="vision">
           <button type="button" role="radio" data-pill="true" aria-checked="false">On</button>
           <button type="button" role="radio" data-pill="false" aria-checked="false">Off</button>
         </div>
-        <p class="hint">Image input on this recipe's vision path.</p>
       </div>
     </div>
 
@@ -1252,7 +1252,7 @@ function gpuCardHtml(d,i){const c=cardReading(d,i);const p=d.pcie||{};
     c.watts?`<span class="fact"><b>Power</b> ${esc(c.watts)}</span>`:'',
     c.temp?`<span class="fact"><b>Temp</b> ${esc(c.temp)}</span>`:'',
     cap!=null?`<span class="fact"><b>Cap</b> ${esc(cap)} W</span>`:'',
-    `<span class="fact"><b>PCIe</b> ${esc(linkText(p))}${p.gbps?` · ${p.gbps} GB/s`:''}</span>`].filter(Boolean).join('');
+    `<span class="fact"><b>Link</b> ${esc(linkText(p))}${p.gbps?` · ${p.gbps} GB/s`:''}</span>`].filter(Boolean).join('');
   const clientRows=cardClients(d,i).map(x=>`<li class="gpu-client${x.desktop?' desktop':''}"><span class="gc-dot"></span>
     <span class="gc-name">${esc(x.name)}</span><span class="gc-kind">${esc(x.detail)}</span>
     ${x.desktop?'<span class="gc-kind">desktop</span>':x.stoppable
