@@ -302,8 +302,12 @@ class TestBuildOtherEngines(LauncherStateCase):
         self.assertEqual(b["ctx"], 131072)
         self.assertTrue(any("clamping" in w for w in b["warnings"]))
         # without ctx_max, an out-of-range ctx is rejected outright
-        b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",
-                               ctx=999999))
+        from unittest import mock
+        recipe = catalog.find_model("qwen36-35b")["recipes"]["llamacpp"]
+        with mock.patch.dict(recipe):
+            del recipe["ctx_max"]
+            b = builders.build(cfg(model_id="qwen36-35b", engine="llamacpp",
+                                   ctx=999999))
         self.assertIn("error", b)
 
     def test_xestrata_vision_dry_run_preserves_source_config(self):

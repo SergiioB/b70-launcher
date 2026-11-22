@@ -211,7 +211,49 @@ def pcie_link(pci, sysfs_root="/sys", overrides=None):
     return link
 
 
-def hardware_preflight(sysfs_root="/sys"):
+DESKTOP_VRAM_BUSY_MIB = 512  # desktop VRAM at/above this marks a desktop card
+
+
+def _card_connectors(sysfs, card):
+    """Status strings of a DRM card's connectors ("connected"/"disconnected")."""
+    out = []
+    if not card:
+        return out
+    for d in (sysfs / "class" / "drm").glob(card + "-*"):
+        try:
+            out.append((d / "status").read_text().strip())
+        except OSError:
+            continue
+    return out
+
+
+def _desktop_vram_mib(render_name, clients):
+    """VRAM held by desktop-class clients on one render node, deduped by DRM
+    client id (a child sharing the desktop's client id must not count twice)."""
+    per_cid = {}
+    for p in clients or ():
+        if not p.get("desktop") or p.get("render") != render_name:
+            continue
+        key = p.get("cid") or f"pid:{p.get('pid')}"
+        per_cid[key] = max(per_cid.get(key, 0.0), p.get("vram_mib") or 0.0)
+    return round(sum(per_cid.values()), 1)
+
+
+def _display_info(sysfs, card, render_name, clients):
+    """``(is_display, desktop_vram_mib)`` for one render node's card.
+
+    is_display is true when any of the card's DRM connectors reports
+    "connected"; with no readable connector status at all, a desktop client
+    holding VRAM on the card is the fallback signal."""
+    statuses = _card_connectors(sysfs, card)
+    desk = _desktop_vram_mib(render_name, clients)
+    is_display = any(s == "connected" for s in statuses)
+    if not statuses and not is_display:
+        is_display = desk > 0
+    return is_display, desk
+
+
+def hardware_preflight(sysfs_root="/sys", clients=None):
     """Base preflight (cached 10 s): devices, union blockers, profile, default."""
     import stat as stat_m
     now = time.time()
@@ -226,6 +268,8 @@ def hardware_preflight(sysfs_root="/sys"):
             PREFLIGHT_CACHE.update({"data": result, "ts": now})
         return result
     sysfs = Path(sysfs_root)
+    if clients is None:
+        clients = gpu_clients() if caching else []
     # map render nodes to their DRM card so sysfs/hwmon telemetry can be attached
     card_of = {}
     for card in (sysfs / "class" / "drm").glob("card[0-9]*"):
@@ -252,6 +296,7 @@ def hardware_preflight(sysfs_root="/sys"):
                 label = f"{text.partition(': ')[2] or text} · {pci[5:]}"
             vram_total = _read_int(dev / "mem_info_vram_total")
             vram_used = _read_int(dev / "mem_info_vram_used")
+            vram_free = _read_int(dev / "mem_info_vram_free")
             if b70 and not vram_total:
                 vram_total = 32656 * 1024 * 1024  # visible VRAM on the 32 GB B70
             cap_w = None
@@ -265,6 +310,9 @@ def hardware_preflight(sysfs_root="/sys"):
                     break
                 except OSError:
                     continue
+            is_display, desk_mib = _display_info(sysfs, card_of.get(dev.resolve()),
+                                                 render.name, clients)
+            vram_free_mib = round(vram_free / 1048576, 1) if vram_free is not None else None
             devices.append({"render": f"/dev/dri/{render.name}", "pci": pci,
                             "vendor": vendor, "device": device, "label": label,
                             "card": card_of.get(dev.resolve()),
@@ -272,6 +320,12 @@ def hardware_preflight(sysfs_root="/sys"):
                             "b70": b70,
                             "vram_total_mib": round(vram_total / 1048576, 1) if vram_total else None,
                             "vram_used_mib": round(vram_used / 1048576, 1) if vram_used else None,
+                            "vram_free_mib": vram_free_mib,
+                            "is_display": is_display,
+                            "desktop_vram_mib": desk_mib,
+                            "usable_vram_mib": (vram_free_mib if vram_free_mib is not None else
+                                                (round(vram_total / 1048576 - desk_mib, 1)
+                                                 if vram_total else None)),
                             "power_cap_w": cap_w,
                             "subsystem": f"{subsystem_vendor}:{subsystem_device}",
                             "pcie": pcie_link(pci, sysfs_root=sysfs_root)})
@@ -288,7 +342,9 @@ def hardware_preflight(sysfs_root="/sys"):
     b70s = [d for d in devices if d["b70"] and d["accessible"]]
     profile = {"b70_count": len(b70s), "cards": [
         {"render": d["render"], "label": d["label"], "vram_total_mib": d["vram_total_mib"],
-         "power_cap_w": d["power_cap_w"], "accessible": d["accessible"], "b70": d["b70"]}
+         "power_cap_w": d["power_cap_w"], "accessible": d["accessible"], "b70": d["b70"],
+         "is_display": d["is_display"], "desktop_vram_mib": d["desktop_vram_mib"],
+         "usable_vram_mib": d["usable_vram_mib"]}
         for d in devices]}
     blockers = gpu_blockers + docker_blockers
     result = {"devices": devices, "blockers": blockers,
@@ -325,19 +381,39 @@ def blockers_by_kind(gpu_blockers=(), docker_blockers=()):
 # driver reports per-client drm-*-vram* numbers — no data stays conservative.
 CLIENT_VRAM_QUIET_KIB = 512 * 1024
 
+# Desktop/compositor/extra-GUI clients: never a workload and never stoppable
+# through the API (a SIGTERM to a compositor takes the whole session down).
+# This single pattern is shared by the /proc scan below and by the
+# stop-client refusal — keep them in lock-step.
+DESKTOP_EXE_PATTERN = (
+    r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|"
+    r"electron|discord|obsidian|t3code|wfica|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|"
+    r"systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-|"
+    r"gsd-|at-spi|dbus-daemon|plasma|kwin|kded|krunner|ksmserver|kactivitymanage|kdeconnect|konsole|"
+    r"dolphin|spectacle|zen|librewolf|telegram|claude|cowork-linux-helper|disclaimer)")
+DESKTOP_EXE_RE = re.compile(DESKTOP_EXE_PATTERN, re.I)
+
 
 def gpu_clients(proc_root="/proc"):
-    """Read GPU client PIDs and render nodes without exposing command lines.
+    """Rich per-client GPU rows: every render-node holder, desktop included.
 
-    A child that inherited a desktop app's render fd shares that app's DRM
-    client id; such entries are the desktop's client, not a new workload."""
+    Each row is ``{"pid", "exe", "name", "render", "cid", "cgroup", "desktop",
+    "vram_mib", "uid", "container", "stoppable"}``, one row per (pid, render
+    node, DRM client id). ``desktop`` marks recognized desktop shells,
+    compositors, browser/Electron helpers, sub-512 MiB clients, and children
+    sharing a desktop app's DRM client id (a child that inherited a desktop
+    app's render fd shares that app's client id — it is the desktop's client,
+    not a new workload). ``container`` is the 64-hex Docker id when the
+    client's cgroup places it inside a container. ``stoppable`` is a UI hint
+    (``not desktop``); the stop endpoint re-verifies detection, desktop
+    status and ownership itself before signaling anything."""
     if proc_root == "/proc" and time.monotonic() - CLIENT_CACHE["ts"] < 10:
         return CLIENT_CACHE["data"]
     code = r'''
 import glob,json,os,re,sys
 PROC=sys.argv[1]
 QUIET_KIB=int(sys.argv[2])
-desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|t3code|wfica|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-|gsd-|at-spi|dbus-daemon|plasma|kwin|kded|krunner|ksmserver|kactivitymanage|kdeconnect|konsole|dolphin|spectacle|zen|librewolf|telegram|claude|cowork-linux-helper|disclaimer)",re.I)
+desktop=re.compile(__DESKTOP_PATTERN__,re.I)
 def _kib(l):
  try:return int(l.split(":",1)[1].split()[0])
  except (IndexError,ValueError):return 0
@@ -355,20 +431,22 @@ for proc in glob.glob(PROC+"/[0-9]*"):
     with open(proc+"/cmdline","rb") as stream: args=stream.read().split(b"\0")
     quiet=any(a in (b"--type=gpu-process",b"--type=renderer",b"--type=utility") for a in args)
    except OSError: pass
-  clients=set();vram_seen=False;vram_total=0;vram_res=0
+  clients={};vram_seen=False;vram_total=0;vram_res=0
   for fd in glob.glob(proc+"/fd/*"):
    try:
     target=os.readlink(fd)
     if not target.startswith("/dev/dri/renderD"): continue
-    cid=""
+    cid="";total=0;res=0
     try:
      with open(proc+"/fdinfo/"+os.path.basename(fd)) as info:
       for l in info:
        if l.startswith("drm-client-id:"):cid=l.split(":",1)[1].strip()
-       elif l.startswith("drm-total-vram"):vram_seen=True;vram_total+=_kib(l)
-       elif l.startswith("drm-resident-vram"):vram_seen=True;vram_res+=_kib(l)
+       elif l.startswith("drm-total-vram"):vram_seen=True;total+=_kib(l)
+       elif l.startswith("drm-resident-vram"):vram_seen=True;res+=_kib(l)
     except OSError: pass
-    clients.add((os.path.basename(target),cid))
+    vram_total+=total;vram_res+=res
+    node=os.path.basename(target)
+    cur=clients.setdefault((node,cid),[0,0]);cur[0]+=total;cur[1]+=res
    except OSError: pass
   if not clients: continue
   # Desktop-class footprint: under ~512 MiB of VRAM cannot be an inference
@@ -376,13 +454,19 @@ for proc in glob.glob(PROC+"/[0-9]*"):
   if not quiet and vram_seen and max(vram_total,vram_res)<QUIET_KIB:
    quiet=True
   if quiet:
-   desktop_ids.update(c for c in clients if c[1]); continue
-  procs.append((int(os.path.basename(proc)),exe,clients,open(proc+"/cgroup").read()))
+   desktop_ids.update(k for k in clients if k[1])
+  procs.append((int(os.path.basename(proc)),exe,clients,quiet,os.stat(proc).st_uid,
+                open(proc+"/cgroup").read()))
  except OSError: pass
-out=[{"pid":pid,"exe":exe,"render":node,"cgroup":cg} for pid,exe,clients,cg in procs
-     for node in {n for n,c in clients if not c or (n,c) not in desktop_ids}]
+out=[]
+for pid,exe,clients,quiet,uid,cg in procs:
+ for (node,cid),v in sorted(clients.items()):
+  desk=quiet or (bool(cid) and (node,cid) in desktop_ids)
+  out.append({"pid":pid,"exe":exe,"name":exe,"render":node,"cid":cid,"cgroup":cg,
+              "desktop":bool(desk),"vram_mib":round(max(v[0],v[1])/1024,1),
+              "uid":uid,"stoppable":not desk})
 print(json.dumps(out))
-'''
+'''.replace("__DESKTOP_PATTERN__", json.dumps(DESKTOP_EXE_PATTERN))
     py = shutil.which("python3")
     if not py:
         return []
@@ -396,6 +480,10 @@ print(json.dumps(out))
                 break
         except (OSError, ValueError, subprocess.TimeoutExpired):
             continue
+    for p in data:
+        if isinstance(p, dict):
+            m = _DOCKER_CG_RE.search(p.get("cgroup") or "")
+            p["container"] = m.group(1) if m else ""
     if proc_root == "/proc":
         CLIENT_CACHE.update(ts=time.monotonic(), data=data)
     return data
@@ -451,8 +539,19 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
                 owned_ids.extend(x for x in result.stdout.splitlines() if len(x) == 64)
             except (OSError, subprocess.TimeoutExpired):
                 pass
-    clients = [p for p in gpu_clients() if p["pid"] not in owned_pids
+    all_clients = gpu_clients()
+    # desktop shells hold a render node but are not a busy workload — they only
+    # feed the display/desktop_vram fields and the stoppable-clients list
+    clients = [p for p in all_clients if not p.get("desktop") and p["pid"] not in owned_pids
                and not any(cid in p.get("cgroup", "") for cid in owned_ids)]
+    # every detected client for the UI, sanitized (no cgroup/cmdline): what is
+    # on each card and whether it is a stoppable inference process vs desktop
+    out["clients"] = [{"pid": p["pid"], "name": p.get("name") or p.get("exe") or "",
+                       "render": p.get("render"), "vram_mib": p.get("vram_mib"),
+                       "desktop": bool(p.get("desktop")),
+                       "container": p.get("container") or "",
+                       "stoppable": bool(p.get("stoppable", not p.get("desktop")))}
+                      for p in all_clients]
     cmap = _resolve_foreign_containers(clients)
     foreign_map = {}
     for idx, d in enumerate(out["devices"]):
@@ -475,11 +574,13 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
                     cinfo["cname"],
                     {"id": cinfo["cname"], "kind": "container", "cname": cinfo["cname"],
                      "image": cinfo["image"], "docker_sock": cinfo["docker_sock"],
-                     "gpus": [], "pids": []})
+                     "gpus": [], "pids": [], "vram_mib": 0.0, "desktop": False,
+                     "stoppable": True})
                 if idx not in f_ent["gpus"]:
                     f_ent["gpus"].append(idx)
                 if int(p["pid"]) not in f_ent["pids"]:
                     f_ent["pids"].append(int(p["pid"]))
+                f_ent["vram_mib"] = round(f_ent["vram_mib"] + (p.get("vram_mib") or 0), 1)
             elif m:
                 lbl = f"{p['exe']} (PID {p['pid']})"
             else:
@@ -488,9 +589,11 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
                 f_ent = foreign_map.setdefault(
                     fid,
                     {"id": fid, "kind": "process", "pid": int(p["pid"]),
-                     "exe": p["exe"], "gpus": [], "pids": [int(p["pid"])]})
+                     "exe": p["exe"], "gpus": [], "pids": [int(p["pid"])],
+                     "vram_mib": 0.0, "desktop": False, "stoppable": True})
                 if idx not in f_ent["gpus"]:
                     f_ent["gpus"].append(idx)
+                f_ent["vram_mib"] = round(f_ent["vram_mib"] + (p.get("vram_mib") or 0), 1)
             if lbl not in busy_parts:
                 busy_parts.append(lbl)
         d["busy_by"] = ", ".join(busy_parts)
@@ -499,8 +602,10 @@ def enrich_busy(preflight, owned_gpus=(), owned_cnames=(), owned_pids=()):
         devices.append(d)
     out["devices"] = devices
     out["foreign"] = list(foreign_map.values())
-    # default launch card: first free accessible B70 (contract /api/state)
+    # default launch card: first free accessible B70 (contract /api/state),
+    # preferring a card that does not drive the desktop
     free = [i for i, d in enumerate(devices) if d.get("b70") and d.get("accessible") and not d.get("busy")]
+    free.sort(key=lambda i: bool(devices[i].get("is_display")))
     dflt = dict(out.get("default") or {})
     if free:
         dflt["gpus"] = [free[0]]

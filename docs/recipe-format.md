@@ -85,8 +85,10 @@ current UI.
 | `image` | container image (ignored when a `llama_bin` native path exists) |
 | `ctx` | default context; clamped by `ctx_max` |
 | `ctx_max` | hard ceiling; user ctx above it is clamped with a warning |
-| `ctx_safe` | context the UI preselects ("Safe" preset); falls back to `ctx` when absent |
+| `ctx_safe` | context the UI preselects ("Safe" preset); falls back to `ctx` when absent. Also the step-down target when a launch selects a GPU that drives the desktop: a non-explicit `ctx` above `ctx_safe` is reduced to it with a warning, and `--gpu-memory-utilization` is capped to leave the detected desktop VRAM plus ~1 GiB headroom (an explicit `ctx` override is kept and only warned about) |
 | `ctx_note` | context hint line under the context field; used as the `ctx_source` label when no on-disk `config.json` value wins |
+| `vision_supported` | whether the recipe may serve image inputs (currently `vllm-native`, `xestrata`). `vllm-native`: caller `vision: true` drops `--language-model-only`, adds `--limit-mm-per-prompt {"image":4}`, and defaults `ctx` to the recipe's vision envelope |
+| `vision` | recipe default for the vision toggle; `false` keeps text-only launches for maximum context |
 | `kv_options` | list of KV choices the UI offers for this recipe. The UI falls back to `q8_0/q4_1`, `q8_0`, `q5_0/q4_1`, `f16` for `gguf`, `auto` for `ovms`, and `fp8` otherwise; the llama.cpp/vLLM/EXL3/Strata builders validate a caller-supplied `kv` against the recipe list (or `q8_0/q4_1`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp16`, `bf16`, `auto`, `fp8`, `int8`) and warn + fall back to the recipe `kv` or the first option when it is not listed. `ovms` does not read `kv` at all |
 | `prefill_options` | EXL3 only: prefill modes the UI offers (`int8`, `fp16`). `int8` is the engine default and adds nothing to the command; `fp16` adds `--set env.EXL3_INT8_PREFILL=0`. An unlisted value warns and falls back to `int8`; other engines warn that the option is ignored |
 | `prefix_caching` | every engine: prefix caching is on unless this is `false`. `false` makes off the recipe default (vLLM `--no-enable-prefix-caching`, EXL3 `--set vllm.enable_prefix_caching=false`, OVMS `--enable_prefix_caching false`, llama.cpp `--no-cache-prompt`, Strata `--prompt-cache 0 --conversation-cache-mib 0`); a caller `cache: "on"` (`--cache on`) still forces it on, with a warning. Set it only with a `prefix_caching_note` |
@@ -222,7 +224,14 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   `/tmp/b70-vllm-ipc-*` `VLLM_RPC_BASE_PATH`. When `swa_mbt_profiles: true` is
   set, `--max-num-batched-tokens` and `--gpu-memory-utilization` auto-adapt to
   the requested context and speculation state (e.g. `mbt=2048` up to `106K`
-  DSpark / `200K` no-spec, `mbt=1024` for `163K` DSpark / `256K` no-spec).
+  DSpark / `200K` no-spec BF16 KV, `mbt=1024` for `163K` DSpark / `256K`
+  no-spec; `kv: "fp8"` roughly doubles each envelope — ~`180-200K` DSpark /
+  ~`384K` no-spec at `mbt=2048`, `256K+` DSpark / ~`512K` no-spec at
+  `mbt=1024`). `vision_supported: true` + `vision: false` default keeps the
+  `--language-model-only` pin for maximum context; a caller `vision: true`
+  drops that flag, adds `--limit-mm-per-prompt {"image":4}`, and defaults the
+  context to the vision envelope (`81,920` BF16 KV / `163,840` fp8 KV) unless
+  `ctx` is set explicitly.
   Allowed `env` prefixes: `INK2_`, `VLLM_`, `TRITON_`, `ZE_`, `ONEAPI_`, `SYCL_`.
 
 Every `vllm*` kind passes `--enable-prefix-caching` by default and

@@ -1,6 +1,8 @@
 """Owned server lifecycle. Slow process and HTTP work never holds LOCK."""
 import json
 import os
+import re
+import shutil
 import signal
 import socket
 import statistics
@@ -469,6 +471,118 @@ def stop_foreign(rid):
         return True
     except Exception as exc:
         raise ValueError(f"Stop failed: {exc}") from exc
+
+
+def _gpu_render_names(gpu_idx):
+    """Render node basename of a preflight device index; ValueError on a bad index."""
+    devs = (hardware.hardware_preflight() or {}).get("devices") or []
+    if isinstance(gpu_idx, bool) or not isinstance(gpu_idx, int) or not 0 <= gpu_idx < len(devs):
+        raise ValueError(f'"gpu" must be a device index (this machine exposes {len(devs)} GPU(s)).')
+    return {Path(devs[gpu_idx].get("render") or "").name}
+
+
+def _resolve_container(name):
+    """``(docker_sock, 64-hex id)`` of a container visible on a recipe socket."""
+    if not shutil.which("docker"):
+        return None
+    for sock in hardware.recipe_sockets():
+        try:
+            res = subprocess.run(docker_cmd(sock) + ["inspect", "--format", "{{.Id}}", name],
+                                 capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        cid = res.stdout.strip()
+        if res.returncode == 0 and len(cid) == 64:
+            return sock, cid
+    return None
+
+
+def stop_gpu_client(cfg):
+    """Stop one detected foreign GPU client: {"pid": n} or {"container": name}.
+
+    Returns (response, http_status). Refuses anything gpu_clients() does not
+    currently see on a card, desktop/compositor processes, PIDs owned by
+    another user, and launcher-owned servers (those belong to /api/stop).
+    Processes get SIGTERM only — never an immediate SIGKILL; containers get
+    `docker stop -t 10` on the socket that manages them."""
+    pid_req, cname_req = cfg.get("pid"), cfg.get("container")
+    if (pid_req is None) == (not cname_req):
+        raise ValueError('Send exactly one of "pid" or "container".')
+    if pid_req is not None and (isinstance(pid_req, bool)
+                                or not isinstance(pid_req, int) or pid_req <= 0):
+        raise ValueError('"pid" must be a positive integer.')
+    if cname_req is not None and not (
+            isinstance(cname_req, str)
+            and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", cname_req.strip())):
+        raise ValueError('"container" must be a container name or id.')
+    gpu_idx = cfg.get("gpu")
+    renders = _gpu_render_names(gpu_idx) if gpu_idx is not None else None
+    hardware.CLIENT_CACHE["ts"] = 0
+    clients = hardware.gpu_clients()
+    on_gpu = [p for p in clients if renders is None or p.get("render") in renders]
+    with LOCK:
+        owned_cnames = {e.get("cname") for e in RUNNING.values() if e.get("status") in LIVE_STATES}
+        owned_pids = {e.get("pid") for e in RUNNING.values()
+                      if e.get("status") in LIVE_STATES and e.get("pid")}
+
+    if pid_req is not None:
+        rows = [p for p in on_gpu if p["pid"] == pid_req]
+        where = f" on GPU {gpu_idx}" if gpu_idx is not None else ""
+        if not rows:
+            return ({"ok": False, "refused": True,
+                     "error": f"PID {pid_req} is not a detected GPU client{where} — "
+                              "only clients gpu_clients() can see may be stopped."}, 404)
+        if pid_req in owned_pids:
+            return ({"ok": False, "refused": True,
+                     "error": f"PID {pid_req} is a launcher-managed server — use /api/stop."}, 409)
+        exe = rows[0].get("name") or rows[0].get("exe") or "?"
+        if any(p.get("desktop") for p in rows) or hardware.DESKTOP_EXE_RE.match(exe):
+            return ({"ok": False, "refused": True,
+                     "error": f"{exe} (PID {pid_req}) is a desktop/compositor client — "
+                              "stopping it would take the desktop session down."}, 403)
+        try:
+            uid = os.stat(f"/proc/{pid_req}").st_uid
+        except OSError:
+            return ({"ok": False, "refused": True,
+                     "error": f"cannot verify the owner of PID {pid_req} — refusing to signal it."}, 403)
+        if uid != os.getuid():
+            cid = next((p.get("container") for p in rows if p.get("container")), "")
+            hint = (f" It lives in container {cid[:12]} — stop that container instead."
+                    if cid else "")
+            return ({"ok": False, "refused": True,
+                     "error": f"PID {pid_req} ({exe}) is owned by uid {uid}, not you.{hint}"}, 403)
+        if not _pid_alive(pid_req):
+            return ({"ok": True, "kind": "process", "pid": pid_req,
+                     "note": "process already exited"}, 200)
+        os.kill(pid_req, signal.SIGTERM)
+        hardware.CLIENT_CACHE["ts"] = 0
+        return ({"ok": True, "kind": "process", "pid": pid_req, "name": exe,
+                 "signal": "SIGTERM",
+                 "gpus": [i for i, d in enumerate(
+                     (hardware.hardware_preflight() or {}).get("devices") or [])
+                     if Path(d.get("render") or "").name in {p.get("render") for p in rows}]}, 200)
+
+    cname_req = cname_req.strip()
+    if cname_req in owned_cnames:
+        return ({"ok": False, "refused": True,
+                 "error": f"{cname_req} is a launcher-managed server — use /api/stop."}, 409)
+    found = _resolve_container(cname_req)
+    if not found:
+        return ({"ok": False, "refused": True,
+                 "error": f"no such container on the managed Docker sockets: {cname_req}."}, 404)
+    sock, cid = found
+    rows = [p for p in on_gpu if p.get("container") == cid]
+    if not rows:
+        return ({"ok": False, "refused": True,
+                 "error": f"container {cname_req} is not a detected GPU client — "
+                          "only workloads gpu_clients() can see on a card may be stopped."}, 404)
+    res = subprocess.run(docker_cmd(sock) + ["stop", "-t", "10", cname_req],
+                         capture_output=True, text=True, timeout=20)
+    if res.returncode and "No such container" not in res.stderr:
+        raise ValueError(f"Stop failed: {res.stderr.strip() or 'Docker refused to stop the container.'}")
+    hardware.CLIENT_CACHE["ts"] = 0
+    return ({"ok": True, "kind": "container", "container": cname_req,
+             "cid": cid[:12], "pids": sorted({p["pid"] for p in rows})}, 200)
 
 
 def stop_server(rid):

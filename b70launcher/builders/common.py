@@ -227,6 +227,19 @@ MAX_GPUS = {"ovms": 1, "exl3": 1, "vllm": 2, "vllm-tp2": 2, "vllm-arext": 1,
             "vllm-mtp": 1, "vllm-dflash": 1, "vllm-autoround": 2,
             "gguf": 2, "gguf-tiered": 2, "xestrata": 2, "strata": 2}
 
+# headroom left on top of the measured desktop VRAM when a selected card also
+# drives the display (compositor bursts, video decode, another login session)
+DESKTOP_HEADROOM_MIB = 1024
+
+
+def gmu_str(b, gmu):
+    """Render a --gpu-memory-utilization value, capped by the display-card
+    reserve (b.gmu_cap) when the selected GPU drives the desktop."""
+    cap = getattr(b, "gmu_cap", None)
+    if cap is not None and float(gmu) > cap:
+        return f"{cap:.2f}"
+    return str(gmu)
+
 
 class Bld:
     """Resolved, validated launch parameters shared by every builder."""
@@ -250,7 +263,13 @@ class Bld:
         if recipe.get("ctx_max") and self.ctx > recipe["ctx_max"]:
             warns.append(f"ctx {self.ctx} > engine ceiling {recipe['ctx_max']} for this recipe — clamping.")
             self.ctx = recipe["ctx_max"]
-        max_ctx = 350000 if recipe.get("kind") == "xestrata" else 262144
+        # the recipe ceiling also raises the absolute sanity bound (vllm-native
+        # fp8-KV recipes legitimately go past the 256K house default)
+        try:
+            max_ctx = max(int(recipe.get("ctx_max") or 0),
+                          350000 if recipe.get("kind") == "xestrata" else 262144)
+        except (TypeError, ValueError):
+            max_ctx = 350000 if recipe.get("kind") == "xestrata" else 262144
         # name the offending field — the user sees these in the UI status line
         if not 1 <= self.port <= 65535:
             raise BuildError(f"Port must be between 1 and 65535 (got {self.port}).")
@@ -320,6 +339,33 @@ class Bld:
         self.card_nodes = [f"/dev/dri/{d['card']}" for d in selected
                            if re.fullmatch(r"card\d+", str(d.get("card") or ""))]
         self.render_node = self.render_nodes[0] if self.render_nodes else "/dev/dri"
+        self.gmu_cap = None
+        self.display_gpus = []
+        for g in self.gpus:
+            if g >= len(devices):
+                continue
+            d = devices[g]
+            if d.get("is_display") or (d.get("desktop_vram_mib") or 0) >= hardware.DESKTOP_VRAM_BUSY_MIB:
+                self.display_gpus.append((g, d))
+        if self.display_gpus:
+            desk = max((d.get("desktop_vram_mib") or 0) for _g, d in self.display_gpus)
+            total = next((d.get("vram_total_mib") for _g, d in self.display_gpus
+                          if d.get("vram_total_mib")), None)
+            # leave the measured desktop footprint plus a reserve untouched:
+            # gmu is a fraction of total VRAM the engine may take
+            cap = (1 - (desk + DESKTOP_HEADROOM_MIB) / total) if total else 0.85
+            self.gmu_cap = max(0.50, min(round(cap, 2), 0.95))
+            cards = "; ".join(
+                f"GPU {g} drives the desktop ({(d.get('desktop_vram_mib') or 0):.0f} MiB "
+                "desktop VRAM detected)" for g, d in self.display_gpus)
+            adjustments = [f"engine VRAM budget capped at {self.gmu_cap:.2f}"]
+            # a manually forced ctx is an explicit override — warn, don't shrink it
+            safe = recipe.get("ctx_safe")
+            if self.ctx_source != "manual override" and safe and self.ctx > safe:
+                adjustments.append(f"context stepped down {self.ctx:,} → {safe:,}")
+                self.ctx = safe
+                self.ctx_source = "display-card safe preset"
+            warns.append(cards + " — " + " and ".join(adjustments) + ".")
         # power is advisory only: never applied, only warned against the cap
         watts = recipe.get("power")
         if watts:

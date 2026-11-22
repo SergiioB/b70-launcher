@@ -72,6 +72,112 @@ def fdinfo(cid="", vram_total_kib=None, vram_res_kib=None):
 RENDER_FD = lambda cid="", **kw: (3, "/dev/dri/renderD128", fdinfo(cid, **kw))
 
 
+def add_connector(root, card, conn, status):
+    """Fake DRM connector: class/drm/<card>-<conn>/status -> 'connected'."""
+    cdir = Path(root) / "class" / "drm" / f"{card}-{conn}"
+    cdir.mkdir(parents=True, exist_ok=True)
+    (cdir / "status").write_text(status + "\n")
+    return cdir
+
+
+class TestDisplayDetection(LauncherStateCase):
+    def _preflight(self, root, clients=None):
+        with mock.patch("os.access", return_value=True):
+            return hardware.hardware_preflight(sysfs_root=str(root), clients=clients)
+
+    def test_connected_connector_marks_display_card(self):
+        root = fake_sysfs_drm(TMP / "sys-disp", vram_total=34_359_738_368)
+        add_connector(root, "card0", "DP-1", "connected")
+        dev = self._preflight(root)["devices"][0]
+        self.assertTrue(dev["is_display"])
+        self.assertEqual(dev["desktop_vram_mib"], 0.0)
+        self.assertEqual(dev["usable_vram_mib"], dev["vram_total_mib"])
+
+    def test_disconnected_connectors_are_not_display(self):
+        root = fake_sysfs_drm(TMP / "sys-nodisp")
+        add_connector(root, "card0", "DP-1", "disconnected")
+        add_connector(root, "card0", "HDMI-A-1", "disconnected")
+        self.assertFalse(self._preflight(root)["devices"][0]["is_display"])
+
+    def test_desktop_client_vram_falls_back_when_no_connector(self):
+        root = fake_sysfs_drm(TMP / "sys-deskonly", vram_total=34_359_738_368)
+        clients = [{"pid": 10, "name": "plasmashell", "render": "renderD128",
+                    "cid": "9", "desktop": True, "vram_mib": 640.0}]
+        dev = self._preflight(root, clients=clients)["devices"][0]
+        self.assertTrue(dev["is_display"])
+        self.assertEqual(dev["desktop_vram_mib"], 640.0)
+        self.assertEqual(dev["usable_vram_mib"], dev["vram_total_mib"] - 640.0)
+
+    def test_desktop_vram_dedupes_shared_client_ids(self):
+        root = fake_sysfs_drm(TMP / "sys-dedup", vram_total=34_359_738_368)
+        add_connector(root, "card0", "DP-1", "connected")
+        clients = [
+            {"pid": 10, "name": "plasmashell", "render": "renderD128",
+             "cid": "9", "desktop": True, "vram_mib": 700.0},
+            # a child sharing the desktop's DRM client id must not double-count
+            {"pid": 11, "name": "helper", "render": "renderD128",
+             "cid": "9", "desktop": True, "vram_mib": 500.0},
+            {"pid": 12, "name": "firefox", "render": "renderD128",
+             "cid": "21", "desktop": True, "vram_mib": 300.0},
+            # inference clients never count toward desktop VRAM
+            {"pid": 13, "name": "vllm", "render": "renderD128",
+             "cid": "30", "desktop": False, "vram_mib": 20000.0},
+        ]
+        dev = self._preflight(root, clients=clients)["devices"][0]
+        self.assertTrue(dev["is_display"])
+        self.assertEqual(dev["desktop_vram_mib"], 1000.0)  # 700 (max of cid 9) + 300
+        self.assertEqual(dev["usable_vram_mib"], dev["vram_total_mib"] - 1000.0)
+
+    def test_vram_free_wins_for_usable_vram(self):
+        root = fake_sysfs_drm(TMP / "sys-free", vram_total=34_359_738_368)
+        devdir = Path(root) / "devices" / "pci0000:00" / "0000:0a:00.0"
+        (devdir / "mem_info_vram_free").write_text(str(30 * 1024**3))
+        add_connector(root, "card0", "DP-1", "connected")
+        clients = [{"pid": 10, "name": "plasmashell", "render": "renderD128",
+                    "cid": "9", "desktop": True, "vram_mib": 500.0}]
+        dev = self._preflight(root, clients=clients)["devices"][0]
+        self.assertEqual(dev["usable_vram_mib"], 30720.0)
+
+
+class TestEnrichBusyClients(LauncherStateCase):
+    def test_clients_exposed_sanitized_and_desktop_not_busy(self):
+        clients = [
+            {"pid": 5, "name": "plasmashell", "exe": "plasmashell", "render": "renderD128",
+             "cid": "9", "cgroup": "0::/user.slice", "desktop": True, "vram_mib": 700.0,
+             "uid": 1000, "container": "", "stoppable": False},
+            {"pid": 6, "name": "vllm", "exe": "vllm", "render": "renderD128",
+             "cid": "30", "cgroup": "0::/fake.slice", "desktop": False,
+             "vram_mib": 18000.0, "uid": 1000, "container": "", "stoppable": True},
+        ]
+        base = {"devices": [{"render": "/dev/dri/renderD128", "b70": True,
+                             "accessible": True, "pci": "0000:0a:00.0"}],
+                "default": {}}
+        with mock.patch.object(hardware, "gpu_clients", return_value=clients):
+            out = hardware.enrich_busy(base)
+        dev = out["devices"][0]
+        self.assertTrue(dev["busy"])            # the vllm client is a workload
+        self.assertIn("vllm", dev["busy_by"])
+        self.assertNotIn("plasmashell", dev["busy_by"])
+        ui = {c["name"]: c for c in out["clients"]}
+        self.assertEqual(ui["plasmashell"],
+                         {"pid": 5, "name": "plasmashell", "render": "renderD128",
+                          "vram_mib": 700.0, "desktop": True, "container": "",
+                          "stoppable": False})
+        self.assertTrue(ui["vllm"]["stoppable"])
+        self.assertNotIn("cgroup", ui["vllm"])  # sanitized for API consumers
+
+    def test_default_gpu_prefers_free_non_display_card(self):
+        base = {"devices": [
+            {"render": "/dev/dri/renderD128", "b70": True, "accessible": True,
+             "pci": "0000:0a:00.0", "is_display": True, "desktop_vram_mib": 800},
+            {"render": "/dev/dri/renderD129", "b70": True, "accessible": True,
+             "pci": "0000:0b:00.0", "is_display": False, "desktop_vram_mib": 0}],
+            "default": {}}
+        with mock.patch.object(hardware, "gpu_clients", return_value=[]):
+            out = hardware.enrich_busy(base)
+        self.assertEqual(out["default"]["gpus"], [1])
+
+
 class TestB70Detection(LauncherStateCase):
     def _preflight(self, root):
         with mock.patch("os.access", return_value=True):
@@ -139,7 +245,11 @@ class TestGpuClients(LauncherStateCase):
         fake_proc(root, 999, "real-engine",
                   [RENDER_FD("3", vram_total_kib=8 * 1024 * 1024)])
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"real-engine"})
+        workloads = {p["exe"] for p in out if not p["desktop"]}
+        self.assertEqual(workloads, {"real-engine"})
+        desktop = {p["exe"] for p in out if p["desktop"]}
+        self.assertEqual(len(desktop), 18)
+        self.assertTrue(all(not p["stoppable"] for p in out if p["desktop"]))
 
     def test_small_vram_client_is_quiet_but_large_is_busy(self):
         root = TMP / "proc-vram"
@@ -151,7 +261,9 @@ class TestGpuClients(LauncherStateCase):
                   [RENDER_FD("8", vram_total_kib=100 * 1024,
                              vram_res_kib=4 * 1024 * 1024)])    # resident 4 GiB
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"vllm-engine", "resident-hog"})
+        self.assertEqual({p["exe"] for p in out if not p["desktop"]},
+                         {"vllm-engine", "resident-hog"})
+        self.assertEqual([p["exe"] for p in out if p["desktop"]], ["tiny-compute"])
 
     def test_vram_threshold_boundary(self):
         root = TMP / "proc-boundary"
@@ -160,14 +272,15 @@ class TestGpuClients(LauncherStateCase):
         fake_proc(root, 200, "at-threshold",
                   [RENDER_FD("2", vram_total_kib=hardware.CLIENT_VRAM_QUIET_KIB)])
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"at-threshold"})
+        self.assertEqual({p["exe"] for p in out if not p["desktop"]}, {"at-threshold"})
+        self.assertEqual([p["exe"] for p in out if p["desktop"]], ["just-under"])
 
     def test_missing_vram_fields_stay_conservative(self):
         """No drm-*-vram* fdinfo: an unknown process still marks the card busy."""
         root = TMP / "proc-novram"
         fake_proc(root, 100, "mystery-engine", [RENDER_FD("4")])
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"mystery-engine"})
+        self.assertEqual({p["exe"] for p in out if not p["desktop"]}, {"mystery-engine"})
 
     def test_child_sharing_desktop_client_id_is_filtered(self):
         root = TMP / "proc-share"
@@ -176,7 +289,9 @@ class TestGpuClients(LauncherStateCase):
         fake_proc(root, 300, "helper-alone",
                   [RENDER_FD("77", vram_total_kib=6 * 1024 * 1024)])
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"helper-alone"})
+        self.assertEqual({p["exe"] for p in out if not p["desktop"]}, {"helper-alone"})
+        self.assertEqual({p["exe"] for p in out if p["desktop"]},
+                         {"plasmashell", "helper-child"})
 
     def test_python_launcher_windows_are_quiet_engines_are_not(self):
         root = TMP / "proc-python"
@@ -185,16 +300,17 @@ class TestGpuClients(LauncherStateCase):
         fake_proc(root, 200, "python3.12", [RENDER_FD("6", vram_total_kib=20 * 1024 * 1024)],
                   cmdline=b"python3.12\0-m\0vllm.entrypoints.openai.api_server\0")
         out = self._clients(root)
-        self.assertEqual({p["exe"] for p in out}, {"python3.12"})
-        self.assertEqual(out[0]["pid"], 200)
-        self.assertEqual(out[0]["render"], "renderD128")
+        workloads = [p for p in out if not p["desktop"]]
+        self.assertEqual([p["exe"] for p in workloads], ["python3.12"])
+        self.assertEqual(workloads[0]["pid"], 200)
+        self.assertEqual(workloads[0]["render"], "renderD128")
 
     def test_chromium_type_helpers_are_quiet(self):
         root = TMP / "proc-chromium"
         fake_proc(root, 100, "customapp", [RENDER_FD("5")],
                   cmdline=b"customapp\0--type=gpu-process\0--foo\0")
         out = self._clients(root)
-        self.assertEqual(out, [])
+        self.assertTrue(all(p["desktop"] for p in out))
 
 
 if __name__ == "__main__":

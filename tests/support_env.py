@@ -7,6 +7,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,6 +50,25 @@ def server_env(home, state, extra=None):
     return env
 
 
+def _nondisplay_preflight(real):
+    """Deterministic display state for build tests: the dev host's GPU 0 may
+    drive the desktop, which would cap gmu/ctx in recipe-default assertions.
+    Only the default /sys probe is normalized — a fake sysfs_root or injected
+    clients (the display-detection tests) pass through untouched."""
+    def wrapper(*args, **kwargs):
+        if kwargs.get('sysfs_root', '/sys') != '/sys' or kwargs.get('clients') is not None:
+            return real(*args, **kwargs)
+        data = real(*args, **kwargs)
+        for dev in data.get('devices') or ():
+            dev['is_display'] = False
+            dev['desktop_vram_mib'] = 0.0
+        for card in (data.get('profile') or {}).get('cards') or ():
+            card['is_display'] = False
+            card['desktop_vram_mib'] = 0.0
+        return data
+    return wrapper
+
+
 class LauncherStateCase(unittest.TestCase):
     _STATE = ((catalog, 'SETTINGS'), (catalog, 'RECIPES'), (catalog, 'RECIPE_REMOTE'),
               (catalog, 'USER_RECIPE_OVERRIDES'), (catalog, 'UPDATE_INFO'), (scan, 'SCAN'),
@@ -58,6 +78,11 @@ class LauncherStateCase(unittest.TestCase):
         self._saved = [(module, name, copy.deepcopy(getattr(module, name))) for module, name in self._STATE]
         self._running = dict(runtime.RUNNING)
         self._downloads = dict(downloads.DOWNLOADS)
+        patcher = mock.patch.object(
+            hardware, 'hardware_preflight',
+            _nondisplay_preflight(hardware.hardware_preflight))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         catalog.SETTINGS['sync_clients'] = False
 
     def tearDown(self):
