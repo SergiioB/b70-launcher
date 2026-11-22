@@ -39,6 +39,44 @@ def scan_roots():
                 roots.append(p)
     return roots
 
+
+def hf_cache_roots():
+    """Existing Hugging Face hub cache dirs, most specific setting first.
+
+    ``$HF_HUB_CACHE`` already is the hub dir; ``$HF_HOME`` gets ``/hub``
+    appended; the default follows huggingface_hub:
+    ``${XDG_CACHE_HOME:-~/.cache}/huggingface/hub`` (issue #18)."""
+    cands = []
+    if os.environ.get("HF_HUB_CACHE"):
+        cands.append(os.environ["HF_HUB_CACHE"])
+    if os.environ.get("HF_HOME"):
+        cands.append(os.path.join(os.environ["HF_HOME"], "hub"))
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    cands.append(os.path.join(xdg, "huggingface", "hub") if xdg
+                 else "~/.cache/huggingface/hub")
+    roots = []
+    for c in cands:
+        try:
+            p = Path(c).expanduser().resolve()
+        except OSError:
+            continue
+        if p in (Path("/"), Path.home().resolve()):
+            continue  # same refusal as scan_dirs: never the whole disk or home
+        if p.is_dir() and p not in roots:
+            roots.append(p)
+    return roots
+
+
+def _extra_hf_roots(roots):
+    """HF hub caches not already covered by a configured scan root."""
+    out = []
+    for hub in hf_cache_roots():
+        if any(hub == r or hub.is_relative_to(r) for r in roots):
+            continue  # a scan root covering the hub finds it via the models-- walk
+        out.append(hub)
+    return out
+
+
 def read_ctx_from_config(cfgpath):
     try:
         import json
@@ -168,8 +206,122 @@ def _walk_root(root, items, deadline):
                 "quant_method": read_quant_method(dirpath),
             })
             continue
+        if Path(dirpath).name.startswith("models--"):
+            # an HF hub repo cache inside a scan root: snapshots/<rev> files are
+            # symlinks into blobs/, invisible to the classification above
+            try:
+                _scan_hf_repo(Path(dirpath), Path(dirpath).resolve(), items)
+            except OSError:
+                pass
+            continue  # blobs and refs are never model dirs themselves
         for sub in subdirs:
             stack.append((sub, depth + 1))
+    return True
+
+
+def _hf_snapshot_entry(snapdir, repo_res, org, repo):
+    """Classify one ``snapshots/<rev>`` dir of an HF repo cache, or None.
+
+    Snapshot files are symlinks into the repo's own ``blobs/`` — the dir only
+    counts as a model artifact when every file link resolves inside the repo
+    dir, so a hostile cache cannot point the launcher outside the hub."""
+    try:
+        if not snapdir.is_dir() or not snapdir.resolve().is_relative_to(repo_res):
+            return None
+        names = set()
+        with os.scandir(snapdir) as it:
+            for e in it:
+                try:
+                    if e.is_symlink():
+                        if not e.is_file():  # dangling or dir link — not model content
+                            continue
+                        if not Path(e.path).resolve().is_relative_to(repo_res):
+                            return None  # a file pointing outside the repo — fail closed
+                        names.add(e.name.lower())
+                    elif e.is_file(follow_symlinks=False):
+                        names.add(e.name.lower())
+                except OSError:
+                    continue
+    except OSError:
+        return None
+    has_ov = any(n.startswith("openvino_language_model.") for n in names) or \
+             (any(n.endswith(".xml") for n in names) and any(n.endswith(".bin") for n in names))
+    has_vllm = "config.json" in names or any(n.endswith(".safetensors") for n in names)
+    if has_ov:
+        kind = "openvino"
+    elif has_vllm:
+        kind = "vllm"
+        qc = Path(snapdir) / "quantization_config.json"
+        if "quantization_config.json" in names and qc.is_file():
+            try:
+                import json
+                if json.loads(qc.read_text()).get("quant_method") == "exl3":
+                    kind = "exl3"
+            except (OSError, ValueError):
+                pass
+    else:
+        return None
+    cfg = Path(snapdir) / "config.json"
+    return {"path": str(snapdir),
+            "kind": kind,
+            "repo_hint": f"{org}/{repo}",
+            "ctx": read_ctx_from_config(cfg) if "config.json" in names else None,
+            "quant_method": read_quant_method(snapdir),
+            "size_mib": _dir_size_mib(Path(snapdir).parent.parent / "blobs"),
+            "hf_repo_dir": str(Path(snapdir).parent.parent)}
+
+
+def _scan_hf_repo(repodir, repo_res, items):
+    """Record the best snapshot of one ``models--org--repo`` HF cache dir.
+
+    ``refs/main`` wins; without it the first revision in sorted order is used.
+    Only one snapshot per repo is kept — the scan pool is keyed by repo name."""
+    parts = repodir.name.split("--", 2)
+    if len(parts) != 3 or not parts[1] or not parts[2]:
+        return
+    org, repo = parts[1], parts[2]
+    order = []
+    try:
+        ref = repodir / "refs" / "main"
+        if ref.is_file() and ref.resolve().is_relative_to(repo_res) \
+                and ref.stat().st_size < 4096:
+            rev = ref.read_text().strip()
+            if re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{0,127}", rev):
+                order.append(rev)
+    except OSError:
+        pass
+    try:
+        others = sorted(p.name for p in (repodir / "snapshots").iterdir() if p.is_dir())
+    except OSError:
+        return
+    for rev in order + [o for o in others if o not in order]:
+        ent = _hf_snapshot_entry(repodir / "snapshots" / rev, repo_res, org, repo)
+        if ent:
+            items["snapshots"].setdefault(repo.lower(), ent)
+            return
+
+
+def _walk_hf_hub(hub, items, deadline):
+    """Scan one HF hub cache dir for ``models--org--repo`` snapshot artifacts."""
+    try:
+        hub_res = Path(hub).resolve()
+        repos = sorted(Path(hub).iterdir())
+    except OSError:
+        return True
+    for repodir in repos:
+        if time.time() > deadline:
+            return False
+        if not repodir.name.startswith("models--"):
+            continue
+        try:
+            if not repodir.is_dir():
+                continue
+            repo_res = repodir.resolve()
+        except OSError:
+            continue
+        if not repo_res.is_relative_to(hub_res):
+            continue  # a symlinked repo dir must stay inside the hub
+        _scan_hf_repo(repodir, repo_res, items)
     return True
 
 
@@ -203,7 +355,8 @@ def build_catalog(items):
             continue
         catalog_[entry["path"]] = {"kind": entry.get("kind", "vllm"), "name": name,
                                    "path": entry["path"],
-                                   "size_mib": _dir_size_mib(entry["path"]),
+                                   "size_mib": entry["size_mib"] if entry.get("size_mib") is not None
+                                               else _dir_size_mib(entry["path"]),
                                    "ctx": entry.get("ctx")}
     return sorted(catalog_.values(), key=lambda c: (c["kind"], c["name"]))
 
@@ -211,6 +364,7 @@ def build_catalog(items):
 def scan_worker():
     items = {"gguf": {}, "snapshots": {}}
     roots = scan_roots()
+    extra = _extra_hf_roots(roots)
     deadline = time.time() + 90
     partial = None
     for root in roots:
@@ -219,9 +373,15 @@ def scan_worker():
                 partial = "scan stopped at a time budget; results may be partial"
         except Exception as e:  # never let a scan thread crash the app
             partial = f"scan error: {e}"
+    for hub in extra:
+        try:
+            if not _walk_hf_hub(hub, items, deadline):
+                partial = "scan stopped at a time budget; results may be partial"
+        except Exception as e:  # never let a scan thread crash the app
+            partial = f"scan error: {e}"
     with LOCK:
         SCAN.update({"items": items, "catalog": build_catalog(items),
-                     "roots": [str(r) for r in roots],
+                     "roots": [str(r) for r in roots + extra],
                      "ts": time.time(), "state": "done", "error": partial})
 
 
@@ -237,8 +397,9 @@ def start_scan_async(force=False):
 
 def scan_blocking():
     """Used by /api/scan: serve cached results, kick a rescan when stale."""
-    roots = [str(r) for r in scan_roots()]
-    if SCAN.get("roots") != roots or time.time() - SCAN.get("ts", 0) > 120:
+    roots = scan_roots()
+    want = [str(r) for r in roots + _extra_hf_roots(roots)]
+    if SCAN.get("roots") != want or time.time() - SCAN.get("ts", 0) > 120:
         start_scan_async(force=True)
     deadline = time.time() + 5
     with LOCK:
@@ -305,12 +466,17 @@ def _detect_impl(model, engine):
         # mount the artifact's own directory, not the whole scan root
         mount = p.parent if p.is_file() else p
         try:
-            size = round(p.stat().st_size / 1048576, 1) if p.is_file() \
-                else _dir_size_mib(str(p))
-        except OSError:
+            size = hit.get("size_mib") if isinstance(hit, dict) else None
+            if size is None:
+                size = round(p.stat().st_size / 1048576, 1) if p.is_file() \
+                    else _dir_size_mib(str(p))
+        except (OSError, AttributeError):
             size = None
-        return {"path": path, "ctx": ctx, "mount_root": str(mount),
-                "found_name": name, "variant": not exact, "size_mib": size}
+        det = {"path": path, "ctx": ctx, "mount_root": str(mount),
+               "found_name": name, "variant": not exact, "size_mib": size}
+        if isinstance(hit, dict) and hit.get("hf_repo_dir"):
+            det["hf_repo_dir"] = hit["hf_repo_dir"]
+        return det
 
     # direct path check from recipe (for custom/pinned local models);
     # relative paths are never resolved against the cwd (audit L5)

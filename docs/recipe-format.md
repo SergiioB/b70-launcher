@@ -120,6 +120,13 @@ current UI.
   `models_dir` (everything else); matched against detected model directories.
   The directory is the repo basename unless `dest` names another single
   directory; use `dest` when two recipes pin different branches of one repo.
+  Detected directories come from `scan_dirs`, the download destinations, and
+  the Hugging Face hub cache (`$HF_HUB_CACHE`, `$HF_HOME/hub`, else
+  `${XDG_CACHE_HOME:-~/.cache}/huggingface/hub`): each
+  `models--<org>--<repo>/snapshots/<rev>` counts as a model dir named `<repo>`
+  (`refs/main` preferred), and its file links must resolve inside the repo.
+  For container engines the whole repo dir is mounted so `../../blobs` links
+  stay alive; native engines use the snapshot path directly.
 - `quant_method`: pin the quantization format a snapshot may satisfy. A
   same-family directory whose `quantization_config.json` (or root
   `quant_method`) records a different format is rejected, so a GPTQ repo cannot

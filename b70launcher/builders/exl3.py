@@ -44,6 +44,9 @@ def build_exl3(b):
         model_dir = str(Path(cfg.get("models_dir") or "~/models").expanduser())
         warns.append("EXL3 artifact not found on disk — preview mounts a placeholder; "
                      "a real launch is refused until the artifact exists.")
+    mount_src, model_rel = common.artifact_mount(b.det) if b.det and b.det.get("path") \
+        else (model_dir, "")
+    inner_model = "/mnt/exl3model" + (f"/{model_rel}" if model_rel else "")
     common.resolve_kv(b.kv, recipe, ("fp8",), warns,
                       label="--kv (EXL3 serves fp8 KV internally)")
     dsock = recipe.get("docker_sock", "")
@@ -97,7 +100,7 @@ def build_exl3(b):
     cname = common.cname_for(model["id"], "exl3", b.port)
     tokens = docker_cmd + ["run", "--rm", "--name", cname] + common.labels_for(cfg, b.port)
     tokens += common.dri_args(b) + [
-               "-v", f"{model_dir}:/mnt/exl3model:ro",
+               "-v", f"{mount_src}:/mnt/exl3model:ro",
                "-p", f"127.0.0.1:{b.port}:{inner_port}",
                # weight upload on the copy engine (BCS) hit "Engine memory CAT
                # error class=bcs" hangs in 2 of 4 loads on 2026-10-13; with
@@ -108,7 +111,7 @@ def build_exl3(b):
         recipe["image"],
         recipe.get("serve_config", "models/qwen3.8-27b-exl3-4.00bpw"),
         "--gpu", "0",  # only the selected card is mapped into the container
-        "--model-path", "/mnt/exl3model",
+        "--model-path", inner_model,
         "--set", f"vllm.gpu_memory_utilization={gmu}",
         "--set", f"vllm.max_model_len={b.ctx}",
         "--set", f"vllm.enable_prefix_caching={'true' if b.prefix_cache else 'false'}",

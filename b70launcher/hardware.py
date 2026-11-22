@@ -211,26 +211,29 @@ def pcie_link(pci, sysfs_root="/sys", overrides=None):
     return link
 
 
-def hardware_preflight():
+def hardware_preflight(sysfs_root="/sys"):
     """Base preflight (cached 10 s): devices, union blockers, profile, default."""
     import stat as stat_m
     now = time.time()
-    if PREFLIGHT_CACHE["data"] and now - PREFLIGHT_CACHE["ts"] < 10:
+    caching = sysfs_root == "/sys"
+    if caching and PREFLIGHT_CACHE["data"] and now - PREFLIGHT_CACHE["ts"] < 10:
         return PREFLIGHT_CACHE["data"]
     devices = []
     if IS_WIN:
         result = {"devices": devices, "blockers": ["Windows GPU execution is not validated; use a supported Linux host."],
                   "notes": [], "profile": {"b70_count": 0, "cards": []}}
-        PREFLIGHT_CACHE.update({"data": result, "ts": now})
+        if caching:
+            PREFLIGHT_CACHE.update({"data": result, "ts": now})
         return result
+    sysfs = Path(sysfs_root)
     # map render nodes to their DRM card so sysfs/hwmon telemetry can be attached
     card_of = {}
-    for card in Path("/sys/class/drm").glob("card[0-9]*"):
+    for card in (sysfs / "class" / "drm").glob("card[0-9]*"):
         try:
             card_of[card.joinpath("device").resolve()] = card.name
         except OSError:
             continue
-    for render in sorted(Path("/sys/class/drm").glob("renderD*"), key=lambda p: int(p.name[7:])):
+    for render in sorted((sysfs / "class" / "drm").glob("renderD*"), key=lambda p: int(p.name[7:])):
         dev = render / "device"
         try:
             vendor = (dev / "vendor").read_text().strip().lower()
@@ -238,7 +241,10 @@ def hardware_preflight():
             subsystem_vendor = (dev / "subsystem_vendor").read_text().strip().lower()
             subsystem_device = (dev / "subsystem_device").read_text().strip().lower()
             pci = dev.resolve().name
-            b70 = (vendor, device, subsystem_vendor, subsystem_device) == ("0x8086", "0xe223", "0x8086", "0x1701")
+            # e223 is the Arc Pro B70 die; the subsystem id only names the board
+            # partner (Intel reference 8086:1701, ASRock 1849:6025, Sparkle,
+            # Gunnir, ...) and must not gate detection (issue #8)
+            b70 = vendor == "0x8086" and device == "0xe223"
             label = f"Arc Pro B70 · {pci[5:]}" if b70 else ""
             if not label and shutil.which("lspci"):
                 text = subprocess.run(["lspci", "-s", pci], capture_output=True,
@@ -249,7 +255,7 @@ def hardware_preflight():
             if b70 and not vram_total:
                 vram_total = 32656 * 1024 * 1024  # visible VRAM on the 32 GB B70
             cap_w = None
-            for hm in Path("/sys/class/hwmon").glob("hwmon*"):
+            for hm in (sysfs / "class" / "hwmon").glob("hwmon*"):
                 try:
                     if hm.joinpath("device").resolve() != dev.resolve():
                         continue
@@ -267,14 +273,15 @@ def hardware_preflight():
                             "vram_total_mib": round(vram_total / 1048576, 1) if vram_total else None,
                             "vram_used_mib": round(vram_used / 1048576, 1) if vram_used else None,
                             "power_cap_w": cap_w,
-                            "pcie": pcie_link(pci)})
+                            "subsystem": f"{subsystem_vendor}:{subsystem_device}",
+                            "pcie": pcie_link(pci, sysfs_root=sysfs_root)})
         except (OSError, subprocess.TimeoutExpired):
             continue
     gpu_blockers = []
     if not devices:
         gpu_blockers.append("No DRM render nodes found; install a working Intel GPU driver.")
     if not any(d["b70"] for d in devices):
-        gpu_blockers.append("No Arc Pro B70 identified by Intel PCI subsystem ID 8086:1701; other Intel GPUs are unvalidated.")
+        gpu_blockers.append("No Arc Pro B70 identified by PCI ID 8086:e223; other Intel GPUs are unvalidated.")
     if not any(d["b70"] and d["accessible"] for d in devices):
         gpu_blockers.append("No accessible Arc Pro B70 render node; check the render/video group.")
     docker_blockers = _docker_blockers()
@@ -289,7 +296,8 @@ def hardware_preflight():
               "notes": ["GPU container compatibility and model fit are not proven by this preflight."],
               "profile": profile,
               "default": best_default(b70s, devices)}
-    PREFLIGHT_CACHE.update({"data": result, "ts": now})
+    if caching:
+        PREFLIGHT_CACHE.update({"data": result, "ts": now})
     return result
 
 
@@ -312,18 +320,29 @@ def blockers_by_kind(gpu_blockers=(), docker_blockers=()):
     }
 
 
-def gpu_clients():
+# Per-client VRAM floor: a process holding a render node but under ~512 MiB of
+# VRAM is a desktop shell, not a workload (issue #8). Only applied when the
+# driver reports per-client drm-*-vram* numbers — no data stays conservative.
+CLIENT_VRAM_QUIET_KIB = 512 * 1024
+
+
+def gpu_clients(proc_root="/proc"):
     """Read GPU client PIDs and render nodes without exposing command lines.
 
     A child that inherited a desktop app's render fd shares that app's DRM
     client id; such entries are the desktop's client, not a new workload."""
-    if time.monotonic() - CLIENT_CACHE["ts"] < 10:
+    if proc_root == "/proc" and time.monotonic() - CLIENT_CACHE["ts"] < 10:
         return CLIENT_CACHE["data"]
     code = r'''
-import glob,json,os,re
-desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|t3code|wfica|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-desktop-portal|gsd-|at-spi|dbus-daemon)",re.I)
+import glob,json,os,re,sys
+PROC=sys.argv[1]
+QUIET_KIB=int(sys.argv[2])
+desktop=re.compile(r"^(?:gnome|chrome|chromium|brave|firefox|orca-ide|zcode|antigravity|language_server|slack|code|electron|discord|obsidian|t3code|wfica|signal-desktop|thunderbird|WebKit|gjs|Xwayland|Xorg|systemd|nautilus|spotify|kitty|tern|codexbar|gpaste|mutter|ibus|pipewire|wireplumber|xdg-|gsd-|at-spi|dbus-daemon|plasma|kwin|kded|krunner|ksmserver|kactivitymanage|kdeconnect|konsole|dolphin|spectacle|zen|librewolf|telegram|claude|cowork-linux-helper|disclaimer)",re.I)
+def _kib(l):
+ try:return int(l.split(":",1)[1].split()[0])
+ except (IndexError,ValueError):return 0
 procs=[];desktop_ids=set()
-for proc in glob.glob("/proc/[0-9]*"):
+for proc in glob.glob(PROC+"/[0-9]*"):
  try:
   exe=os.path.basename(os.readlink(proc+"/exe"))
   quiet=bool(desktop.match(exe))
@@ -336,7 +355,7 @@ for proc in glob.glob("/proc/[0-9]*"):
     with open(proc+"/cmdline","rb") as stream: args=stream.read().split(b"\0")
     quiet=any(a in (b"--type=gpu-process",b"--type=renderer",b"--type=utility") for a in args)
    except OSError: pass
-  clients=set()
+  clients=set();vram_seen=False;vram_total=0;vram_res=0
   for fd in glob.glob(proc+"/fd/*"):
    try:
     target=os.readlink(fd)
@@ -344,11 +363,18 @@ for proc in glob.glob("/proc/[0-9]*"):
     cid=""
     try:
      with open(proc+"/fdinfo/"+os.path.basename(fd)) as info:
-      cid=next((l.split(":",1)[1].strip() for l in info if l.startswith("drm-client-id:")),"")
+      for l in info:
+       if l.startswith("drm-client-id:"):cid=l.split(":",1)[1].strip()
+       elif l.startswith("drm-total-vram"):vram_seen=True;vram_total+=_kib(l)
+       elif l.startswith("drm-resident-vram"):vram_seen=True;vram_res+=_kib(l)
     except OSError: pass
     clients.add((os.path.basename(target),cid))
    except OSError: pass
   if not clients: continue
+  # Desktop-class footprint: under ~512 MiB of VRAM cannot be an inference
+  # engine. Without per-client numbers the process stays a workload candidate.
+  if not quiet and vram_seen and max(vram_total,vram_res)<QUIET_KIB:
+   quiet=True
   if quiet:
    desktop_ids.update(c for c in clients if c[1]); continue
   procs.append((int(os.path.basename(proc)),exe,clients,open(proc+"/cgroup").read()))
@@ -360,7 +386,7 @@ print(json.dumps(out))
     py = shutil.which("python3")
     if not py:
         return []
-    argv = [py, "-c", code]
+    argv = [py, "-c", code, proc_root, str(CLIENT_VRAM_QUIET_KIB)]
     data = []
     for command in ([["sudo", "-n"] + argv] if shutil.which("sudo") else []) + [argv]:
         try:
@@ -370,7 +396,8 @@ print(json.dumps(out))
                 break
         except (OSError, ValueError, subprocess.TimeoutExpired):
             continue
-    CLIENT_CACHE.update(ts=time.monotonic(), data=data)
+    if proc_root == "/proc":
+        CLIENT_CACHE.update(ts=time.monotonic(), data=data)
     return data
 
 

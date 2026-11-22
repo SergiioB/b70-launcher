@@ -110,7 +110,8 @@ or settings edits do not rewrite an existing session (`served_name` is the
 one exception — the engine reports it at first ready).
 Preflight is cached for 10 s (`hardware.PREFLIGHT_CACHE`); `runtime.preflight()`
 re-runs `enrich_busy` on top so the `busy`/`busy_by` fields are current. A B70 is
-identified by PCI ID `8086:e223` + subsystem `8086:1701`.
+identified by PCI ID `8086:e223`, from any board partner (the subsystem ID only
+names the board vendor: Intel reference `8086:1701`, ASRock `1849:6025`, …).
 
 Each `preflight.devices[]` entry carries `pcie: {gen, width, gt_s, max_gen,
 max_width, gbps, source, detected}`. `gen`/`width` are the link the card
@@ -126,7 +127,9 @@ or uneven link; `POST /api/build` adds the same warning.
 
 Artifact detection; runs `scan.scan_blocking()` (a forced rescan when the roots
 changed or the last scan is older than 120 s, waiting up to 5 s for an in-flight
-scan).
+scan). `roots` is the configured scan dirs plus any existing Hugging Face hub
+cache (`$HF_HUB_CACHE`, `$HF_HOME/hub`, else
+`~/.cache/huggingface/hub`) not already covered by one of them.
 
 ```json
 {

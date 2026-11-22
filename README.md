@@ -56,6 +56,13 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.27
+
+- **Inkling 2 Mini (vllm-native).** Thinking Machines' 26.4B looped-MoE model on one 32 GB B70: native NVFP4/MXFP8 through a host vLLM XPU venv (the new `vllm-native` recipe kind, `vllm_venv` in `settings-override.json`) with DSpark k=7 up to 106K context out of the box and 200K-256K no-spec with `--no-mtp`.
+- **Board-partner B70s are recognised.** An Arc Pro B70 is now identified by its PCI ID `8086:e223` alone — the subsystem ID only names the board vendor, so ASRock (`1849:6025`), Sparkle, Gunnir and other AIB cards no longer hit "not a B70" (issue #8). The 32 GB VRAM fallback applies to every `8086:e223` card.
+- **KDE and desktop apps no longer block a card.** `plasmashell`, `kwin`, `kded`, `krunner`, `ksmserver`, `kactivitymanage`, `kdeconnect`, `konsole`, `dolphin`, `spectacle`, `xdg-*`, `zen`, `librewolf`, `telegram`, `claude` and friends join the desktop-client list, and any render-node client holding under ~512 MiB of VRAM counts as a desktop shell rather than a workload — while real engines holding multi-GiB VRAM still mark the card busy (issue #8).
+- **The Hugging Face cache is scanned.** Models already in the local hub cache (`$HF_HUB_CACHE`, `$HF_HOME/hub`, or `~/.cache/huggingface/hub`) are detected as `models--<org>--<repo>/snapshots/<rev>` — `refs/main` preferred — so a repo fetched with `hf download` or vLLM is launchable without a second copy under `~/models` (issue #18). File links must resolve inside their repo, and container engines mount the whole repo dir so `../../blobs` links stay alive.
+
 ## What is new in 0.6.26
 
 - **The Storage section is titled "Storage manager: free disk space".** Searching the docs for "storage manager" now finds it first.
@@ -381,9 +388,9 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.26-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.26-linux-source.tar.gz`.
-3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.26-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.27-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.27-linux-source.tar.gz`.
+3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.27-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space (for Strata's locally built image, the `docker build` command instead). Containers see only the selected card(s). Some recipe images use mutable tags.
 

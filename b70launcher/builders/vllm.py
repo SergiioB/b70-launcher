@@ -78,9 +78,12 @@ def build_tp2(b):
     if tp_size < recipe.get("tp", 2):
         warns.append(f"TP{recipe.get('tp', 2)} recipe forced onto {tp_size} GPU — "
                      "tensor parallelism reduced; weights+KV may not fit.")
-    mount_src = Path(b.det["path"]) if b.det and b.det.get("path") else Path(
-        cfg.get("models_dir") or "~/models").expanduser()
-    if not b.det:
+    if b.det and b.det.get("path"):
+        mount_src, mrel = common.artifact_mount(b.det)
+        serve_root = "/model" + (f"/{mrel}" if mrel else "")
+    else:
+        mount_src = Path(cfg.get("models_dir") or "~/models").expanduser()
+        serve_root = "/model"
         warns.append("model not detected on disk — preview mounts the models folder; a real launch needs the artifact.")
     kv = common.resolve_kv(b.kv, recipe, ("fp8",), warns)
     cname = common.cname_for(model["id"], "vllm", b.port)
@@ -112,7 +115,7 @@ def build_tp2(b):
     for k, v in common.container_env(b).items():
         tokens += ["-e", f"{k}={v}"]
     tokens += b.envargs
-    serve = ["/model"]
+    serve = [serve_root]
     if host_net:
         serve += ["--host", "127.0.0.1"]
     if recipe.get("quantization", "fp8"):  # null: vLLM reads it from config.json
@@ -161,11 +164,13 @@ def build_mtp(b):
     model_dir, warn = _artifact_dir(b, "MTP")
     if warn:
         warns.append(warn)
+    msrc, mrel = common.artifact_mount(b.det) if b.det and b.det.get("path") else (model_dir, "")
+    serve_root = "/model" + (f"/{mrel}" if mrel else "")
     kv = common.resolve_kv(b.kv, recipe, ("fp8",), warns)
     cname = common.cname_for(model["id"], "vllm", b.port)
     tokens = _docker_run(b, cname)
     tokens += common.dri_args(b) + [
-               "-v", f"{model_dir}:/model:ro",
+               "-v", f"{msrc}:/model:ro",
                "-v", f"{patches_dir / 'patch_mtp_nightly.py'}:/patch_mtp.py:ro",
                "-v", f"{patches_dir / 'patch_mtp_boundary.py'}:/patch_boundary.py:ro",
                "-p", f"127.0.0.1:{b.port}:{b.port}",
@@ -178,7 +183,7 @@ def build_mtp(b):
         tokens += ["-e", f"{k}={v}"]
     tokens += b.envargs
     use_mtp = bool(recipe.get("spec_tokens") or recipe.get("speculative")) and cfg.get("mtp", True)
-    serve = ["vllm", "serve", "/model", "--quantization", recipe.get("quantization", "gptq"),
+    serve = ["vllm", "serve", serve_root, "--quantization", recipe.get("quantization", "gptq"),
              "--dtype", "float16",
              "--max-model-len", str(b.ctx),
              "--gpu-memory-utilization", "0.88" if use_mtp else "0.90",
@@ -209,6 +214,7 @@ def build_dflash(b):
     _need_patches(wanted, patches_dir, "DFlash")
     from .. import scan
     model_dir = (b.det or {}).get("path")
+    msrc, mrel = common.artifact_mount(b.det) if model_dir else ("", "")
     if not model_dir:
         warns.append("model not detected on disk — preview mounts the models folder; a real launch needs the artifact.")
     scfg = recipe.get("speculative") or {}
@@ -225,7 +231,7 @@ def build_dflash(b):
     tokens += common.dri_args(b) + [
                "--ipc=host", "--shm-size", recipe.get("shm_size", "16g")]
     if model_dir:
-        tokens += ["-v", f"{model_dir}:/model:ro"]
+        tokens += ["-v", f"{msrc}:/model:ro"]
     else:
         mount_src = Path(cfg.get("models_dir") or "~/models").expanduser()
         tokens += ["-v", f"{mount_src}:/models:ro"]
@@ -249,7 +255,7 @@ def build_dflash(b):
                      "done; true")
     if draft_dir:
         tokens += ["-v", f"{draft_dir}:{scfg['model']}:ro"]
-    serve = ["vllm", "serve", "/model" if model_dir else "/models/model",
+    serve = ["vllm", "serve", (f"/model/{mrel}" if mrel else "/model") if model_dir else "/models/model",
              "--served-model-name", model["name"],
              "--dtype", recipe.get("dtype", "float16"),
              "--quantization", recipe.get("quantization", "gptq"),
