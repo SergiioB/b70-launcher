@@ -126,7 +126,7 @@ def build_tp2(b):
               "--max-model-len", str(b.ctx)]
     if recipe.get("async_scheduling", True):
         serve += ["--async-scheduling"]
-    serve += ["--gpu-memory-utilization", str(recipe.get("gmu", "0.90")),
+    serve += ["--gpu-memory-utilization", common.gmu_str(b, recipe.get("gmu", "0.90")),
               "--kv-cache-dtype", kv,
               "--port", str(b.port),
               "--max-num-seqs", str(slots),
@@ -186,7 +186,7 @@ def build_mtp(b):
     serve = ["vllm", "serve", serve_root, "--quantization", recipe.get("quantization", "gptq"),
              "--dtype", "float16",
              "--max-model-len", str(b.ctx),
-             "--gpu-memory-utilization", "0.88" if use_mtp else "0.90",
+             "--gpu-memory-utilization", common.gmu_str(b, "0.88" if use_mtp else "0.90"),
              "--kv-cache-dtype", kv,
              "--port", str(b.port),
              "--max-num-seqs", str(b.slots),
@@ -262,7 +262,7 @@ def build_dflash(b):
              "--max-model-len", str(b.ctx),
              "--max-num-seqs", str(b.slots),
              "--max-num-batched-tokens", "8192",
-             "--gpu-memory-utilization", "0.90",
+             "--gpu-memory-utilization", common.gmu_str(b, "0.90"),
              "--language-model-only", "--async-scheduling",
              "--host", "0.0.0.0", "--port", str(b.port),
              _cache_flag(b),
@@ -305,7 +305,7 @@ def build_generic(b):
         warns.append("recipe has no speculative-decoding config — --mtp ignored.")
     serve_args = ["--model", model_path,
                   "--dtype", recipe.get("dtype", "bfloat16"),
-                  "--gpu-memory-utilization", "0.92",
+                  "--gpu-memory-utilization", common.gmu_str(b, "0.92"),
                   "--max-model-len", str(b.ctx),
                   _cache_flag(b),
                   "--port", str(b.port)]
@@ -406,33 +406,75 @@ def build_native(b):
     if cfg.get("mtp") and not (scfg or recipe.get("spec_tokens")):
         warns.append("recipe has no speculative-decoding config — --mtp ignored.")
 
+    kv = common.resolve_kv(b.kv, recipe, common.KV_VLLM, warns)
+    fp8_kv = kv == "fp8"
+
+    vision_req = cfg.get("vision")
+    if vision_req is None:
+        vision_req = recipe.get("vision")
+    if vision_req is not None and not isinstance(vision_req, bool):
+        raise common.BuildError("Vision must be true or false.")
+    vision = bool(vision_req) and bool(recipe.get("vision_supported"))
+    if vision_req and not recipe.get("vision_supported"):
+        warns.append("this recipe has no vision support — vision ignored (serving text-only).")
+
     # Auto-size SWA --max-num-batched-tokens & gmu for single-B70 context envelopes
     ctx = b.ctx
+    if vision and cfg.get("ctx") is None:
+        # the mm encoder + image slots shrink the proven default envelope;
+        # fp8 KV roughly doubles what the SWA pool can hold
+        ctx = 163840 if fp8_kv else 81920
+        b.ctx, b.ctx_source = ctx, "vision default"
+        warns.append(f"vision enabled: default context set to {ctx:,} "
+                     f"({'fp8' if fp8_kv else 'BF16'} KV vision envelope); pass --ctx to override.")
     batched = int(recipe.get("batched_tokens", 2048))
     gmu = float(recipe.get("gmu", 0.93 if use_spec else 0.95))
     if recipe.get("swa_mbt_profiles"):
         if use_spec:
-            if ctx > 163840:
-                warns.append("DSpark k=7 max proven context on one B70 is 163,840 (mbt=1024); "
-                             "use --no-mtp for 200K-256K no-spec context.")
-            if ctx > 106496:
-                batched = 1024
-                gmu = 0.95
+            if fp8_kv:
+                # fp8 KV doubles the SWA pool: ~180K-200K @ mbt=2048, 256K+ @ mbt=1024
+                if ctx > 262144:
+                    warns.append("DSpark k=7 with fp8 KV tops out near 256K on one B70 (mbt=1024); "
+                                 "use --no-mtp for up to ~512K no-spec context.")
+                if ctx > 204800:
+                    batched = 1024
+                    gmu = 0.95
+                else:
+                    batched = 2048
+                    gmu = 0.93
             else:
-                batched = 2048
-                gmu = 0.93
+                if ctx > 163840:
+                    warns.append("DSpark k=7 max proven context on one B70 is 163,840 (mbt=1024); "
+                                 "use --no-mtp for 200K-256K no-spec context, or --kv fp8 for ~2x.")
+                if ctx > 106496:
+                    batched = 1024
+                    gmu = 0.95
+                else:
+                    batched = 2048
+                    gmu = 0.93
         else:
-            if ctx > 200000:
-                batched = 1024
-                gmu = 0.95
-            elif ctx > 90112:
-                batched = 2048
-                gmu = 0.95
+            if fp8_kv:
+                # fp8 KV no-spec: ~384K @ mbt=2048, 512K @ mbt=1024
+                if ctx > 393216:
+                    batched = 1024
+                    gmu = 0.95
+                elif ctx > 180224:
+                    batched = 2048
+                    gmu = 0.95
+                else:
+                    batched = 2048
+                    gmu = 0.88
             else:
-                batched = 2048
-                gmu = 0.88
+                if ctx > 200000:
+                    batched = 1024
+                    gmu = 0.95
+                elif ctx > 90112:
+                    batched = 2048
+                    gmu = 0.95
+                else:
+                    batched = 2048
+                    gmu = 0.88
 
-    kv = common.resolve_kv(b.kv, recipe, common.KV_VLLM, warns)
     slots = b.slots if cfg.get("slots") is not None else recipe.get("max_num_seqs", 1)
     served_name = recipe.get("served_model_name", model["name"])
     serve = [
@@ -444,7 +486,7 @@ def build_native(b):
         "--max-model-len", str(ctx),
         "--max-num-batched-tokens", str(batched),
         "--max-num-seqs", str(slots),
-        "--gpu-memory-utilization", f"{gmu:.2f}",
+        "--gpu-memory-utilization", common.gmu_str(b, gmu),
         _cache_flag(b),
     ]
     if kv and kv != "auto":
@@ -453,7 +495,13 @@ def build_native(b):
         spec = dict(scfg) if isinstance(scfg, dict) else {"method": "mtp"}
         spec.setdefault("num_speculative_tokens", recipe.get("spec_tokens", 7))
         serve += ["--speculative-config", json.dumps(spec)]
-    serve += recipe.get("fixed_flags", []) + b.extra
+    fixed = recipe.get("fixed_flags", [])
+    if vision:
+        # the language-model-only pin would strip the mm encoder the caller
+        # asked for; vision runs with image inputs capped at 4 per prompt
+        fixed = [f for f in fixed if f != "--language-model-only"]
+        serve += ["--limit-mm-per-prompt", '{"image":4}']
+    serve += fixed + b.extra
 
     # Keep VLLM_RPC_BASE_PATH short under /tmp to stay below Linux's 107-byte sun_path limit.
     cmd = (

@@ -123,6 +123,25 @@ values kept in `detected`), or `unknown` (all null). The UI shows the link on
 every GPU choice and warns when a multi-card recipe would run over a narrower
 or uneven link; `POST /api/build` adds the same warning.
 
+Each device also carries display fields: `is_display` (any DRM connector under
+`/sys/class/drm/<card>-*/status` reads `connected`, or — when no connector
+status is readable — a desktop-class client holds VRAM on the card),
+`desktop_vram_mib` (VRAM held by recognized desktop/compositor clients, summed
+per DRM client id so an app sharing its client id is not counted twice), and
+`usable_vram_mib` (`vram_free_mib` when the driver reports it, else
+`vram_total_mib - desktop_vram_mib`). `preflight.clients` is the sanitized
+list of every detected render-node holder —
+`{pid, name, render, vram_mib, desktop, container, stoppable}` — so the UI can
+show what is on each card. `desktop` rows never mark a card `busy` and are
+never stoppable; `stoppable` marks a non-desktop foreign workload the
+`/api/gpu/stop-client` endpoint will accept (it re-verifies everything
+itself). The default launch card prefers a free non-display B70. When a
+launch still selects a display card (`is_display`, or `desktop_vram_mib` ≥
+512 MiB), `POST /api/build`/`preview` caps `--gpu-memory-utilization` to leave
+the measured desktop footprint plus 1 GiB untouched, steps a non-explicit
+`ctx` down to `ctx_safe`, and emits a warning naming the detected desktop
+VRAM.
+
 ### `GET /api/scan`
 
 Artifact detection; runs `scan.scan_blocking()` (a forced rescan when the roots
@@ -447,6 +466,35 @@ boundary. `false` for an unknown or already finished id.
 timeout; "No such container" is tolerated. Native processes: `SIGTERM` to the
 process group (or the adopted PID), `SIGKILL` after ~5 s. Records usage, persists
 state; a Docker refusal raises → `400 {"error": "Stop failed: ..."}`.
+
+### `POST /api/gpu/stop-client`
+
+Stops one detected foreign GPU client — a workload `gpu_clients()` currently
+sees on a card that does not belong to the launcher. Body: exactly one of
+`{"pid": <int>}` or `{"container": "<name-or-id>"}`, plus optional
+`{"gpu": <device index>}` to pin the target to one card. Same auth as every
+POST (loopback, `X-Launcher-Token`, JSON object).
+
+Success → `200`:
+
+```json
+{"ok": true, "kind": "process", "pid": 1234, "name": "vllm",
+ "signal": "SIGTERM", "gpus": [1]}
+{"ok": true, "kind": "container", "container": "abc", "cid": "abc…", "pids": […]}
+```
+
+Refusals return `{"ok": false, "refused": true, "error": "…"}` with a status:
+`404` the PID/container is not currently detected on a GPU (never an arbitrary
+kill), `403` a desktop/compositor client (`desktop` flag or the desktop
+allow-list — stopping it would take the session down), `403` the PID is owned
+by another uid (`os.stat("/proc/<pid>").st_uid` must equal the daemon's, with a
+hint to stop its container instead when it runs in one), `409` the target is
+a launcher-managed server (`/api/stop` owns those), `400` malformed body.
+Processes get `SIGTERM` only — never an immediate `SIGKILL`; containers get
+`docker stop -t 10 <container>` on the Docker socket that manages them. The
+endpoint re-probes `gpu_clients()` on every call, so a target that exited or
+was reclassified between the UI's snapshot and the click is refused rather
+than signaled.
 
 ### `POST /api/test_prompt`
 

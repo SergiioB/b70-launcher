@@ -10,7 +10,19 @@ try:
 except ImportError:
     from tests import support_env
 
-from b70launcher import builders, catalog, scan
+from b70launcher import builders, catalog, hardware, scan
+
+
+def _inkling_fixture(td):
+    """Fake vllm_venv + on-disk Inkling artifact for build() calls."""
+    venv = Path(td) / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "vllm").write_text("#!/bin/sh\n")
+    model_dir = Path(td) / "Inkling-2-Mini-native-ed40e7da"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text('{"max_position_embeddings": 1048576}')
+    catalog.SETTINGS["vllm_venv"] = str(venv)
+    catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"model_path": str(model_dir)}}})
 
 
 class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
@@ -88,6 +100,86 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             self.assertIn("--max-num-batched-tokens 1024", cmd3)
             self.assertIn("--gpu-memory-utilization 0.95", cmd3)
             self.assertNotIn("dspark", cmd3)
+
+    def test_fp8_kv_doubles_swa_envelopes(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            # DSpark @ 200K fits on fp8 KV at mbt=2048 (BF16 KV would refuse >163K)
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "kv": "fp8", "ctx": 200000})
+            self.assertNotIn("error", b)
+            cmd = b["tokens"][2]
+            self.assertIn("--kv-cache-dtype fp8", cmd)
+            self.assertIn("--max-model-len 200000", cmd)
+            self.assertIn("--max-num-batched-tokens 2048", cmd)
+            self.assertIn("--gpu-memory-utilization 0.93", cmd)
+            # no-spec fp8 @ 400K -> mbt=1024, gmu=0.95 (BF16 ceiling was 262K)
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "kv": "fp8", "ctx": 400000, "mtp": False})
+            self.assertNotIn("error", b2)
+            cmd2 = b2["tokens"][2]
+            self.assertIn("--max-model-len 400000", cmd2)
+            self.assertIn("--max-num-batched-tokens 1024", cmd2)
+            self.assertIn("--gpu-memory-utilization 0.95", cmd2)
+
+    def test_vision_flag_enables_mm_and_shrinks_default_ctx(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            # default stays text-only: --language-model-only pinned, 106K ctx
+            b0 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            cmd0 = b0["tokens"][2]
+            self.assertIn("--language-model-only", cmd0)
+            self.assertNotIn("--limit-mm-per-prompt", cmd0)
+            # vision:true drops the pin, caps image inputs, BF16 ctx -> 81,920
+            b1 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "vision": True})
+            self.assertNotIn("error", b1)
+            cmd1 = b1["tokens"][2]
+            self.assertNotIn("--language-model-only", cmd1)
+            self.assertIn("--limit-mm-per-prompt", cmd1)
+            self.assertIn("'{\"image\":4}'", cmd1)
+            self.assertIn("--max-model-len 81920", cmd1)
+            self.assertTrue(any("vision" in w for w in b1["warnings"]))
+            # vision + fp8 KV -> 163,840 default
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "vision": True, "kv": "fp8"})
+            self.assertIn("--max-model-len 163840", b2["tokens"][2])
+            # an explicit ctx wins over the vision default
+            b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "vision": True, "ctx": 32768})
+            self.assertIn("--max-model-len 32768", b3["tokens"][2])
+
+    def test_display_card_caps_gmu_and_steps_ctx(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            fake_preflight = {"devices": [
+                {"render": "/dev/dri/renderD128", "card": "card0", "b70": True,
+                 "accessible": True, "vram_total_mib": 32656.0,
+                 "is_display": False, "desktop_vram_mib": 0.0},
+                {"render": "/dev/dri/renderD129", "card": "card1", "b70": True,
+                 "accessible": True, "vram_total_mib": 32656.0,
+                 "is_display": True, "desktop_vram_mib": 4000.0}]}
+            with mock.patch.object(hardware, "hardware_preflight",
+                                   return_value=fake_preflight):
+                b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertNotIn("error", b)
+            cmd = b["tokens"][2]
+            # cap = 1 - (4000 + 1024) / 32656 = 0.846 -> 0.85
+            self.assertIn("--gpu-memory-utilization 0.85", cmd)
+            # recipe ctx 106,496 > ctx_safe 90,112 -> stepped down
+            self.assertIn("--max-model-len 90112", cmd)
+            warn = next(w for w in b["warnings"] if "drives the desktop" in w)
+            self.assertIn("4000 MiB", warn)
+            self.assertIn("0.85", warn)
+            self.assertIn("90,112", warn)
+            # an explicit ctx is preserved, only the gmu cap + warning apply
+            with mock.patch.object(hardware, "hardware_preflight",
+                                   return_value=fake_preflight):
+                b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm",
+                                     "gpus": [1], "ctx": 200000})
+            cmd2 = b2["tokens"][2]
+            self.assertIn("--max-model-len 200000", cmd2)
+            self.assertIn("--gpu-memory-utilization 0.85", cmd2)
 
     def test_remote_overlay_cannot_overwrite_vllm_venv_or_env(self):
         before = dict(catalog.find_model("inkling2-mini")["recipes"]["vllm"])

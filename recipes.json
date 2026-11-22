@@ -72,11 +72,17 @@
       "recipes": {
         "openvino": {
           "kind": "ovms",
+          "kv": "auto",
+          "kv_options": [
+            "auto"
+          ],
           "source_model": "OpenVINO/Qwen3.6-35B-A3B-int4-ov",
           "tool_parser": "qwen3coder",
           "reasoning_parser": "qwen3",
           "image": "openvino/model_server:2026.4.1-gpu@sha256:a928903fe429f1e3e27107cc45932d30d95febfd2d1159dc50869c3eac76fc58",
           "ctx": 131072,
+          "ctx_max": 131072,
+          "ctx_safe": 65536,
           "ctx_note": "128K with cache_interval_multiplier 64 on linear-attention MoE (OVMS 2026.4.1)",
           "perf": "B70-verified (Intel OVMS docs + engine sweep 2026-07-05)",
           "cim_long_ctx": 64,
@@ -103,6 +109,7 @@
         },
         "vllm": {
           "kind": "vllm-mtp",
+          "kv": "fp8",
           "kv_options": [
             "fp8"
           ],
@@ -111,6 +118,8 @@
           "spec_tokens": 4,
           "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
           "ctx": 131072,
+          "ctx_max": 131072,
+          "ctx_safe": 65536,
           "ctx_note": "128K configured; the current v0.31.0 image still needs a live context check",
           "power": 150,
           "perf": "Current v0.31.0 image has no matched throughput measurement; historical cookbook numbers used an older engine.",
@@ -147,6 +156,7 @@
         },
         "llamacpp": {
           "kind": "gguf",
+          "kv": "q8_0/q4_1",
           "kv_options": [
             "q8_0/q4_1",
             "q8_0",
@@ -157,6 +167,8 @@
           "search_name": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
           "ctx": 131072,
+          "ctx_max": 131072,
+          "ctx_safe": 65536,
           "ctx_note": "128K",
           "power": 150,
           "perf": "UD-Q4_K_XL 21 GB (cookbook quant-quality table)",
@@ -214,11 +226,19 @@
       "recipes": {
         "llamacpp": {
           "kind": "gguf-tiered",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "gguf": "/models/Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
           "search_name": "Signal-3.8-Flash-Next-AP-Q4_K_XL.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
           "ctx": 8192,
           "ctx_max": 131072,
+          "ctx_safe": 8192,
           "ctx_note": "8K configured; historical longer-context checks used other binaries and do not validate this launch",
           "power": 195,
           "perf": "No throughput claim for the effective binary. Historical llama.cpp results do not transfer across builds; the research route was replaced by Strata (ADR-0011).",
@@ -288,9 +308,14 @@
         },
         "xestrata": {
           "kind": "xestrata",
+          "kv": "int8",
+          "kv_options": [
+            "int8"
+          ],
           "model_path": "",
           "ctx": 350000,
           "ctx_max": 350000,
+          "ctx_safe": 262144,
           "ctx_note": "350K YaRN is experimental; accuracy beyond the 262K native window has not been established.",
           "power": 180,
           "perf": "Measured timing and answer checks are documented in the cookbook quant comparison; thinking mode and context affect results.",
@@ -367,6 +392,13 @@
       "recipes": {
         "llamacpp": {
           "kind": "gguf",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "gguf": "/models/Qwen3.8-27B-UD-Q4_K_M.gguf",
           "search_name": "Qwen3.8-27B-UD-Q4_K_M.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
@@ -400,6 +432,10 @@
         },
         "openvino": {
           "kind": "ovms",
+          "kv": "auto",
+          "kv_options": [
+            "auto"
+          ],
           "source_model": "SergiioB/Qwen3.8-27B-int4-gdn8-ov",
           "search_name": "Qwen3.8-27B-int4-gdn8-ov",
           "image": "openvino/model_server:2026.4.1-gpu@sha256:a928903fe429f1e3e27107cc45932d30d95febfd2d1159dc50869c3eac76fc58",
@@ -436,6 +472,7 @@
         },
         "exl3": {
           "kind": "exl3",
+          "kv": "fp8",
           "kv_options": [
             "fp8"
           ],
@@ -540,6 +577,7 @@
           "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
           "ctx": 98304,
           "ctx_max": 98304,
+          "ctx_safe": 98304,
           "ctx_note": "98K configured for a held diagnostic; not verified on the current v0.31.0 image",
           "power": 180,
           "perf": "Historical FP8 measurements used a different custom engine. No current-image throughput claim.",
@@ -608,6 +646,7 @@
       "recipes": {
         "exl3": {
           "kind": "exl3",
+          "kv": "fp8",
           "kv_options": [
             "fp8"
           ],
@@ -698,6 +737,7 @@
       "recipes": {
         "vllm": {
           "kind": "vllm-dflash",
+          "kv": "fp8",
           "kv_options": [
             "fp8"
           ],
@@ -705,6 +745,8 @@
           "search_name": "Nemotron-3.5-Lightning-GPTQ-Int4",
           "image": "vllm/vllm-openai-xpu:v0.31.0@sha256:95ac815038c4b3537b173798bfe3b89bdf525a52bd653cd14d4deb01f1062be7",
           "ctx": 262144,
+          "ctx_max": 262144,
+          "ctx_safe": 131072,
           "ctx_note": "262,144 configured; earlier router-patched stacks passed a 250K needle check, but this v0.31.0 image needs its own check",
           "power": 230,
           "perf": "Current v0.31.0 image has no matched throughput measurement; historical DFlash results used an older stack.",
@@ -755,10 +797,19 @@
         },
         "llamacpp": {
           "kind": "gguf",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "gguf": "/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf",
           "search_name": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
           "ctx": 32768,
+          "ctx_max": 262144,
+          "ctx_safe": 32768,
           "ctx_note": "fallback value; GGUF headers do not expose a context field",
           "power": 180,
           "perf": "Q4_K_M benchmark lane (xmxlab benchmark tool)",
@@ -840,6 +891,7 @@
           ],
           "ctx": 65536,
           "ctx_max": 262144,
+          "ctx_safe": 65536,
           "ctx_note": "65,536 default; up to 262,144 (the model maximum) loads and works: KV cache 409,375 fp8 tokens at gmu 0.85, 20.0 GiB weights per card, and one needle at 50% depth in a 249,212-token prompt was found. A 250K prompt takes about 35 min to read, so 262,144 is opt-in. Prefix caching on with --mamba-cache-mode align.",
           "network": "host",
           "shm_size": "8g",
@@ -909,8 +961,16 @@
           "env": {
             "GGML_SYCL_GROUPED_MAX_ROWS": "0"
           },
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "ctx": 65536,
           "ctx_max": 262144,
+          "ctx_safe": 65536,
           "ctx_note": "65,536 default; up to 262,144 (the GGUF maximum) fits: 25.8 GiB resident loaded, 26.5 GiB after a 250K-token prompt (23.9 GiB at 65,536). This image found a needle in a 250,035-token prompt (prefill 950.6, decode 15.6 tok/s) and in a 32,019-token prompt. One-slot recipe (-np 1 is pinned); -b 8192 -ub 4096, FA on, KV q8_0/q4_1",
           "power": 230,
           "perf": "This image, C1, one card: 886-token prompt prefill about 850 tok/s, decode 26.3 tok/s; 32,019-token prompt prefill 1281.3 tok/s, decode 24.2 tok/s. A native build of the same source on host runtime 26.05 decodes 28.1 tok/s (about 6% faster; cause not isolated). No drafter: DFlash decoded 25.7 vs 28.1 tok/s without it (native build). Self-reported, one host, not independently reproduced.",
@@ -1002,6 +1062,7 @@
           "kv": "fp8",
           "ctx": 262144,
           "ctx_max": 262144,
+          "ctx_safe": 131072,
           "ctx_note": "starts at 256K (engine sweep 2026-07-05)",
           "image": "intel/llm-scaler-vllm:0.26.0-b2@sha256:52218ad85513ab6686d4c090c83c2bd8c5b02423c63aa4dabd41837fe641fe3b",
           "power": 180,
@@ -1066,7 +1127,16 @@
           "gguf": "/models/ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
           "search_name": "ThinkingCap-Qwen3.6-27B-Q4_K_M.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "ctx": 131072,
+          "ctx_max": 262144,
+          "ctx_safe": 131072,
           "ctx_note": "128K (dense 27B lane)",
           "power": 180,
           "perf": "Q4_K_M, -ngl 99 (xmxlab benchmark tool)",
@@ -1130,7 +1200,16 @@
           "gguf": "/models/Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
           "search_name": "Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "ctx": 131072,
+          "ctx_max": 262144,
+          "ctx_safe": 65536,
           "ctx_note": "128K configured; this KQuant artifact and configuration have no retained long-context check",
           "fixed_flags": [
             "--mmproj",
@@ -1186,7 +1265,16 @@
           "gguf": "/models/ornith-1.0-35b-Q4_K_M.gguf",
           "search_name": "ornith-1.0-35b-Q4_K_M.gguf",
           "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
+          "kv": "q8_0/q4_1",
+          "kv_options": [
+            "q8_0/q4_1",
+            "q8_0",
+            "q5_0/q4_1",
+            "f16"
+          ],
           "ctx": 32768,
+          "ctx_max": 262144,
+          "ctx_safe": 32768,
           "ctx_note": "fallback value; GGUF headers do not expose a context field",
           "power": 150,
           "perf": "Q4_K_M, -ngl 99 (verified HF filename)",
@@ -1423,9 +1511,14 @@
       "recipes": {
         "xestrata": {
           "kind": "xestrata",
+          "kv": "int8",
+          "kv_options": [
+            "int8"
+          ],
           "model_path": "",
           "ctx": 262144,
           "ctx_max": 350000,
+          "ctx_safe": 262144,
           "ctx_note": "262K native default; 350K YaRN is experimental, quality beyond native context is not validated.",
           "gpus": [
             0,
@@ -1501,12 +1594,15 @@
           "dtype": "bfloat16",
           "kv": "auto",
           "kv_options": [
-            "auto"
+            "auto",
+            "fp8"
           ],
+          "vision_supported": true,
+          "vision": false,
           "ctx": 106496,
           "ctx_safe": 90112,
-          "ctx_max": 262144,
-          "ctx_note": "106K DSpark @ mbt=2048 (163K @ mbt=1024); use --no-mtp for 200K-256K no-spec on 1\u00d7 B70.",
+          "ctx_max": 524288,
+          "ctx_note": "106K DSpark @ mbt=2048 BF16 KV (163K @ mbt=1024); fp8 KV ~2\u00d7: ~180-200K DSpark / ~384K no-spec @ mbt=2048, 256K+ DSpark / ~512K no-spec @ mbt=1024. vision:true serves images (default ctx 81,920 BF16 / 163,840 fp8). Use --no-mtp for max no-spec context on 1\u00d7 B70.",
           "batched_tokens": 2048,
           "max_num_seqs": 1,
           "gmu": 0.93,
@@ -1543,7 +1639,7 @@
             "dest": "Inkling-2-Mini-native-ed40e7da",
             "quant": "Native NVFP4 (L0-19) / MXFP8 (L20-23) + BF16 dense/KV (~18.4 GB)"
           },
-          "recipe_ver": "2026-11-22",
+          "recipe_ver": "2026-11-22.2",
           "recipe_note": "Requires local vllm_venv (vLLM XPU + vllm-inkling2-xpu + PR #69186; optional INK2_CUTLASS_MOE=1). See cookbook docs/inkling2-mini/INKLING2-MINI-VLLM-XPU.md.",
           "recipe_recommended": true
         }

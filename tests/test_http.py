@@ -292,6 +292,21 @@ class TestServer(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertFalse(out["ok"])
 
+    def test_gpu_stop_client_endpoint(self):
+        # a PID no GPU client owns must be refused — never an arbitrary kill
+        code, out = self.post("/api/gpu/stop-client", {"pid": 1999999})
+        self.assertEqual(code, 404)
+        self.assertTrue(out.get("refused"))
+        self.assertFalse(out["ok"])
+        # malformed bodies get a clean 400, not a signal or a crash
+        for bad in ({}, {"pid": "1"}, {"pid": -4}, {"pid": 1, "container": "x"},
+                    {"container": "a;b"}, {"gpu": 99, "pid": 1}):
+            code, _ = self.post("/api/gpu/stop-client", bad)
+            self.assertEqual(code, 400, bad)
+        # same auth gate as every POST
+        code, _ = self.post("/api/gpu/stop-client", {"pid": 1}, token="bogus")
+        self.assertEqual(code, 403)
+
     def test_test_prompt_errors(self):
         code, out = self.post("/api/test_prompt", {"port": "bogus"})
         self.assertEqual(code, 400)

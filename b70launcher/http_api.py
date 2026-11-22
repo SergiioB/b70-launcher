@@ -226,6 +226,7 @@ POST_ROUTES = {
     '/api/download': _download,
     '/api/download/cancel': lambda cfg: {'ok': downloads.cancel_download(cfg.get('id', ''))},
     '/api/stop': lambda cfg: {'ok': runtime.stop_server(cfg.get('id', ''))},
+    '/api/gpu/stop-client': lambda cfg: runtime.stop_gpu_client(cfg),
     '/api/test_prompt': runtime.test_prompt,
     '/api/harness': _harness,
     '/api/storage/refresh': lambda cfg: storage.snapshot(force=True),

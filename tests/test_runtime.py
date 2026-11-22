@@ -2,6 +2,7 @@
 import http.server
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -274,6 +275,124 @@ http.server.ThreadingHTTPServer(('127.0.0.1',port),H).serve_forever()
                 mrun.return_value = mock.Mock(returncode=0, stderr='')
                 self.assertTrue(runtime.stop_server('bolt-vllm-tp2'))
                 self.assertFalse(runtime.stop_server('nonexistent-container'))
+
+
+class TestStopGpuClient(support_env.LauncherStateCase):
+    """runtime.stop_gpu_client — every refusal path and both stop kinds.
+
+    No real GPU, signal or docker call: gpu_clients/preflight/os.stat/os.kill/
+    subprocess are all mocked or faked."""
+
+    _DEVS = {'devices': [
+        {'render': '/dev/dri/renderD128', 'b70': True, 'accessible': True},
+        {'render': '/dev/dri/renderD129', 'b70': True, 'accessible': True}]}
+
+    def _clients(self, pid=4242, exe='vllm-engine', desktop=False, render='renderD128',
+                 container=''):
+        return [{'pid': pid, 'name': exe, 'exe': exe, 'render': render,
+                 'desktop': desktop, 'container': container, 'vram_mib': 12000.0}]
+
+    def _run(self, cfg, clients, uid=None):
+        uid = os.getuid() if uid is None else uid
+        killed = []
+        with mock.patch.object(hardware, 'gpu_clients', return_value=clients), \
+             mock.patch.object(hardware, 'hardware_preflight', return_value=dict(self._DEVS)), \
+             mock.patch.object(os, 'stat', side_effect=lambda p: mock.Mock(st_uid=uid)), \
+             mock.patch.object(runtime, '_pid_alive', return_value=True), \
+             mock.patch.object(os, 'kill', side_effect=lambda p, s: killed.append((p, s))):
+            resp, status = runtime.stop_gpu_client(cfg)
+        return resp, status, killed
+
+    def test_sigterm_to_detected_gpu_client(self):
+        resp, status, killed = self._run({'pid': 4242}, self._clients())
+        self.assertEqual(status, 200)
+        self.assertTrue(resp['ok'])
+        self.assertEqual(resp['signal'], 'SIGTERM')
+        self.assertEqual(killed, [(4242, signal.SIGTERM)])
+        self.assertNotIn('refused', resp)
+
+    def test_refuses_desktop_process(self):
+        resp, status, killed = self._run({'pid': 4242}, self._clients(exe='plasmashell', desktop=True))
+        self.assertEqual(status, 403)
+        self.assertTrue(resp['refused'])
+        self.assertIn('desktop', resp['error'])
+        self.assertEqual(killed, [])
+
+    def test_refuses_desktop_allowlist_even_unflagged(self):
+        # belt-and-suspenders: an un-flagged row matching the desktop allow-list
+        # is still refused (the row may come from a probe without fdinfo VRAM)
+        resp, status, killed = self._run({'pid': 4242}, self._clients(exe='kwin_wayland', desktop=False))
+        self.assertEqual(status, 403)
+        self.assertEqual(killed, [])
+
+    def test_refuses_arbitrary_non_gpu_pid(self):
+        resp, status, killed = self._run({'pid': 4242}, self._clients(pid=9999))
+        self.assertEqual(status, 404)
+        self.assertTrue(resp['refused'])
+        self.assertIn('not a detected GPU client', resp['error'])
+        self.assertEqual(killed, [])
+
+    def test_refuses_foreign_uid(self):
+        resp, status, killed = self._run({'pid': 4242}, self._clients(), uid=os.getuid() + 1)
+        self.assertEqual(status, 403)
+        self.assertTrue(resp['refused'])
+        self.assertIn('owned by uid', resp['error'])
+        self.assertEqual(killed, [])
+
+    def test_gpu_index_must_match_detection(self):
+        # client is on renderD128 (GPU 0); pinning gpu=1 refuses rather than signals
+        resp, status, killed = self._run({'pid': 4242, 'gpu': 1}, self._clients())
+        self.assertEqual(status, 404)
+        self.assertTrue(resp['refused'])
+        self.assertEqual(killed, [])
+        # matching index passes
+        resp, status, killed = self._run({'pid': 4242, 'gpu': 0}, self._clients())
+        self.assertEqual(status, 200)
+        self.assertEqual(len(killed), 1)
+
+    def test_bad_gpu_index_is_rejected(self):
+        with mock.patch.object(hardware, 'hardware_preflight', return_value=dict(self._DEVS)):
+            for bad in (5, -1, True, 'x'):
+                with self.assertRaises(ValueError):
+                    runtime.stop_gpu_client({'pid': 4242, 'gpu': bad})
+
+    def test_body_validation(self):
+        for cfg in ({}, {'pid': 1, 'container': 'x'}, {'pid': 'abc'},
+                    {'pid': -3}, {'container': 'a;b'}):
+            with self.assertRaises(ValueError, msg=str(cfg)):
+                runtime.stop_gpu_client(cfg)
+
+    def test_refuses_launcher_owned_server(self):
+        runtime.RUNNING['fake-rid'] = {'id': 'fake-rid', 'status': 'running',
+                                       'pid': 4242, 'cname': 'b70-fake'}
+        resp, status, killed = self._run({'pid': 4242}, self._clients())
+        self.assertEqual(status, 409)
+        self.assertIn('/api/stop', resp['error'])
+        self.assertEqual(killed, [])
+
+    def test_container_stop_uses_docker_stop_10(self):
+        cid = 'a' * 64
+        clients = self._clients(pid=777, container=cid)
+        calls = []
+        with mock.patch.object(hardware, 'gpu_clients', return_value=clients), \
+             mock.patch.object(hardware, 'hardware_preflight', return_value=dict(self._DEVS)), \
+             mock.patch.object(runtime, '_resolve_container', return_value=('', cid)), \
+             mock.patch.object(runtime.subprocess, 'run') as mrun:
+            mrun.return_value = mock.Mock(returncode=0, stderr='')
+            resp, status = runtime.stop_gpu_client({'container': 'myengine'})
+        self.assertEqual(status, 200)
+        self.assertTrue(resp['ok'])
+        self.assertEqual(resp['kind'], 'container')
+        argv = mrun.call_args[0][0]
+        self.assertEqual(argv[-4:], ['stop', '-t', '10', 'myengine'])
+
+    def test_container_not_on_gpu_is_refused(self):
+        with mock.patch.object(hardware, 'gpu_clients', return_value=self._clients(pid=777)), \
+             mock.patch.object(hardware, 'hardware_preflight', return_value=dict(self._DEVS)), \
+             mock.patch.object(runtime, '_resolve_container', return_value=('', 'b' * 64)):
+            resp, status = runtime.stop_gpu_client({'container': 'other'})
+        self.assertEqual(status, 404)
+        self.assertTrue(resp['refused'])
 
 
 if __name__ == '__main__':

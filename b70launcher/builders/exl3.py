@@ -76,6 +76,8 @@ def build_exl3(b):
         gmu = str(recipe["gmu"])
     else:
         gmu = "0.94" if b.ctx >= 131072 else "0.90"
+    if not user_override:
+        gmu = common.gmu_str(b, gmu)  # display-card reserve (b.gmu_cap), if any
     # Prefill option (EXL3 only): int8 W8A8 is the engine default and keeps the
     # command byte-identical; fp16 is the opt-in max-quality mode.
     prefill = b.prefill
