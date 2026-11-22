@@ -7,26 +7,29 @@
 <link rel="icon" href="/assets/b70-launcher.svg" type="image/svg+xml">
 <style>
 :root{color-scheme:dark;
-  --bg:#0e1117;--surface:#151921;--raised:#1d222c;--border:#2b313d;--input-border:#4d5666;
-  --text:#f0f2f5;--muted:#b0b6c2;--subtle:#838b98;--accent:#2b6fe5;--accent-soft:rgba(43,111,229,.14);
-  --link:#6fa7f8;--ok:#4eb86d;--warn:#f0ad35;--err:#f05e58;
+  --bg:#0c0f15;--surface:#12161e;--raised:#1a1f29;--overlay:#222834;--border:#272e3a;--input-border:#3d4656;
+  --text:#eef1f6;--muted:#aab1bf;--subtle:#7c8494;
+  --accent:#3ec2ee;--accent-ink:#062430;--accent-soft:rgba(62,194,238,.14);--ring:rgba(62,194,238,.30);
+  --link:#6fc9f2;--ok:#3ecb8f;--warn:#e5a93c;--err:#ef5f6b;
   --caption:.75rem;--small:.8125rem;--body:.875rem;--title:1rem;--heading:1.25rem;
   --mono:ui-monospace,SFMono-Regular,Consolas,monospace}
 @supports(color:oklch(.5 0 0)){:root{
-  --bg:oklch(.16 .008 260);--surface:oklch(.19 .01 260);--raised:oklch(.23 .012 260);
-  --border:oklch(.30 .012 260);--input-border:oklch(.44 .014 260);
-  --text:oklch(.95 .005 260);--muted:oklch(.74 .01 260);--subtle:oklch(.60 .01 260);
-  --accent:oklch(.56 .18 255);--accent-soft:oklch(.56 .18 255/.14);--link:oklch(.72 .12 255);
-  --ok:oklch(.74 .16 148);--warn:oklch(.78 .14 75);--err:oklch(.68 .18 25)}}
+  --bg:oklch(.155 .008 255);--surface:oklch(.185 .010 255);--raised:oklch(.225 .012 255);--overlay:oklch(.26 .014 255);
+  --border:oklch(.30 .012 255);--input-border:oklch(.42 .014 255);
+  --text:oklch(.95 .005 255);--muted:oklch(.74 .012 255);--subtle:oklch(.60 .012 255);
+  --accent:oklch(.76 .12 205);--accent-ink:oklch(.20 .05 225);--accent-soft:oklch(.76 .12 205/.14);--ring:oklch(.76 .12 205/.30);
+  --link:oklch(.78 .10 205);--ok:oklch(.78 .15 158);--warn:oklch(.80 .13 82);--err:oklch(.70 .16 20)}}
 *{box-sizing:border-box}
 html{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:var(--body);line-height:1.5}
 button,input,select,textarea{font:inherit;color:inherit}
-button,select,input,textarea{border:1px solid var(--input-border);border-radius:6px;background:var(--raised)}
+button,select,input,textarea{border:1px solid var(--input-border);border-radius:8px;background:var(--raised)}
 button{padding:8px 12px;min-height:40px;cursor:pointer;font-weight:500}
-button:hover{background:var(--border)}
+button:hover{background:var(--overlay);border-color:var(--input-border)}
 button:disabled{cursor:default;color:var(--subtle);opacity:.7}
-input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%}
+input,select,textarea{padding:8px 10px;min-height:40px;max-width:100%;border-color:var(--border)}
+input:hover,select:hover,textarea:hover{border-color:var(--input-border)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
 input[type=checkbox]{min-height:0;accent-color:var(--link);width:16px;height:16px;flex:none}
 /* WebKitGTK draws native GTK selects and spinners that ignore the dark theme; draw our own. */
 select{appearance:none;-webkit-appearance:none;padding-inline-end:34px;cursor:pointer;
@@ -53,7 +56,7 @@ small,.hint{font-size:var(--small);color:var(--muted)}
 .mono{font-family:var(--mono);font-size:var(--small)}
 .skip{position:absolute;inset-inline-start:16px;inset-block-start:-100px;padding:8px;background:var(--raised);z-index:10}
 .skip:focus{inset-block-start:8px}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 5px var(--accent-soft)}
 [hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:-1px}
 
@@ -132,7 +135,8 @@ button.st-danger{border-color:var(--err);color:var(--err)} button.st-danger:hove
 .error{color:var(--err);padding:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .good{color:var(--ok)} .warning{color:var(--warn)} .danger{color:var(--err)}
 .layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:start}
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 28px rgba(0,0,0,.28)}
 
 /* ---- library ---- */
 .library{position:sticky;top:12px;display:flex;flex-direction:column;max-height:calc(100vh - 96px)}
@@ -291,8 +295,21 @@ table.nums th{font-size:var(--caption);color:var(--subtle);font-weight:600}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
 .field input,.field select{width:100%;margin-block:6px 2px}
 .field.full{grid-column:1/-1}
+/* segmented pill groups: context presets and the hidden-control pill switches */
+.seg{display:inline-flex;gap:2px;flex-wrap:wrap;max-width:100%;border:1px solid var(--border);
+  border-radius:10px;background:var(--bg);padding:3px}
+.seg button{border:0;background:transparent;border-radius:7px;min-height:30px;padding:4px 12px;
+  font-size:var(--small);color:var(--muted);font-weight:500}
+.seg button:hover{background:var(--overlay);color:var(--text)}
+.seg button[aria-checked=true],.seg button[aria-pressed=true]{background:var(--overlay);color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--input-border),0 1px 2px rgba(0,0,0,.3)}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+.seg button b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--subtle);margin-inline-start:6px}
+.seg button[aria-checked=true] b,.seg button[aria-pressed=true] b{color:var(--accent)}
+.field .seg{display:flex}
+.field .seg button{flex:1 1 auto}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin-block-start:6px}
-.presets button{min-height:28px;padding:2px 10px;font-size:var(--caption);color:var(--muted)}
+.presets button{min-height:30px;padding:3px 12px;font-size:var(--small);color:var(--muted)}
 .presets button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:var(--accent-soft)}
 .presets button:disabled{opacity:.45;cursor:not-allowed}
 .ctx-note{font-size:var(--small);color:var(--subtle);margin-block-start:6px;max-width:90ch}
@@ -315,8 +332,9 @@ dl.spec dd.mono{font-family:var(--mono);font-size:var(--caption)}
 .primary-zone{position:sticky;bottom:0;background:var(--surface);padding-block:14px 2px;margin-block-start:20px;
   border-block-start:1px solid var(--border);box-shadow:0 -10px 18px rgba(0,0,0,.35)}
 .primary-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.primary{background:var(--accent);border-color:var(--accent);color:#fff;min-width:200px;font-size:var(--title)}
-.primary:hover{background:var(--accent);filter:brightness(1.12)}
+.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:200px;font-size:var(--title);
+  box-shadow:0 0 0 1px var(--accent),0 6px 20px var(--accent-soft)}
+.primary:hover{background:var(--accent);filter:brightness(1.1)}
 .primary:disabled{filter:none;background:var(--raised);border-color:var(--input-border);color:var(--muted);opacity:1}
 #launch-status{margin-block-start:6px}
 
@@ -350,6 +368,53 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
 .lines{white-space:pre-line}
 .warn-list{margin:0;padding-inline-start:18px;font-size:var(--small);color:var(--muted);display:flex;flex-direction:column;gap:6px;max-width:80ch}
 #command-text{white-space:pre;overflow-wrap:normal;overflow-x:auto}
+
+/* ---- field labels that are not <label for> (segmented switches) ---- */
+.flabel{display:block;font-weight:500;margin-block-end:6px}
+
+/* ---- status badges (recipe meta pills, card roles) ---- */
+.fact.badge{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.fact.perf{border-color:var(--ok);color:var(--ok)}
+
+/* ---- GPU cards in the Hardware dialog ---- */
+.gpu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.gpu-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--bg);min-width:0}
+.gpu-card.warn{border-color:color-mix(in oklab,var(--warn) 45%,var(--border))}
+.gpu-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-block-end:8px}
+.gpu-head .gpu-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gpu-head .bdf{font-family:var(--mono);font-size:var(--caption);color:var(--subtle)}
+.gpu-badge{margin-inline-start:auto;font-size:var(--caption);border-radius:99px;padding:2px 9px;
+  border:1px solid var(--border);color:var(--muted);white-space:nowrap;line-height:1.5}
+.gpu-badge.display{border-color:color-mix(in oklab,var(--warn) 55%,var(--border));color:var(--warn)}
+.gpu-badge.dedicated{border-color:color-mix(in oklab,var(--ok) 45%,var(--border));color:var(--ok)}
+.gpu-stats{display:flex;gap:6px;flex-wrap:wrap;margin-block:6px}
+.gpu-stats .fact{padding:2px 8px}
+.mem-line{display:flex;justify-content:space-between;gap:10px;font-size:var(--caption);color:var(--muted);margin-block-start:8px}
+.mem-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-block-start:4px}
+.mem-bar i{display:block;height:100%;border-radius:3px;background:var(--ok)}
+.mem-bar.hot i{background:var(--warn)} .mem-bar.crit i{background:var(--err)}
+.gpu-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-block-start:10px;font-size:var(--caption);color:var(--muted)}
+.gpu-meta select{min-height:30px;padding:2px 28px 2px 8px;font-size:var(--caption)}
+.gpu-clients{list-style:none;margin:10px 0 0;padding:8px 0 0;border-block-start:1px solid var(--border);
+  display:flex;flex-direction:column;gap:6px}
+.gpu-clients:empty{display:none}
+.gpu-client{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--small);min-width:0}
+.gpu-client .gc-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--warn)}
+.gpu-client.desktop .gc-dot{background:var(--subtle)}
+.gpu-client .gc-name{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.gpu-client .gc-kind{font-size:var(--caption);color:var(--subtle)}
+.gpu-client .gpu-stop{margin-inline-start:auto}
+.gpu-stop{display:inline-flex;gap:6px;align-items:center}
+button.stop{min-height:26px;padding:2px 10px;font-size:var(--caption);border-color:var(--err);color:var(--err)}
+button.stop:hover:not(:disabled){background:var(--err);color:#fff;border-color:var(--err)}
+.stop-ask{font-size:var(--caption);color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+.stop-ask button{min-height:26px;padding:2px 8px;font-size:var(--caption)}
+.stop-ask .yes{border-color:var(--err);color:var(--err)}
+.stop-ask .yes:hover:not(:disabled){background:var(--err);color:#fff}
+.no-clients{margin:10px 0 0;padding:8px 0 0;border-block-start:1px solid var(--border)}
+.sub-details{margin-block:10px 0}
+.sub-details>summary{min-height:32px;padding:6px 0;font-size:var(--small);color:var(--muted)}
+.sub-details>summary:hover{color:var(--text)}
 
 @media(prefers-reduced-motion:no-preference){
   button{transition-property:background-color,color,border-color,transform;transition-duration:120ms}
@@ -442,7 +507,7 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
       <div class="field full">
         <label for="context">Context tokens</label>
         <input id="context" type="number" min="512" step="1">
-        <div class="presets" id="ctx-presets"></div>
+        <div class="presets seg" id="ctx-presets"></div>
         <p class="ctx-note" id="context-hint"></p>
       </div>
       <div class="field">
@@ -459,30 +524,50 @@ button.chip:hover{border-color:var(--input-border);color:var(--text);background:
         <select id="client"></select>
         <p class="hint" id="client-hint" hidden></p>
       </div>
+      <div class="field">
+        <span class="flabel" id="kv-label">KV cache</span>
+        <select id="kv" hidden aria-labelledby="kv-label"></select>
+        <div class="seg" id="kv-pills" role="radiogroup" aria-labelledby="kv-label" data-pill-for="kv"></div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="cache-label">Prefix cache</span>
+        <select id="cache" hidden aria-labelledby="cache-label"></select>
+        <div class="seg" id="cache-pills" role="radiogroup" aria-labelledby="cache-label" data-pill-for="cache">
+          <button type="button" role="radio" data-pill="on" aria-checked="false">On</button>
+          <button type="button" role="radio" data-pill="off" aria-checked="false">Off</button>
+        </div>
+        <p class="hint" id="cache-hint">Off is for testing and benchmarks.</p>
+      </div>
+      <div class="field">
+        <span class="flabel" id="mtp-label">Speculative decoding</span>
+        <input type="checkbox" id="mtp" checked hidden aria-labelledby="mtp-label">
+        <div class="seg" id="mtp-pills" role="radiogroup" aria-labelledby="mtp-label" data-pill-for="mtp">
+          <button type="button" role="radio" data-pill="true" aria-checked="false">On</button>
+          <button type="button" role="radio" data-pill="false" aria-checked="false">Off</button>
+        </div>
+        <p class="hint">Draft model (MTP/DFlash), when the recipe provides one.</p>
+      </div>
+      <div class="field" id="vision-field" hidden>
+        <span class="flabel" id="vision-label">Vision</span>
+        <input type="checkbox" id="vision" hidden aria-labelledby="vision-label">
+        <div class="seg" id="vision-pills" role="radiogroup" aria-labelledby="vision-label" data-pill-for="vision">
+          <button type="button" role="radio" data-pill="true" aria-checked="false">On</button>
+          <button type="button" role="radio" data-pill="false" aria-checked="false">Off</button>
+        </div>
+        <p class="hint">Image input on this recipe's vision path.</p>
+      </div>
     </div>
 
     <details id="advanced">
       <summary>Advanced</summary>
       <div class="advanced-grid">
-        <div class="field">
-          <label for="kv">KV cache precision</label>
-          <select id="kv"></select>
-        </div>
         <div class="field" id="prefill-field" hidden>
           <label for="prefill">Prefill</label>
           <select id="prefill"></select>
         </div>
         <div class="field">
-          <label for="cache">Prefix cache</label>
-          <select id="cache"></select>
-          <p class="hint" id="cache-hint">Off is for testing and benchmarks.</p>
-        </div>
-        <div class="field">
           <label for="slots">Parallel slots</label>
           <input id="slots" type="number" min="1" max="128" step="1" value="1">
-        </div>
-        <div class="field full">
-          <label class="subfield"><input type="checkbox" id="mtp" checked>Speculative draft (MTP/DFlash), when available</label>
         </div>
         <div class="field full">
           <label for="extra">Extra engine flags</label>
@@ -541,7 +626,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const S={state:null,scan:null,model:null,engine:null,servers:[],downloads:{},plan:null,downloadPlan:null,
   request:false,action:'',logTimer:null,logOffset:null,selection:0,polled:false,power:[],tails:{},
   dialogKind:'',updateError:'',restarting:'',
-  sig:{},gpuDraft:{},openFail:{},lastEngine:{},collapsed:loadCollapsed()};
+  sig:{},gpuDraft:{},visionDraft:{},openFail:{},lastEngine:{},collapsed:loadCollapsed()};
 const LIVE=['starting','running'];
 const live=e=>LIVE.includes(e.status);
 function bytes(n){if(n==null)return '';let x=Number(n);for(const u of['B','KiB','MiB','GiB','TiB']){if(x<1024||u==='TiB')return`${x.toFixed(u==='B'?0:1)} ${u}`;x/=1024;}}
@@ -620,10 +705,12 @@ function dlLine(dl){if(dl.state!=='downloading')return dl.state==='queued'?'Wait
   return parts.join(' · ');}
 const dlFile=dl=>dl.file?`File ${(dl.files_done||0)+1} of ${dl.files_total||1}: ${dl.file}`:'';
 const recipeKey=()=>`${S.model}:${S.engine}`;
-function cfg(){const g=$('gpu').value;return{model_id:S.model,engine:S.engine,port:Number($('port').value),
+function cfg(){const g=$('gpu').value;const out={model_id:S.model,engine:S.engine,port:Number($('port').value),
   ctx:Number($('context').value),kv:$('kv').value,prefill:$('prefill').value,cache:$('cache').value,gpus:g?g.split(',').map(Number):[],
   slots:Number($('slots').value)||1,mtp:$('mtp').checked,extra:$('extra').value,
-  extra_env:$('extra-env').value,harness:$('client').value,no_test:false};}
+  extra_env:$('extra-env').value,harness:$('client').value,no_test:false};
+  if(!$('vision-field').hidden&&recipe()?.vision_supported)out.vision=$('vision').checked;
+  return out;}
 function sessionFor(modelId,engine,port){const rows=S.servers.filter(e=>e.model_id===modelId&&e.engine===engine&&e.status!=='stopped');
   return rows.find(e=>e.port===port&&live(e))||rows.find(e=>live(e))||rows[0]||null;}
 const currentSession=()=>S.model?sessionFor(S.model,S.engine,Number($('port').value)):null;
@@ -652,8 +739,8 @@ function choose(id,engine,port){S.model=id;const m=model();if(!m)return;
 }
 
 /* ---------- library ---------- */
-function diskState(mt,r){mt=mt||{};if(mt.detected)return['ok','On disk'];
-  if(r.download?.repo)return['dl','Download'];
+function diskState(mt,r){mt=mt||{};if(mt.detected)return['ok','Ready on disk'];
+  if(r.download?.repo)return['dl','Download available'];
   if(String(mt.reason||'').startsWith('incompatible'))return['bad','Incompatible'];
   return['none','Not on disk'];}
 /* What a library row or engine button says: held and missing cards win over disk state,
@@ -751,34 +838,46 @@ function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)
   $('recipe-notice').innerHTML=notice?`<span class="tag upd">Recipe update ${esc(notice.remote_ver)}</span>`+
     (notice.can_apply?'<button id="recipe-update" type="button">Apply update</button>':''):'';
   $('recipe-meta').innerHTML=[
+    r.perf?`<span class="fact perf" title="${esc(r.perf)}"><b>Perf</b> ${esc(shortQuant(r.perf))}</span>`:'',
     validatedCtx(r)?`<span class="fact"><b>Validated ctx</b> ${fmt(validatedCtx(r))}</span>`:'',
     `<span class="fact"><b>GPUs</b> ${gpuCount(r)}${r.tp>1?' · tensor parallel':gpuCount(r)>1?' · split by layer':''}</span>`,
+    r.download?.quant?`<span class="fact"><b>Quant</b> ${esc(shortQuant(r.download.quant))}</span>`:'',
+    (r.spec_tokens||r.draft_model||r.speculative)?`<span class="fact badge" title="Speculative decoding available">Spec decode</span>`:'',
+    r.vision_supported?`<span class="fact badge" title="Vision input supported">Vision</span>`:'',
     r.power?`<span class="fact"><b>Power hint</b> ~${r.power} W</span>`:''
   ].filter(Boolean).join('');
-  renderContext();renderKv();renderPrefill();renderCache();renderGpus();renderClients();renderAvailability();renderCookbook();}
+  renderContext();renderKv();renderPrefill();renderCache();renderMtp();renderVision();renderGpus();renderClients();renderAvailability();renderCookbook();}
 
 function renderContext(){const r=recipe(),mt=match();if(!r)return;
   const now=Number($('context').value);const safe=validatedCtx(r);
+  const max=r.ctx_max||Number($('context').max)||262144;
+  const floor=safe||r.ctx||null;
+  /* Balanced: the standard tier nearest the geometric middle of safe..ceiling. */
+  const tiers=[8192,16384,32768,65536,98304,131072,196608,262144];
+  const mid=floor&&max>floor?Math.sqrt(floor*max):null;
+  const balanced=mid?tiers.filter(t=>t>floor&&t<max).reduce((a,b)=>a==null||Math.abs(b-mid)<Math.abs(a-mid)?b:a,null):null;
   const presets=[];const add=(v,label,title)=>{if(v&&!presets.some(p=>p.v===v))presets.push({v,label,title});};
-  add(safe,'Validated','Checked by the cookbook on a B70');
-  add(r.ctx,'Default','Recipe default');
-  add(r.ctx_max,'Ceiling','Largest context this recipe allows');
-  /* Fixed quick sizes (K = 1,024 tokens); a value already covered above keeps its semantic chip. */
-  const semantic=presets.map(p=>p.v);
-  for(const [v,k] of [[8192,'8K'],[16384,'16K'],[32768,'32K'],[65536,'64K'],[98304,'96K'],[131072,'128K'],[262144,'256K']])
-    if(!presets.some(p=>p.v===v))presets.push({v,k,title:fmt(v)+' tokens'});
+  add(floor,'Safe',safe?'Checked by the cookbook on a B70':'Recipe default');
+  add(balanced,'Balanced','Roomier context without pushing the recipe ceiling');
+  add(r.ctx_max,'Max','Largest context this recipe allows');
+  const kfmt=v=>v>=1024?`${Math.round(v/1024)}K`:fmt(v);
   const lo=Number($('context').min)||0,hi=Number($('context').max)||Infinity;
   $('ctx-presets').innerHTML=presets.map(p=>{const off=p.v<lo||p.v>hi;
-    return `<button type="button" data-ctx="${p.v}" aria-pressed="${p.v===now&&!off}"${off?' disabled':''} title="${esc(off?"Outside this recipe's context range":p.title)}">${p.k?esc(p.k):esc(p.label)+' '+fmt(p.v)}</button>`;}).join('');
+    return `<button type="button" data-ctx="${p.v}" aria-pressed="${p.v===now&&!off}"${off?' disabled':''} title="${esc(off?"Outside this recipe's context range":p.title)}">${esc(p.label)}<b>${esc(kfmt(p.v))}</b></button>`;}).join('');
+  const semantic=presets.map(p=>p.v);
   const parts=[];
   if(mt?.ctx_native&&!semantic.includes(mt.ctx_native))parts.push(`Model native ${fmt(mt.ctx_native)}`);
   if(safe&&now>safe)parts.push(`Above the validated ${fmt(safe)}: not checked on a B70`);
+  if(!semantic.includes(now))parts.push(`Custom ${fmt(now)}`);
   $('context-hint').textContent=parts.join(' · ');}
 
 function renderKv(){const r=recipe();
   const options=r.kv_options||(r.kind?.startsWith('gguf')?['q8_0/q4_1','q8_0','q5_0/q4_1','f16']:r.kind==='ovms'?['auto']:['fp8']);
   const preferred=r.kv&&options.includes(r.kv)?r.kv:options[0];
-  $('kv').innerHTML=options.map(k=>`<option value="${esc(k)}"${k===preferred?' selected':''}>${esc(k)}</option>`).join('');}
+  $('kv').innerHTML=options.map(k=>`<option value="${esc(k)}"${k===preferred?' selected':''}>${esc(k)}</option>`).join('');
+  if(JSON.stringify(options)!==S.sig.kv){S.sig.kv=JSON.stringify(options);
+    $('kv-pills').innerHTML=options.map(k=>`<button type="button" role="radio" data-pill="${esc(k)}">${esc(k)}</button>`).join('');}
+  syncPills('kv-pills');}
 const PREFILL_LABEL={'int8':'int8 — fast (default)','fp16':'fp16 — max quality, slower prompt reading'};
 function renderPrefill(){const r=recipe();
   const options=Array.isArray(r.prefill_options)?r.prefill_options:[];
@@ -787,7 +886,24 @@ function renderPrefill(){const r=recipe();
 function renderCache(){const r=recipe(),on=r.prefix_caching!==false;
   $('cache').innerHTML=[['on','On'+(on?' (default)':'')],['off','Off'+(on?'':' (recipe default)')]]
     .map(([v,l])=>`<option value="${v}"${(v==='on')===on?' selected':''}>${l}</option>`).join('');
-  $('cache-hint').textContent=on?'Off is for testing and benchmarks.':`Off for this recipe: ${r.prefix_caching_note||'recipe default'}`;}
+  $('cache-hint').textContent=on?'Off is for testing and benchmarks.':`Off for this recipe: ${r.prefix_caching_note||'recipe default'}`;
+  syncPills('cache-pills');}
+/* Speculative decoding and vision switches ride on hidden checkboxes; the
+   segmented pills are the visible control and stay synced via syncPills. */
+function renderMtp(){syncPills('mtp-pills');}
+function renderVision(){const r=recipe();if(!r)return;
+  const key=recipeKey();if(!(key in S.visionDraft))S.visionDraft[key]=Boolean(r.vision);
+  $('vision').checked=S.visionDraft[key];
+  $('vision-field').hidden=!r.vision_supported;
+  syncPills('vision-pills');}
+/* The visible radiogroup mirrors the hidden control; roving tabindex keeps one
+   pill tabbable. */
+function syncPills(boxId){const box=$(boxId);if(!box)return;const ctl=$(box.dataset.pillFor);if(!ctl)return;
+  const cur=ctl.type==='checkbox'?String(Boolean(ctl.checked)):ctl.value;
+  let matched=false;
+  box.querySelectorAll('[data-pill]').forEach(b=>{const on=b.dataset.pill===cur;
+    b.setAttribute('aria-checked',String(on));b.tabIndex=on?0:-1;if(on)matched=true;});
+  if(!matched){const first=box.querySelector('[data-pill]');if(first){first.tabIndex=0;}}}
 
 /* Card choices: single cards, plus every combination of the size a multi-card recipe needs (or pairs for
    single-card recipes, which can split a model across two cards). Labels carry each card's PCIe link. */
@@ -922,16 +1038,20 @@ function renderCookbook(){const m=model(),r=recipe(),mt=match();if(!m||!r)return
     `<dt>${esc(k)}</dt><dd class="${/path|image|repo|socket|config|flags|Runtime|Source/i.test(k)?'mono':''}">${esc(v)}</dd>`).join('')}</dl>`;
   const tags=(m.tags||[]).map(t=>`<span class="tag">${esc(t.t)}</span>`).join('');
   $('cookbook-body').innerHTML=`
-    <h3>Overview</h3>${spec([['Provider',prov.label],['Purpose',m.blurb],['Architecture',m.arch],['Recommendation',m.recommendation]])}${tags?`<div class="tags">${tags}</div>`:''}
+    <h3>Overview</h3>${spec([['Provider',prov.label],['Purpose',m.blurb],['Architecture',m.arch],['Recommendation',m.recommendation],['Recipe note',r.recipe_note]])}${tags?`<div class="tags">${tags}</div>`:''}
     <h3 style="margin-block-start:16px">Requirements</h3>${spec(reqPairs)}
     <h3 style="margin-block-start:16px">Validated configuration</h3>${spec(valPairs)}
-    <h3 style="margin-block-start:16px">Benchmarks</h3>
-    <p class="hint">Recorded in cookbook catalog under measured hardware and settings.</p>
-    ${spec([['Result',r.perf],['Conditions',r.perf_note]])}
-    <h3 style="margin-block-start:16px">Limitations</h3>${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded.</p>'}
-    <h3 style="margin-block-start:16px">Technical notes</h3>${spec(techPairs)}
-    <p class="hint wrap lines" id="plan-warnings"></p>`;
-  if(S.plan)$('plan-warnings').textContent=[...(S.plan.warnings||[]),S.plan.error||''].filter(Boolean).join('\n');}
+    <details class="sub-details"><summary>Benchmarks and limitations</summary>
+      <p class="hint">Recorded in cookbook catalog under measured hardware and settings.</p>
+      ${spec([['Result',r.perf],['Conditions',r.perf_note]])}
+      ${r.operator_hold?spec([['Operator hold',r.operator_hold]]):'<p class="hint">No limitation recorded.</p>'}</details>
+    <details class="sub-details"><summary>Technical notes</summary>${spec(techPairs)}
+      <p class="hint wrap lines" id="plan-warnings"></p></details>
+    <details class="sub-details"><summary>Launch command (preview)</summary>
+      <p class="hint">The exact command the launch action builds; updates as you change the configuration.</p>
+      <pre class="mono" id="cookbook-cmd" tabindex="0"></pre></details>`;
+  if(S.plan){$('plan-warnings').textContent=[...(S.plan.warnings||[]),S.plan.error||''].filter(Boolean).join('\n');
+    $('cookbook-cmd').textContent=S.plan.cmd||S.plan.error||'No command yet.';}}
 
 /* ---------- sessions ---------- */
 function sessionStatus(e){if(e.status==='running')return['running','Ready','Serving; the endpoint answered /v1/models'];
@@ -1098,24 +1218,77 @@ function renderHardware(power=S.power){const devices=deviceList();const compact=
   if(html!==S.sig.hw){S.sig.hw=html;$('hardware').innerHTML=html;}
   if(S.dialogKind==='hardware'&&$('dialog').open)renderHardwareTable();}
 
-/* Hardware dialog: every card with its live readings and its PCIe link, which the user can correct. */
+/* Hardware dialog: one tile per GPU — label, BDF, display/dedicated badge, live
+   VRAM bar, temperature, power cap, PCIe link override, and the external
+   processes or containers holding the card, each with a Stop control. */
 const LINK_CHOICES=[[5,16],[5,8],[4,16],[4,8],[4,4],[3,16],[3,8],[3,4],[3,1]];
-function hardwareRows(){return deviceList().map((d,i)=>{const c=cardReading(d,i);const p=d.pcie||{};
+/* Normalized per-card clients: the daemon may attach `device.clients` directly;
+   older daemons only ship `preflight.foreign` — derive the same shape from it. */
+function cardClients(d,i){
+  const raw=Array.isArray(d.clients)?d.clients
+    :(S.state?.preflight?.foreign||[]).filter(f=>Array.isArray(f.gpus)&&f.gpus.includes(i));
+  return raw.map(c=>{
+    const kind=c.kind||(c.cname||c.container?'container':'process');
+    const pids=Array.isArray(c.pids)?c.pids.filter(p=>p!=null):(c.pid!=null?[c.pid]:[]);
+    const name=c.name||c.cname||c.container||c.exe||(pids.length?`PID ${pids[0]}`:c.id)||'process';
+    const desktop=Boolean(c.desktop||c.is_display);
+    const detail=[kind,c.image||'',pids.length?`PID ${pids.join(', ')}`:''].filter(Boolean).join(' · ');
+    return{name,detail,desktop,
+      stoppable:c.stoppable!==false&&!desktop,
+      pid:c.pid??pids[0]??null,
+      container:c.container||c.cname||null,
+      id:c.id||c.cname||(c.pid!=null?`pid:${c.pid}`:''),gpu:i};});}
+function gpuCardHtml(d,i){const c=cardReading(d,i);const p=d.pcie||{};
   const det=p.source==='user'?p.detected:p;
   const opts=[`<option value="">Auto (${esc(det?.gen?`${det.gen}.0 x${det.width}`:'unknown')})</option>`,
     ...LINK_CHOICES.map(([g,w])=>`<option value="${g}x${w}"${p.source==='user'&&p.gen===g&&p.width===w?' selected':''}>PCIe ${g}.0 x${w}</option>`)].join('');
-  return`<tr><th scope="row">GPU ${i}<br><span class="meta">${esc(d.label||d.pci)}</span></th>
-    <td><span class="status-dot ${c.cls}"></span>${esc(c.state)}</td>
-    <td class="numbers">${esc(c.vram||'—')}</td><td class="numbers">${esc([c.watts,c.temp].filter(Boolean).join(' · ')||'—')}</td>
-    <td class="numbers">${esc(linkText(p))}${p.gbps?`<br><span class="meta">about ${p.gbps} GB/s${p.source==='user'?` · set by you, detected ${det?.gen?`${det.gen}.0 x${det.width}`:'unknown'}`:p.max_gen?` · card supports ${p.max_gen}.0 x${p.max_width}`:''}</span>`:''}</td>
-    <td><label class="sr" for="link-${i}">PCIe link for GPU ${i}</label><select id="link-${i}" data-link-pci="${esc(d.pci)}">${opts}</select></td></tr>`;}).join('');}
-function renderHardwareTable(){const body=$('hardware-body');if(!body)return;
-  if(body.contains(document.activeElement))return;  // do not rebuild a select the user is using
+  const pct=c.used!=null&&c.total?Math.min(100,c.used/c.total*100):null;
+  const memCls=pct==null?'':pct>=90?'crit':pct>=80?'hot':'';
+  const isDisplay=Boolean(d.is_display)||(d.desktop_vram_mib||0)>0;
+  const badge=isDisplay?`<span class="gpu-badge display">Display${d.desktop_vram_mib?` · ~${Math.round(d.desktop_vram_mib)} MiB desktop`:''}</span>`
+    :'<span class="gpu-badge dedicated">Dedicated</span>';
+  const cap=c.p.cap_w??d.power_cap_w;
+  const stats=[`<span class="fact"><b>Status</b> ${esc(c.state)}</span>`,
+    c.watts?`<span class="fact"><b>Power</b> ${esc(c.watts)}</span>`:'',
+    c.temp?`<span class="fact"><b>Temp</b> ${esc(c.temp)}</span>`:'',
+    cap!=null?`<span class="fact"><b>Cap</b> ${esc(cap)} W</span>`:'',
+    `<span class="fact"><b>PCIe</b> ${esc(linkText(p))}${p.gbps?` · ${p.gbps} GB/s`:''}</span>`].filter(Boolean).join('');
+  const clientRows=cardClients(d,i).map(x=>`<li class="gpu-client${x.desktop?' desktop':''}"><span class="gc-dot"></span>
+    <span class="gc-name">${esc(x.name)}</span><span class="gc-kind">${esc(x.detail)}</span>
+    ${x.desktop?'<span class="gc-kind">desktop</span>':x.stoppable
+      ?`<span class="gpu-stop" data-spid="${x.pid==null?'':x.pid}" data-scname="${esc(x.container||'')}" data-sgpu="${i}" data-sid="${esc(x.id)}" data-sname="${esc(x.name)}"><button type="button" class="stop" data-stop-client>Stop</button></span>`:''}</li>`).join('');
+  return`<article class="gpu-card${c.cls==='bad'?' warn':''}" aria-label="GPU ${i}, ${esc(d.label||d.pci)}">
+    <div class="gpu-head"><span class="gpu-name">GPU ${i}${d.label?' · '+esc(d.label.split(' · ')[0]):''}</span>
+      <span class="bdf">${esc(d.pci||'')}</span>${badge}</div>
+    <div class="gpu-stats">${stats}</div>
+    <div class="mem-line"><span>VRAM</span><span class="numbers">${esc(c.vram||'—')}</span></div>
+    <div class="mem-bar${memCls?' '+memCls:''}" role="img" aria-label="GPU ${i} VRAM ${pct==null?'unknown':Math.round(pct)+'% used'}"><i style="width:${pct==null?0:pct.toFixed(1)}%"></i></div>
+    <div class="gpu-meta"><label class="sr" for="link-${i}">PCIe link for GPU ${i}</label>
+      <span>PCIe link</span><select id="link-${i}" data-link-pci="${esc(d.pci)}">${opts}</select>
+      ${p.source==='user'?`<span class="meta">set by you${det?.gen?` · detected ${det.gen}.0 x${det.width}`:''}</span>`:p.max_gen?`<span class="meta">card supports ${p.max_gen}.0 x${p.max_width}</span>`:''}</div>
+    ${clientRows?`<ul class="gpu-clients" aria-label="Processes using GPU ${i}">${clientRows}</ul>`
+      :'<p class="hint no-clients">No external processes on this card.</p>'}</article>`;}
+function hardwareRows(){return deviceList().map((d,i)=>gpuCardHtml(d,i)).join('');}
+function renderHardwareTable(force){const body=$('hardware-body');if(!body)return;
+  if(!force&&body.contains(document.activeElement))return;  // do not rebuild a control the user is using
   const html=hardwareRows();if(html!==S.sig.hwTable){S.sig.hwTable=html;body.innerHTML=html;}}
+/* Stop one external GPU client. The dedicated endpoint is preferred; daemons
+   that predate it answer 404 and we fall back to /api/stop with the foreign id. */
+async function stopGpuClient(box){const d=box.dataset;const name=d.sname||'process';
+  box.innerHTML='<span class="stop-ask">Stopping…</span>';
+  try{let res;
+    try{res=await api('/api/gpu/stop-client',{pid:d.spid?Number(d.spid):null,
+      container:d.scname||null,gpu:d.sgpu===''?null:Number(d.sgpu)});}
+    catch(err){if(/404|not found/i.test(err.message)&&d.sid)res=await api('/api/stop',{id:d.sid});
+      else throw err;}
+    if(res&&res.ok===false)throw new Error(res.error||`Could not stop ${name} — it may have already exited.`);
+    toast(res?.message||`Stopped ${name}.`);
+    try{await poll();}catch(e){}}
+  catch(ex){toast(ex.message);}
+  finally{S.sig.hwTable='';document.activeElement?.blur?.();renderHardwareTable(true);}}
 function showHardware(){const devices=deviceList();
-  openDialog('Hardware',`<p class="hint">${devices.filter(d=>d.b70).length} Arc Pro B70 card${devices.filter(d=>d.b70).length===1?'':'s'} found. Multi-card recipes send data between the cards, so each card's PCIe link matters. The launcher reads the link the card trained at; choose a value only if it is wrong.</p>
-    <div class="table-wrap"><table class="nums hw"><thead><tr><th scope="col">Card</th><th scope="col">Status</th><th scope="col">VRAM</th>
-    <th scope="col">Power · temp</th><th scope="col">PCIe link</th><th scope="col">Set link</th></tr></thead><tbody id="hardware-body">${hardwareRows()}</tbody></table></div>
+  openDialog('Hardware',`<p class="hint">${devices.filter(d=>d.b70).length} Arc Pro B70 card${devices.filter(d=>d.b70).length===1?'':'s'} found. Multi-card recipes send data between the cards, so each card's PCIe link matters. The launcher reads the link the card trained at; choose a value only if it is wrong. Processes from outside the launcher can be stopped from each card.</p>
+    <div class="gpu-grid" id="hardware-body">${hardwareRows()}</div>
     <div class="actions divider"><button type="button" class="primary" id="save-links">Save links</button></div>`);
   S.dialogKind='hardware';$('dialog').classList.add('wide');
   $('save-links').onclick=async()=>{const links={};
@@ -1162,6 +1335,7 @@ function renderAction(){const r=recipe();const button=$('primary');
 async function refreshPlan(){if(!S.model)return;const seq=S.selection;
   try{const plan=await api('/api/build',cfg());if(seq!==S.selection)return;S.plan=plan;
     const w=$('plan-warnings');if(w)w.textContent=[...(plan.warnings||[]),plan.error||''].filter(Boolean).join('\n');
+    const cc=$('cookbook-cmd');if(cc)cc.textContent=plan.cmd||plan.error||'No command yet.';
     renderAvailability();renderAction();}
   catch(e){if(seq===S.selection)error('action-error',e.message);}}
 async function refreshScan(){S.scan=await api('/api/scan');S.sig.library='';renderLibrary();renderHardware();renderAction();}
@@ -1617,6 +1791,17 @@ $('preview').onclick=async()=>{await refreshPlan();if(!S.plan)return;
   $('copy-command').onclick=()=>copy(S.plan.cmd||'').catch(e=>error('dialog-error',e.message));};
 document.addEventListener('click',async e=>{
   const cp=e.target.closest('[data-copy]');if(cp){copy(cp.dataset.copy).catch(ex=>toast(ex.message));return;}
+  const pill=e.target.closest('[data-pill]');if(pill){const box=pill.closest('[data-pill-for]');const ctl=box&&$(box.dataset.pillFor);
+    if(ctl){if(ctl.type==='checkbox')ctl.checked=pill.dataset.pill==='true';else ctl.value=pill.dataset.pill;
+      ctl.dispatchEvent(new Event('change',{bubbles:true}));syncPills(box.id);pill.focus();}return;}
+  const sy=e.target.closest('[data-stop-yes]');if(sy){stopGpuClient(sy.closest('.gpu-stop'));return;}
+  const sn=e.target.closest('[data-stop-no]');if(sn){const box=sn.closest('.gpu-stop');
+    box.innerHTML='<button type="button" class="stop" data-stop-client>Stop</button>';return;}
+  const sc=e.target.closest('[data-stop-client]');if(sc){const box=sc.closest('.gpu-stop');
+    box.innerHTML=`<span class="stop-ask">Stop ${esc(box.dataset.sname||'this process')}?
+      <button type="button" class="yes" data-stop-yes>Confirm</button>
+      <button type="button" data-stop-no>Cancel</button></span>`;
+    box.querySelector('.yes').focus();return;}
   const hw=e.target.closest('[data-hardware]');if(hw){showHardware();return;}
   const dc=e.target.closest('[data-download]');if(dc){dc.disabled=true;
     try{await api('/api/download/cancel',{id:dc.dataset.download});await poll();}catch(ex){toast(ex.message);}return;}
@@ -1665,6 +1850,14 @@ $('engine-switch').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight',
   const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(fwd?1:-1)+buttons.length)%buttons.length;
   e.preventDefault();const eng=buttons[next]?.dataset.switchEngine;
   if(eng){choose(S.model,eng);$('engine-switch').querySelector(`[data-switch-engine="${CSS.escape(eng)}"]`)?.focus();}});
+/* Roving radiogroup behaviour for every segmented pill control. */
+document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
+  const pill=e.target.closest?.('[data-pill]');if(!pill)return;
+  const box=pill.closest('[data-pill-for]');if(!box)return;
+  const pills=[...box.querySelectorAll('[data-pill]')];const i=pills.indexOf(pill);if(i<0)return;
+  const fwd=['ArrowRight','ArrowDown'].includes(e.key);
+  const next=e.key==='Home'?0:e.key==='End'?pills.length-1:(i+(fwd?1:-1)+pills.length)%pills.length;
+  e.preventDefault();pills[next].focus();pills[next].click();});
 $('search').addEventListener('input',()=>{S.sig.library='';renderLibrary();});
 $('on-disk').addEventListener('change',()=>{S.sig.library='';renderLibrary();});
 $('clear-search').onclick=()=>{$('search').value='';$('on-disk').checked=false;S.sig.library='';renderLibrary();$('search').focus();};
@@ -1682,7 +1875,8 @@ $('confirm-download').onclick=async()=>{if(!S.downloadPlan?.enough)return;$('con
     $('download-confirm').hidden=true;S.downloadPlan=null;await poll();toast('Download started. Speed and time left show above.');}
   catch(e){$('confirm-download').disabled=false;error('action-error',e.message);}};
 function onConfigChange(){S.selection++;S.gpuDraft[recipeKey()]=$('gpu').value;renderContext();renderAvailability();renderAction();refreshPlan();}
-for(const id of['port','kv','prefill','cache','slots','mtp','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+for(const id of['port','kv','prefill','cache','slots','mtp','vision','extra','extra-env'])$(id).addEventListener('change',()=>{renderAction();refreshPlan();});
+$('vision').addEventListener('change',()=>{S.visionDraft[recipeKey()]=$('vision').checked;});
 $('context').addEventListener('input',()=>{S.ctxDirty=true;renderContext();});
 $('context').addEventListener('change',()=>{S.ctxDirty=true;renderContext();renderAction();refreshPlan();});
 $('gpu').addEventListener('change',()=>onConfigChange());
