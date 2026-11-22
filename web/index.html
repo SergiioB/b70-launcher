@@ -840,7 +840,8 @@ function renderEngineSwitch(){const m=model();if(!m)return;
       <img src="/assets/${engIcon(e)}" alt="">${esc(engineShort(e))}<span class="q">${esc(shortQuant(rr.download?.quant)||rr.kind)}</span>
       <span class="state st-${cls}"><span class="dot"></span>${esc(label)}</span>${e===m.recommended_engine&&engs.length>1?'<span class="rec">Recommended</span>':''}</button>`;}).join('');
   if(hadFocus)$('engine-switch').querySelector('[aria-checked="true"]')?.focus();}
-function renderSelection(){renderLibrary();const m=model(),r=recipe();if(!m||!r)return;
+function renderSelection(){renderLibrary();const m=model(),r=recipe();
+  if(!m||!r){if(S.state)$('recipe-purpose').textContent='Pick a model from the list — engines, sizing and the launch command appear here.';return;}
   const prov=getProvider(m);
   $('recipe-kicker').innerHTML=`<span>${esc(prov.label)}</span><span aria-hidden="true">·</span><span>${esc(familyOf(m))}</span>`;
   const h1=$('recipe-name');h1.textContent='';
@@ -940,7 +941,7 @@ function renderGpus(){const r=recipe();if(!r)return;const devices=deviceList();c
   if(!values.length||values.every(v=>v.disabled)){S.sig.gpus='';
     $('gpu').innerHTML=`<option value="" selected>${cc.enough?'No free GPU':`Needs ${need} GPUs`}</option>`;
     $('gpu-hint').textContent=!cc.enough?`This recipe runs on ${need} Arc Pro B70 cards; this computer has ${cc.usable.length} you can use.`
-      :'Every card is in use or inaccessible. Stop a session or check GPU access.';return;}
+      :'Every card is in use or inaccessible. Stop a session, or free a card from the GPU status above.';return;}
   const draft=S.gpuDraft[recipeKey()];
   const wanted=draft&&values.some(v=>v.value===draft&&!v.disabled)?draft:defaultGpus(r).join(',');
   if(sig!==S.sig.gpus){S.sig.gpus=sig;
@@ -1856,7 +1857,9 @@ document.addEventListener('click',async e=>{
 const focusModel=id=>$('recipe-list').querySelector(`.model[data-model="${CSS.escape(id)}"]`)?.focus();
 $('recipe-list').addEventListener('click',e=>{const co=e.target.closest('[data-company]');if(co){toggleCompany(co.dataset.company);
     $('recipe-list').querySelector(`[data-company="${CSS.escape(co.dataset.company)}"]`)?.focus();return;}
-  const b=e.target.closest('[data-model]');if(b){choose(b.dataset.model);focusModel(b.dataset.model);}});
+  const b=e.target.closest('[data-model]');if(b){choose(b.dataset.model);focusModel(b.dataset.model);
+    /* stacked layout: the workspace sits below the sidebar, so bring it into view */
+    if($('run').getBoundingClientRect().top>innerHeight)$('run').scrollIntoView({block:'start'});}});
 $('recipe-list').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key)||!e.target.closest('.model'))return;
   const buttons=[...$('recipe-list').querySelectorAll('.model')].filter(b=>!b.closest('[hidden]'));const i=buttons.indexOf(document.activeElement);
   const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
