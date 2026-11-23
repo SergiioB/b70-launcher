@@ -22,6 +22,7 @@ from .llamacpp import build_llamacpp
 from .exl3 import build_exl3
 from .xestrata import build_xestrata
 from .strata import build_strata
+from .strata_hy4 import build_strata_hy4
 CUSTOM_TEMPLATES = {
     "llamacpp": {"kind": "gguf", "image": "ghcr.io/ggml-org/llama.cpp:server-intel-b11429@sha256:3353d968ed8987612b7859828d14d205413567baafed00a90d71d0c23e63d7ba",
                  "ctx": 32768, "power": 150, "kv_options": list(common.KV_LLAMACPP),
@@ -125,6 +126,8 @@ def _kind_builder(kind):
         return build_xestrata
     if kind == "strata":
         return build_strata
+    if kind == "strata-hy4":
+        return build_strata_hy4
     return None
 
 

@@ -225,7 +225,7 @@ def default_gpus(recipe):
 # how many cards each kind can actually use (audit M5: honest messages)
 MAX_GPUS = {"ovms": 1, "exl3": 1, "vllm": 2, "vllm-tp2": 2, "vllm-arext": 1,
             "vllm-mtp": 1, "vllm-dflash": 1, "vllm-autoround": 2,
-            "gguf": 2, "gguf-tiered": 2, "xestrata": 2, "strata": 2}
+            "gguf": 2, "gguf-tiered": 2, "xestrata": 2, "strata": 2, "strata-hy4": 2}
 
 # headroom left on top of the measured desktop VRAM when a selected card also
 # drives the display (compositor bursts, video decode, another login session)

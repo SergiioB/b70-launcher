@@ -359,6 +359,55 @@ the server with `--host 0.0.0.0 --port <port>`. The config carries `exe`,
 the cache-off overrides and the caller's `extra` flags. The build result's
 `image_hint` replaces the `docker pull` advice when the image is missing.
 
+### `kind: strata-hy4` (engine `strata`)
+
+The Hy4-Flash shape of the Strata route: `strata-hy4-sycl`, the standalone
+engine binary built from a patched [Niko1221/Strata](https://github.com/Niko1221/Strata)
+v0.2.20 checkout (`engine/src/hy4flash/sycl/build_hy4_sycl.sh bmg`, output
+`build-hy4-sycl-bmg/strata-hy4-sycl`), served by the checkout's
+`engine/sycl/serve/server_intel.py` in the same `strata-sycl-dev` image. The
+launcher neither builds nor ships Strata. Linux only. The verified recipe is
+Tencent Hy4-Flash SQ-64 on two Arc Pro B70s (cookbook:
+`docs/hy4-flash/HY4-FLASH-STRATA-SYCL.md`, recipe field `cookbook_url`).
+
+Settings (`settings-override.json` only): `strata_hy4_root` — the v0.2.20
+checkout, an absolute path (falls back to `strata_root` when the same
+checkout serves both kinds).
+
+Recipe paths, relative to the checkout and held inside it by the same
+`safe_artifact` rule: `hy4_bin` (default `build-hy4-sycl-bmg/strata-hy4-sycl`),
+`hy4_python` (default `.venv-sycl/bin/python`), `hy4_server` (default
+`engine/sycl/serve/server_intel.py`).
+
+Artifact fields: `engram_file` — the bare name of the mandatory Engram shard,
+sitting next to the detected `.strata` pack. Both packs mount read-only at
+`/models/<name>`.
+
+Engine knobs, rendered into the engine config's `args`:
+
+| field | flag / meaning | default |
+|---|---|---|
+| `draft` | `--draft` (`dfly2` or `off`); caller `mtp:false` forces `off`, `mtp:true` forces `dfly2` | `dfly2` |
+| `threads` | `--threads` | 8 |
+| `vram_experts_by_ctx` | `--vram-experts-gb` — the verified primary-card budget per context ceiling (`{"32768": 17, "131072": 15, "262144": 14}`); `vram_experts_gb` is the scalar fallback | 17 |
+| `peer_vram_experts_gb` | `--peer-vram-experts-gb`; `-1` drops the flag | 25 |
+| `ram_experts_gb` | `--ram-experts-gb` | 36 |
+| `kv_host_above` | `--kv-host-above`, raised to `ctx` when `ctx` is deeper (256K stays all-VRAM) | 131072 |
+| `env` | `HY4S_*`/`STRATA_*` names only, `docker -e` after `ZE_ENABLE_PCI_ID_DEVICE_ORDER=1`, `ONEAPI_DEVICE_SELECTOR=level_zero:gpu`, `SYCL_CACHE_PERSISTENT=0`, `ZES_ENABLE_SYSMAN=1`; caller `extra_env` wins | — |
+
+`--gpus` names host GPU indices in primary-first order (the mapped cards
+enumerate in PCI order under `ZE_ENABLE_PCI_ID_DEVICE_ORDER=1`): the highest
+non-display card is primary, the desktop-driving card is always a peer. When
+a selected card drives the desktop its expert budget is capped at the same
+`gmu` fraction other engines get (`gmu_cap` × VRAM) and context steps down to
+`ctx_safe`, unless the user forced a context. `kv`/`kv_options` are `fp16`
+only — the engine serves fp16 KV. Prefix caching maps to `--session-reuse`
+(`0` when off). The server config carries `arch: "hy4flash"`, `exe`, `cwd`,
+`tokenizer` (`/tmp/b70-strata/tokenizer` — the server generates `vocab.json`
+from the pack's Section 0), `model_name`, `gpu`, `gpu_order: "as_given"`,
+`parallel`, `drafting`, `log` and `args`; the container command is the same
+`docker run` shape as `kind: strata`, with `--cap-add SYS_PTRACE` on two cards.
+
 ## Custom artifacts (`model_id: "__custom__"`)
 
 `Browse… / Set Custom Path` in the UI posts `custom_path` with
@@ -399,12 +448,13 @@ the cache-off overrides and the caller's `extra` flags. The build result's
      `download`, `spec_tokens`, `spec_p_min`,
      `speculative`, `draft_device`, `tensor_split`, `split_mode`,
      `offload_tensors`, `tool_parser`, `reasoning_parser`, `cim_long_ctx`,
-     `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`) plus a
-     bare `draft_model` filename;
+     `search_name`, `inner_port`, `tp`, `perf`, `topology`, `recipe_ver`,
+     `cookbook_url`) plus a bare `draft_model` filename;
    - exec-shaping keys (`kind`, `image`, `llama_bin`, `docker_sock`,
      `fixed_flags`, `serve_config`, `env`, and the Strata paths `strata_bin`,
      `strata_python`, `strata_pack`, `strata_mtp`, `expert_profile`,
-     `mtp_draft_vocab`) and host paths (`model_path`, `gguf`, `source_model`)
+     `mtp_draft_vocab`, `hy4_bin`, `hy4_python`, `hy4_server`, `engram_file`)
+     and host paths (`model_path`, `gguf`, `source_model`)
      never come from the wire, so a catalog cannot swap the binary/image, pick
      a socket, append container argv, or remount host paths;
    - a model or engine this app does not ship is **refused**, not added: the
@@ -435,5 +485,5 @@ the cache-off overrides and the caller's `extra` flags. The build result's
   `open_harness` probes terminals itself.
 - `POST /api/settings` can write only `scan_dirs`, `models_dir`, `open_with`,
   and `sync_clients`; `settings-override.json` also accepts `ovms_repo`,
-  `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `xestrata_root`,
-  and `recipe_overrides` when edited by hand.
+  `llama_bin`, `exl3_data_root`, `strata_root`, `strata_data`, `strata_hy4_root`,
+  `xestrata_root`, and `recipe_overrides` when edited by hand.
