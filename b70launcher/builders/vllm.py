@@ -370,11 +370,15 @@ _INK2_ESIMD_SO = "_inkling_esimd_attn_xe2*.so"
 
 
 def _inkling_plugin_dir(venv_path):
+    """Return (pkg_dir, is_editable) for vllm_inkling2_xpu inside venv_path."""
+    editable = False
     for sp in sorted(venv_path.glob("lib*/python*/site-packages")):
         pkg = sp / _INK2_PLUGIN
         if pkg.is_dir():
-            return pkg
-    return None
+            return pkg, False
+        if any(sp.glob(f"__editable__*{_INK2_PLUGIN}*")) or any(sp.glob(f"*{_INK2_PLUGIN}*.pth")):
+            editable = True
+    return None, editable
 
 
 def _inkling_plugin_reads(pkg, var):
@@ -399,8 +403,17 @@ def _is_inkling2_recipe(model, recipe):
 def _inkling_auto_env(venv_path, warns, explicit_env=None):
     """Default env for the opt-in Inkling accelerators this venv supports."""
     explicit = explicit_env or {}
-    pkg = _inkling_plugin_dir(venv_path)
+    pkg, is_editable = _inkling_plugin_dir(venv_path)
     if pkg is None:
+        if is_editable and not (
+            explicit.get("INK2_HYBRID_PREFIX_SDPA") in ("0", "1")
+            and explicit.get("INK2_ESIMD_DECODE_ATTN") in ("0", "1")
+        ):
+            warns.append(
+                "vllm-inkling2-xpu is installed in editable mode (.pth/__editable__) — "
+                "cannot auto-probe opt-in accel flags; set INK2_HYBRID_PREFIX_SDPA=1 and/or "
+                "INK2_ESIMD_DECODE_ATTN=1 explicitly if your editable checkout includes them."
+            )
         return {}
     env, missing = {}, []
     if explicit.get("INK2_HYBRID_PREFIX_SDPA") != "0":

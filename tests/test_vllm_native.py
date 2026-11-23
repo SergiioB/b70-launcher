@@ -287,6 +287,17 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             self.assertFalse(any(k.startswith("INK2_") for k in b_other["env"]))
             self.assertFalse(any("vllm-inkling2-xpu" in w for w in b_other["warnings"]))
 
+    def test_inkling_accel_warns_on_editable_install(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            sp = Path(td) / "venv" / "lib" / "python3.14" / "site-packages"
+            sp.mkdir(parents=True, exist_ok=True)
+            (sp / "__editable__.vllm_inkling2_xpu-0.1.0.pth").write_text("/tmp/src\n")
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_ESIMD_DECODE_ATTN", b["env"])
+            self.assertTrue(any("editable mode" in w for w in b["warnings"]))
+
     def test_inkling_accel_env_force_arm_on_stock_venv(self):
         with tempfile.TemporaryDirectory() as td:
             _inkling_fixture(td)
