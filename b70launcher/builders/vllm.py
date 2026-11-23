@@ -388,22 +388,33 @@ def _inkling_plugin_reads(pkg, var):
     return False
 
 
-def _inkling_auto_env(venv_path, warns):
+def _is_inkling2_recipe(model, recipe):
+    """True when a vllm-native recipe targets Inkling 2 / vllm-inkling2-xpu."""
+    ident = f"{model.get('id', '')} {model.get('name', '')}".lower()
+    if "inkling" in ident:
+        return True
+    return any(k.startswith("INK2_") for k in (recipe.get("env") or {}))
+
+
+def _inkling_auto_env(venv_path, warns, explicit_env=None):
     """Default env for the opt-in Inkling accelerators this venv supports."""
+    explicit = explicit_env or {}
     pkg = _inkling_plugin_dir(venv_path)
     if pkg is None:
         return {}
     env, missing = {}, []
-    if _inkling_plugin_reads(pkg, "INK2_HYBRID_PREFIX_SDPA"):
-        env["INK2_HYBRID_PREFIX_SDPA"] = "1"
-    else:
-        missing.append("INK2_HYBRID_PREFIX_SDPA (unpatched attention dispatch)")
-    if list(pkg.glob(f"**/{_INK2_ESIMD_SO}")):
-        env["INK2_ESIMD_DECODE_ATTN"] = "1"
-        env["INK2_ESIMD_SWA_SPLITS"] = "16"
-        env["INK2_ESIMD_FULL_SPLITS"] = "128"
-    else:
-        missing.append("INK2_ESIMD_DECODE_ATTN (no _inkling_esimd_attn_xe2 extension)")
+    if explicit.get("INK2_HYBRID_PREFIX_SDPA") != "0":
+        if _inkling_plugin_reads(pkg, "INK2_HYBRID_PREFIX_SDPA"):
+            env["INK2_HYBRID_PREFIX_SDPA"] = "1"
+        elif explicit.get("INK2_HYBRID_PREFIX_SDPA") != "1":
+            missing.append("INK2_HYBRID_PREFIX_SDPA (unpatched attention dispatch)")
+    if explicit.get("INK2_ESIMD_DECODE_ATTN") != "0":
+        if list(pkg.glob(f"**/{_INK2_ESIMD_SO}")):
+            env["INK2_ESIMD_DECODE_ATTN"] = "1"
+            env["INK2_ESIMD_SWA_SPLITS"] = "16"
+            env["INK2_ESIMD_FULL_SPLITS"] = "128"
+        elif explicit.get("INK2_ESIMD_DECODE_ATTN") != "1":
+            missing.append("INK2_ESIMD_DECODE_ATTN (no _inkling_esimd_attn_xe2 extension)")
     if missing:
         warns.append("vllm-inkling2-xpu without " + " and ".join(missing)
                      + " — opt-in accel stays off (stock Triton paths); force a flag "
@@ -569,11 +580,11 @@ def build_native(b):
         "ZE_AFFINITY_MASK": ",".join(str(g) for g in b.gpus),
         "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
     }
-    if venv_path is not None:
-        env.update(_inkling_auto_env(venv_path, warns))
-    for k, v in recipe_env.items():
-        env[k] = str(v)
-    env.update(b.extra_env)
+    explicit_env = {k: str(v) for k, v in recipe_env.items()}
+    explicit_env.update(b.extra_env)
+    if venv_path is not None and _is_inkling2_recipe(model, recipe):
+        env.update(_inkling_auto_env(venv_path, warns, explicit_env))
+    env.update(explicit_env)
 
     _cache_warn(b, use_spec)
     return {

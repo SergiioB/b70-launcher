@@ -235,12 +235,18 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
         with tempfile.TemporaryDirectory() as td:
             _inkling_fixture(td)
             _inkling_plugin(td)
-            # caller extra_env can disable or retune an auto-armed flag
+            # caller extra_env can disable or retune an auto-armed flag;
+            # disabling ESIMD via =0 does not leave auto-injected split overrides behind
             b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
                                 "extra_env": "INK2_ESIMD_DECODE_ATTN=0\nINK2_ESIMD_FULL_SPLITS=64"})
             self.assertNotIn("error", b)
             self.assertEqual(b["env"]["INK2_ESIMD_DECODE_ATTN"], "0")
             self.assertEqual(b["env"]["INK2_ESIMD_FULL_SPLITS"], "64")
+            self.assertNotIn("INK2_ESIMD_SWA_SPLITS", b["env"])
+            b0 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "extra_env": "INK2_ESIMD_DECODE_ATTN=0"})
+            self.assertNotIn("INK2_ESIMD_SWA_SPLITS", b0["env"])
+            self.assertNotIn("INK2_ESIMD_FULL_SPLITS", b0["env"])
             # recipe env (allow-listed INK2_ names) also beats auto-detection
             catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"env": {
                 "INK2_HYBRID_PREFIX_SDPA": "0", "INK2_ESIMD_SWA_SPLITS": "8"}}}})
@@ -253,6 +259,33 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
                                  "extra_env": "INK2_ESIMD_SWA_SPLITS=32"})
             self.assertEqual(b3["env"]["INK2_ESIMD_SWA_SPLITS"], "32")
+
+    def test_inkling_accel_skips_non_inkling_native_and_explicit_opt_out(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td, hybrid=False, esimd=False)
+            # explicit =0 suppresses missing-accel warnings on a stock venv
+            b_off = builders.build({
+                "model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                "extra_env": "INK2_HYBRID_PREFIX_SDPA=0\nINK2_ESIMD_DECODE_ATTN=0",
+            })
+            self.assertNotIn("error", b_off)
+            self.assertFalse(any("opt-in accel stays off" in w for w in b_off["warnings"]))
+            # non-Inkling vllm-native recipe in a patched Inkling venv gets zero INK2_* env or warnings
+            _inkling_plugin(td, hybrid=True, esimd=True)
+            other = {
+                "id": "custom-native-other", "name": "Custom Native Model",
+                "recipes": {"vllm": {"kind": "vllm-native", "ctx": 32768, "kv": "auto"}},
+            }
+            orig_find = catalog.find_model
+            catalog.find_model = lambda mid: other if mid == "custom-native-other" else orig_find(mid)
+            try:
+                b_other = builders.build({"model_id": "custom-native-other", "engine": "vllm", "gpus": [1], "dry_run": True})
+            finally:
+                catalog.find_model = orig_find
+            self.assertNotIn("error", b_other)
+            self.assertFalse(any(k.startswith("INK2_") for k in b_other["env"]))
+            self.assertFalse(any("vllm-inkling2-xpu" in w for w in b_other["warnings"]))
 
     def test_inkling_accel_env_force_arm_on_stock_venv(self):
         with tempfile.TemporaryDirectory() as td:
