@@ -358,6 +358,58 @@ def build_generic(b):
 
 _NATIVE_RECIPE_ENV = re.compile(r"(INK2|VLLM|TRITON|ZE|ONEAPI|SYCL)_[A-Z0-9_]+")
 
+# Opt-in accelerators shipped by patched vllm-inkling2-xpu installs (cookbook
+# v1.21.0): the hybrid-prefix SDPA prefill patch is Python-side, detected by
+# its env read in plugin sources; the ESIMD PagedXmx decode kernel needs the
+# compiled _inkling_esimd_attn_xe2 extension beside it. Flags are armed only
+# on proof of support — an unread flag would silently misreport the stack —
+# and recipe env / caller extra_env are applied after these defaults, so an
+# explicit =0 disables and =1 force-arms a non-standard install.
+_INK2_PLUGIN = "vllm_inkling2_xpu"
+_INK2_ESIMD_SO = "_inkling_esimd_attn_xe2*.so"
+
+
+def _inkling_plugin_dir(venv_path):
+    for sp in sorted(venv_path.glob("lib*/python*/site-packages")):
+        pkg = sp / _INK2_PLUGIN
+        if pkg.is_dir():
+            return pkg
+    return None
+
+
+def _inkling_plugin_reads(pkg, var):
+    """True when the installed plugin sources actually read env var ``var``."""
+    for py in pkg.rglob("*.py"):
+        try:
+            if var in py.read_text(errors="replace"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _inkling_auto_env(venv_path, warns):
+    """Default env for the opt-in Inkling accelerators this venv supports."""
+    pkg = _inkling_plugin_dir(venv_path)
+    if pkg is None:
+        return {}
+    env, missing = {}, []
+    if _inkling_plugin_reads(pkg, "INK2_HYBRID_PREFIX_SDPA"):
+        env["INK2_HYBRID_PREFIX_SDPA"] = "1"
+    else:
+        missing.append("INK2_HYBRID_PREFIX_SDPA (unpatched attention dispatch)")
+    if list(pkg.glob(f"**/{_INK2_ESIMD_SO}")):
+        env["INK2_ESIMD_DECODE_ATTN"] = "1"
+        env["INK2_ESIMD_SWA_SPLITS"] = "16"
+        env["INK2_ESIMD_FULL_SPLITS"] = "128"
+    else:
+        missing.append("INK2_ESIMD_DECODE_ATTN (no _inkling_esimd_attn_xe2 extension)")
+    if missing:
+        warns.append("vllm-inkling2-xpu without " + " and ".join(missing)
+                     + " — opt-in accel stays off (stock Triton paths); force a flag "
+                     "via env only if the install provides it elsewhere.")
+    return env
+
 
 def build_native(b):
     """Native host-venv vLLM XPU server (for out-of-tree XPU plugins such as
@@ -374,6 +426,7 @@ def build_native(b):
 
     venv_raw = str(recipe.get("vllm_venv") or catalog.SETTINGS.get("vllm_venv") or "").strip()
     missing = []
+    venv_path = None
     if not venv_raw:
         missing.append('the vLLM XPU venv: set "vllm_venv" in settings-override.json '
                        "(a Python venv with vllm + plugin installed)")
@@ -516,6 +569,8 @@ def build_native(b):
         "ZE_AFFINITY_MASK": ",".join(str(g) for g in b.gpus),
         "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
     }
+    if venv_path is not None:
+        env.update(_inkling_auto_env(venv_path, warns))
     for k, v in recipe_env.items():
         env[k] = str(v)
     env.update(b.extra_env)

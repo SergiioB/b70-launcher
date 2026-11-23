@@ -25,6 +25,24 @@ def _inkling_fixture(td):
     catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"model_path": str(model_dir)}}})
 
 
+def _inkling_plugin(td, hybrid=True, esimd=True):
+    """Fake vllm_inkling2_xpu install inside the fixture venv."""
+    pkg = (Path(td) / "venv" / "lib" / "python3.14" / "site-packages"
+           / "vllm_inkling2_xpu")
+    (pkg / "ops").mkdir(parents=True, exist_ok=True)
+    (pkg / "attention.py").write_text(
+        'import os\n_H = os.environ.get("INK2_HYBRID_PREFIX_SDPA", "0") == "1"\n'
+        if hybrid else "import os\n")
+    if esimd:
+        (pkg / "ops" / "_inkling_esimd_attn_xe2.cpython-314-x86_64-linux-gnu.so"
+         ).write_bytes(b"\x7fELF")
+    return pkg
+
+
+ACCEL_ENV = ("INK2_HYBRID_PREFIX_SDPA", "INK2_ESIMD_DECODE_ATTN",
+             "INK2_ESIMD_SWA_SPLITS", "INK2_ESIMD_FULL_SPLITS")
+
+
 class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
     def test_inkling2_mini_present_in_catalog_and_approved_download(self):
         from b70launcher import downloads
@@ -180,6 +198,76 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             cmd2 = b2["tokens"][2]
             self.assertIn("--max-model-len 200000", cmd2)
             self.assertIn("--gpu-memory-utilization 0.85", cmd2)
+
+    def test_inkling_accel_env_arms_only_when_plugin_supports_it(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            # stock venv (no vllm_inkling2_xpu): nothing armed, no warning
+            b0 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertNotIn("error", b0)
+            for k in ACCEL_ENV:
+                self.assertNotIn(k, b0["env"])
+            self.assertFalse(any("INK2_ESIMD" in w or "INK2_HYBRID" in w for w in b0["warnings"]))
+            # plugin without hybrid patch or esimd .so: all flags stay off, warned
+            _inkling_plugin(td, hybrid=False, esimd=False)
+            b1 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            for k in ACCEL_ENV:
+                self.assertNotIn(k, b1["env"])
+            self.assertTrue(any("INK2_ESIMD_DECODE_ATTN" in w and "INK2_HYBRID_PREFIX_SDPA" in w
+                                for w in b1["warnings"]))
+            # hybrid patch only: sdpa armed, esimd still off + warned
+            pkg = _inkling_plugin(td, hybrid=True, esimd=False)
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertEqual(b2["env"]["INK2_HYBRID_PREFIX_SDPA"], "1")
+            self.assertNotIn("INK2_ESIMD_DECODE_ATTN", b2["env"])
+            self.assertTrue(any("INK2_ESIMD_DECODE_ATTN" in w for w in b2["warnings"]))
+            # esimd .so installed too: every accelerator armed
+            (pkg / "ops" / "_inkling_esimd_attn_xe2.cpython-314-x86_64-linux-gnu.so"
+             ).write_bytes(b"\x7fELF")
+            b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertEqual(b3["env"]["INK2_HYBRID_PREFIX_SDPA"], "1")
+            self.assertEqual(b3["env"]["INK2_ESIMD_DECODE_ATTN"], "1")
+            self.assertEqual(b3["env"]["INK2_ESIMD_SWA_SPLITS"], "16")
+            self.assertEqual(b3["env"]["INK2_ESIMD_FULL_SPLITS"], "128")
+            self.assertFalse(any("opt-in accel" in w for w in b3["warnings"]))
+
+    def test_inkling_accel_env_overrides_beat_detection(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            # caller extra_env can disable or retune an auto-armed flag
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "extra_env": "INK2_ESIMD_DECODE_ATTN=0\nINK2_ESIMD_FULL_SPLITS=64"})
+            self.assertNotIn("error", b)
+            self.assertEqual(b["env"]["INK2_ESIMD_DECODE_ATTN"], "0")
+            self.assertEqual(b["env"]["INK2_ESIMD_FULL_SPLITS"], "64")
+            # recipe env (allow-listed INK2_ names) also beats auto-detection
+            catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"env": {
+                "INK2_HYBRID_PREFIX_SDPA": "0", "INK2_ESIMD_SWA_SPLITS": "8"}}}})
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertNotIn("error", b2)
+            self.assertEqual(b2["env"]["INK2_HYBRID_PREFIX_SDPA"], "0")
+            self.assertEqual(b2["env"]["INK2_ESIMD_SWA_SPLITS"], "8")
+            self.assertEqual(b2["env"]["INK2_ESIMD_DECODE_ATTN"], "1")
+            # extra_env still wins over recipe env
+            b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "extra_env": "INK2_ESIMD_SWA_SPLITS=32"})
+            self.assertEqual(b3["env"]["INK2_ESIMD_SWA_SPLITS"], "32")
+
+    def test_inkling_accel_env_force_arm_on_stock_venv(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            # explicit env flags pass straight through even with no plugin to read
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "extra_env": "INK2_HYBRID_PREFIX_SDPA=1\nINK2_ESIMD_DECODE_ATTN=1"})
+            self.assertNotIn("error", b)
+            self.assertEqual(b["env"]["INK2_HYBRID_PREFIX_SDPA"], "1")
+            self.assertEqual(b["env"]["INK2_ESIMD_DECODE_ATTN"], "1")
+            # a recipe env name outside the allow-list still fails the build
+            catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"env": {"LD_PRELOAD": "/x.so"}}}})
+            bad = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertIn("error", bad)
+            self.assertIn("not an allowed", bad["error"])
 
     def test_remote_overlay_cannot_overwrite_vllm_venv_or_env(self):
         before = dict(catalog.find_model("inkling2-mini")["recipes"]["vllm"])

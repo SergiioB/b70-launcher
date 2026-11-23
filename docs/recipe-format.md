@@ -233,6 +233,13 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   context to the vision envelope (`81,920` BF16 KV / `163,840` fp8 KV) unless
   `ctx` is set explicitly.
   Allowed `env` prefixes: `INK2_`, `VLLM_`, `TRITON_`, `ZE_`, `ONEAPI_`, `SYCL_`.
+  Patched `vllm-inkling2-xpu` venvs get their opt-in accelerators armed
+  automatically: `INK2_HYBRID_PREFIX_SDPA=1` when installed plugin sources read
+  that flag, and `INK2_ESIMD_DECODE_ATTN=1` + `INK2_ESIMD_SWA_SPLITS=16` +
+  `INK2_ESIMD_FULL_SPLITS=128` when an `_inkling_esimd_attn_xe2*.so` extension
+  exists in the package. Missing pieces stay off (stock Triton) with a warning;
+  recipe `env` and caller `extra_env` always win — `=0` disables, `=1`
+  force-arms a non-standard install.
 
 Every `vllm*` kind passes `--enable-prefix-caching` by default and
 `--no-enable-prefix-caching` when the recipe sets `prefix_caching: false` or the
