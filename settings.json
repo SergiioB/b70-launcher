@@ -11,6 +11,7 @@
   "exl3_data_root": "~/.local/share/b70-exl3",
   "strata_root": "",
   "strata_data": "",
+  "strata_hy4_root": "",
   "xestrata_root": "",
   "pcie_links": {},
   "vllm_kv_options": [

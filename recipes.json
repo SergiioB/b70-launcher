@@ -1,5 +1,5 @@
 {
-  "catalog_ver": "2026-11-22",
+  "catalog_ver": "2026-11-23",
   "first_run": {
     "model": "qwen38-27b",
     "engine": "exl3",
@@ -1644,6 +1644,97 @@
           "recipe_recommended": true
         }
       }
+    },
+    {
+      "id": "hy4-flash",
+      "name": "Hy4-Flash SQ-64",
+      "arch": "Tencent Hy4-Flash MoE \u00b7 2\u00d7 B70 expert parallel",
+      "blurb": "Tencent's Hy4-Flash on two B70s through a patched Strata v0.2.20 SYCL build: the native SQ-64 pack plus the mandatory Engram shard, every expert in the two cards' VRAM, all-VRAM KV to 256K and lossless DFly2 speculation. Runs your own Strata checkout; the launcher does not ship it.",
+      "badge": "2\u00d7 B70 \u00b7 STRATA HY4",
+      "family": "Hy4-Flash",
+      "tags": [
+        {
+          "t": "2\u00d7 B70 expert parallel",
+          "c": "violet"
+        },
+        {
+          "t": "256K all-VRAM KV",
+          "c": "green"
+        },
+        {
+          "t": "DFly2 lossless draft",
+          "c": "grey"
+        }
+      ],
+      "recipes": {
+        "strata": {
+          "kind": "strata-hy4",
+          "image": "strata-sycl-dev",
+          "gpus": [
+            0,
+            1
+          ],
+          "ctx": 131072,
+          "ctx_safe": 32768,
+          "ctx_max": 262144,
+          "ctx_note": "131,072 default keeps every expert in VRAM (15/25 GiB budgets); 32,768 is the display-card safe preset (17/25); 262,144 stays all-VRAM through --kv-host-above (14/25). 1M is loadable through host-KV \u2014 documented as loadable, not a speed claim.",
+          "kv": "fp16",
+          "kv_options": [
+            "fp16"
+          ],
+          "draft": "dfly2",
+          "threads": 8,
+          "vram_experts_by_ctx": {
+            "32768": 17,
+            "131072": 15,
+            "262144": 14
+          },
+          "peer_vram_experts_gb": 25,
+          "ram_experts_gb": 36,
+          "kv_host_above": 131072,
+          "hy4_bin": "build-hy4-sycl-bmg/strata-hy4-sycl",
+          "hy4_python": ".venv-sycl/bin/python",
+          "hy4_server": "engine/sycl/serve/server_intel.py",
+          "engram_file": "Hy4-Flash-Engram-Q8.strata",
+          "env": {},
+          "cookbook_url": "https://github.com/SergiioB/intel-arc-pro-b70-inference-cookbook/blob/master/docs/hy4-flash/HY4-FLASH-STRATA-SYCL.md",
+          "recipe_note": "New: Tencent Hy4-Flash SQ-64 on two B70s through Strata v0.2.20 + patches/hy4-flash-strata-sycl/strata-hy4-b70-opt.patch (the strata-hy4-sycl engine). Pass HY4S_VRAM_STATIC=1 as an extra env var to reproduce the verified lossless drafted == serial shape. Cookbook route: docs/hy4-flash/HY4-FLASH-STRATA-SYCL.md.",
+          "recipe_ver": "2026-11-23",
+          "perf": "Measured by the submitter, not on your hardware: 2\u00d7 Arc Pro B70 32 GB, Niko1221/Strata v0.2.20 (a34979fc) + strata-hy4-b70-opt.patch, strata-engine/Hy4-Flash-Strata@995bac22 (SQ-64 native + Engram-Q8). At ctx 131,072 (15/25 GiB budgets): 703\u2013727 t/s prefill, ~39.5 t/s lossless DFly2 decode. At ctx 262,144 all-VRAM KV (14/25): ~665 t/s prefill at ~245K context with a 245K needle pass. Other CPUs, RAM, PCIe slots and desktop load give other numbers.",
+          "search_name": "Hy4-Flash-SQ-64.strata",
+          "download": {
+            "kind": "file",
+            "name": "Hy4-Flash-SQ-64.strata",
+            "extra_files": [
+              "Hy4-Flash-Engram-Q8.strata"
+            ],
+            "repo": "strata-engine/Hy4-Flash-Strata",
+            "revision": "995bac227ab7e0d221772be641e2b5954a9fac06",
+            "search": "Hy4-Flash-SQ-64",
+            "match": "Hy4-Flash-SQ-64",
+            "prefer": [
+              "sq-64"
+            ],
+            "exclude": [
+              "engram",
+              "vision"
+            ],
+            "quant": "Strata SQ-64 .strata pack (62.0 GB) + mandatory Engram-Q8 shard (67.6 GB)",
+            "note": "The Engram shard is mandatory and shared by every Hy4-Flash build (SQ-64/96/128); it must sit next to the native pack. The strata-hy4-sycl engine and server come from your Strata v0.2.20 checkout, not this download."
+          }
+        }
+      },
+      "brand": "tencent",
+      "subtitle": "Tencent Hy4-Flash SQ-64 \u00b7 2\u00d7 B70 Strata expert parallel",
+      "chips": [
+        "LLM",
+        "Instruct",
+        "~130 GB",
+        "Strata Hy4",
+        "2\u00d7 B70"
+      ],
+      "recommended_engine": "strata",
+      "recommendation": "Dual-card Strata HY4-Flash route: the SQ-64 native pack plus the mandatory Engram-Q8 shard, every expert in the two cards' VRAM and all-VRAM KV to 256K. Needs a Niko1221/Strata v0.2.20 checkout with patches/hy4-flash-strata-sycl/strata-hy4-b70-opt.patch applied, the strata-hy4-sycl engine (engine/src/hy4flash/sycl/build_hy4_sycl.sh bmg) and the locally built strata-sycl-dev image. DFly2 speculation is lossless (drafted == serial) under HY4S_VRAM_STATIC=1."
     }
   ]
 }

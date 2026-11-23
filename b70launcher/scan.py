@@ -169,7 +169,7 @@ def _walk_root(root, items, deadline):
                         elif e.is_file(follow_symlinks=False):
                             n = e.name.lower()
                             names.add(n)
-                            if n.endswith(".gguf"):
+                            if n.endswith((".gguf", ".strata")):
                                 # on a basename collision prefer the shallower
                                 # path — deterministic regardless of readdir order
                                 prev = items["gguf"].get(n)
@@ -349,7 +349,8 @@ def build_catalog(items):
             size = round(Path(path).stat().st_size / 1048576, 1)
         except OSError:
             size = None
-        catalog_[path] = {"kind": "gguf", "name": name, "path": path, "size_mib": size, "ctx": None}
+        kind = "strata" if name.endswith(".strata") else "gguf"
+        catalog_[path] = {"kind": kind, "name": name, "path": path, "size_mib": size, "ctx": None}
     for name, entry in items.get("snapshots", {}).items():
         if entry["path"] in catalog_:
             continue
@@ -573,6 +574,7 @@ def detect_status(model, engine):
 KIND_SETTINGS = {
     "xestrata": ("xestrata_root", "your XeStrata checkout folder"),
     "strata": ("strata_root", "your Strata checkout folder"),
+    "strata-hy4": ("strata_hy4_root", "your Strata v0.2.20 checkout folder"),
     "vllm-native": ("vllm_venv", "your vLLM XPU venv folder (containing bin/vllm)"),
 }
 

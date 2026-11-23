@@ -64,6 +64,7 @@ HF_APPROVED_REPOS = {
     "dzannotti/Qwen3.8-Flash-Next-MTP-GGUF",
     "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
     "thinkingmachines/Inkling-2-Mini",
+    "strata-engine/Hy4-Flash-Strata",
 }
 
 SPACE_HEADROOM = 1.05  # require free >= remaining bytes * 1.05

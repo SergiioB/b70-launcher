@@ -27,7 +27,7 @@ UA = {"User-Agent": f"b70-launcher/{paths.VERSION}"}
 
 # settings-override keys a user edit may set (everything else ships read-only)
 OVERRIDE_KEYS = ("scan_dirs", "models_dir", "ovms_repo", "llama_bin", "vllm_venv",
-                 "exl3_data_root", "strata_root", "strata_data", "xestrata_root",
+                 "exl3_data_root", "strata_root", "strata_data", "strata_hy4_root", "xestrata_root",
                  "open_with", "sync_clients",
                  "pcie_links")
 
@@ -48,7 +48,8 @@ REMOTE_RECIPE_FIELDS = ("ctx", "ctx_max", "ctx_note", "ctx_safe", "power", "dtyp
                         "draft_device", "tensor_split", "split_mode",
                         "offload_tensors", "tool_parser", "reasoning_parser",
                         "cim_long_ctx", "search_name", "inner_port", "tp",
-                        "perf", "topology", "recipe_ver", "gmu", "gmu_safe", "gmu_safe_budget")
+                        "perf", "topology", "recipe_ver", "gmu", "gmu_safe", "gmu_safe_budget",
+                        "cookbook_url")
 _MODEL_ID_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
@@ -58,7 +59,8 @@ _DRAFT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", re.I)
 _INT_FIELDS = ("ctx", "ctx_max", "ctx_safe", "spec_tokens", "inner_port", "tp")
 _NUM_FIELDS = ("power", "spec_p_min", "gmu", "gmu_safe", "gmu_safe_budget")
 _STR_FIELDS = ("ctx_note", "dtype", "kv", "prefill", "split_mode", "tensor_split", "offload_tensors",
-               "tool_parser", "reasoning_parser", "search_name", "cim_long_ctx", "recipe_ver", "perf", "topology")
+               "tool_parser", "reasoning_parser", "search_name", "cim_long_ctx", "recipe_ver", "perf", "topology",
+               "cookbook_url")
 
 
 def _field_type_ok(name, value):
