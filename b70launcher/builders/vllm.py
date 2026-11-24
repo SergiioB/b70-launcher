@@ -412,8 +412,9 @@ def _is_inkling2_recipe(model, recipe):
 
 
 def _inkling_ring_prefix_probe(venv_path):
-    """(worker, hook) for the ring prefix cache patch. Both files must live in
-    the SAME site-packages dir to count; the union is reported for warnings."""
+    """(same_dir, worker, hook) for the ring prefix cache patch. Both files must
+    live in the SAME site-packages dir for ``same_dir`` to be True; the union
+    ``(worker, hook)`` is reported for coherent diagnostics."""
     have_worker = have_hook = False
     for sp in sorted(venv_path.glob("lib*/python*/site-packages")):
         worker = (sp / _INK2_PLUGIN / _INK2_RING_WORKER).is_file()
@@ -425,10 +426,10 @@ def _inkling_ring_prefix_probe(venv_path):
         except OSError:
             pass
         if worker and hook:
-            return True, True
+            return True, True, True
         have_worker = have_worker or worker
         have_hook = have_hook or hook
-    return have_worker, have_hook
+    return False, have_worker, have_hook
 
 
 def _inkling_ring_prefix_env(venv_path, slots, warns):
@@ -443,12 +444,19 @@ def _inkling_ring_prefix_env(venv_path, slots, warns):
             "single-slot only and stays off — stock vLLM XPU prefix caching on this "
             "stack is unverified (vllm#53912).")
         return {}
-    worker, hook = _inkling_ring_prefix_probe(venv_path)
-    if worker and hook:
+    same_dir, worker, hook = _inkling_ring_prefix_probe(venv_path)
+    if same_dir:
         warns.append(
             "INK2_RING_PREFIX_CACHE=1 armed: exact-tail single-slot ring prefix cache "
             "(verified cookbook v1.22.0 — 50×–236× warm TTFT at 18K–128K resends).")
         return {"INK2_RING_PREFIX_CACHE": "1"}
+    if worker and hook:
+        warns.append(
+            f"prefix caching ON but {_INK2_PLUGIN}/{_INK2_RING_WORKER} and "
+            f"{_INK2_RING_HOOK} are split across different site-packages dirs — "
+            "INK2_RING_PREFIX_CACHE stays off and the stock vLLM XPU "
+            "prefix-cache path is unverified on this stack (vllm#53912).")
+        return {}
     missing = []
     if not worker:
         missing.append(f"{_INK2_PLUGIN}/{_INK2_RING_WORKER}")

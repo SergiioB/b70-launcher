@@ -389,6 +389,24 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             warn3 = next(w for w in b3["warnings"] if "53912" in w)
             self.assertIn("ring_prefix_worker.py", warn3)
 
+    def test_inkling_ring_prefix_cache_split_site_packages_not_armed(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            # worker in lib/python3.14/site-packages, hook in lib64/python3.14/site-packages
+            _inkling_ring_patch(td, worker=True, hook=False)
+            other_sp = Path(td) / "venv" / "lib64" / "python3.14" / "site-packages"
+            kv_mgr = other_sp / "vllm" / "v1" / "core" / "kv_cache_manager.py"
+            kv_mgr.parent.mkdir(parents=True, exist_ok=True)
+            kv_mgr.write_text('import os\n_R = os.environ.get("INK2_RING_PREFIX_CACHE") == "1"\n')
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on"})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b["env"])
+            warn = next(w for w in b["warnings"] if "53912" in w)
+            self.assertIn("split across different site-packages", warn)
+            self.assertNotIn("lacks  —", warn)
+
     def test_inkling_ring_prefix_cache_single_slot_only(self):
         with tempfile.TemporaryDirectory() as td:
             _inkling_fixture(td)
