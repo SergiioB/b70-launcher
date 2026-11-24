@@ -56,6 +56,10 @@ b70 usage                    # tokens per agent, today and all time
 b70 stop                     # stop the model
 ```
 
+## What is new in 0.6.33
+
+- **Inkling 2 Mini exact-tail single-slot ring prefix cache (#26):** auto-arms `INK2_RING_PREFIX_CACHE=1` on Inkling 2 `vllm-native` launches when prefix caching is explicitly enabled (`--cache on`), `slots == 1`, and one `site-packages` dir carries both `vllm_inkling2_xpu/ring_prefix_worker.py` and the patched `vllm/v1/core/kv_cache_manager.py` hook (zero leakage to non-Inkling native recipes, clean `=0` opt-out, split-install & editable warnings, and default remains `--no-enable-prefix-caching`). Updated Cookbook `v1.22.0` perf notes (`5.35→0.05 s` @ 18K, `25.4→0.14 s` @ 75K, `49.6→0.21 s` @ 128K resends; `0.35–0.38 s` 5-turn `75K` warm TTFT).
+
 ## What is new in 0.6.32
 
 - **Inkling 2 Mini ESIMD XMX decode + chunked oneDNN prefix SDPA (#25):** auto-arms `INK2_HYBRID_PREFIX_SDPA=1` and `INK2_ESIMD_DECODE_ATTN=1` (`SWA_SPLITS=16`, `FULL_SPLITS=128`) on Inkling 2 `vllm-native` launches when the patched `vllm_inkling2_xpu` plugin and `_inkling_esimd_attn_xe2*.so` extension are detected in `vllm_venv` (with clean `=0` disable semantics, editable-install warning, and zero leakage to non-Inkling native recipes), plus Cookbook `v1.21.0` perf metrics (`68.0/76.1/56.6 tok/s` decode, `3,048/2,575/2,023 tok/s` cold prefill @ `64K/128K/245K`, `-22%..-34%` J/tok).
@@ -411,8 +415,8 @@ curl -fsSL https://xecores.com/downloads/get.sh | sh
 
 Or inspect-first, manually:
 
-1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.32-linux-source.tar.gz.sha256`.
-2. Extract it: `tar -xzf b70-launcher-0.6.32-linux-source.tar.gz`.
+1. Verify the archive with the separately supplied SHA256 checksum: `sha256sum -c b70-launcher-0.6.33-linux-source.tar.gz.sha256`.
+2. Extract it: `tar -xzf b70-launcher-0.6.33-linux-source.tar.gz`.
 3. Inspect `launcher.py`, `cli.py`, `b70launcher/`, `webwindow.py`, `recipes.json`, `settings.json`, and `packaging/install.sh`; run `sh b70-launcher-0.6.29-linux-source/packaging/install.sh` if satisfied. Installer copies the inspectable source to `~/.local/share/b70-launcher`, adds `~/.local/bin/b70-launcher` and `~/.local/bin/b70`, and a desktop entry in `~/.local/share/applications` (XDG_DATA_HOME is honored for the app and entry). No root access or global system changes. Start from your application menu or run `~/.local/bin/b70-launcher`; headless use starts with `b70 list`.
 
 Python 3.9+ is required for the UI; `python3-gi` with a WebKitGTK typelib (`gir1.2-webkit2-4.1`, `gir1.2-webkit2-4.0`, or GTK4 `webkit-6.0`) enables the native app window; without it the UI opens in your default browser. To actually launch a GPU engine, install a compatible Linux Intel GPU driver, accessible DRM render nodes, Docker daemon/CLI with Intel GPU support and permission to use it, adequate disk/VRAM, and a valid model artifact. Docker access is effectively root-equivalent; do not grant it to untrusted users. Docker is required by the launch preflight even for the native `llama_bin` path — no Docker CLI and accessible local socket, no launch. The UI shows render-node identification, per-card VRAM/power and basic blockers before launch. A preflight success does **not** certify an engine, quantization, context size, power budget, or card topology. No engine starts at installation or first opening. The launcher never pulls engine images: a launch whose pinned image is missing stops with the exact `docker pull` command to run after you check free disk space (for Strata's locally built image, the `docker build` command instead). Containers see only the selected card(s). Some recipe images use mutable tags.
