@@ -240,6 +240,16 @@ for `vllm-dflash`), `gpus`/`tp` (dual-card intent — see Caveats).
   exists in the package. Missing pieces stay off (stock Triton) with a warning;
   recipe `env` and caller `extra_env` always win — `=0` disables, `=1`
   force-arms a non-standard install.
+  When prefix caching is enabled on an Inkling 2 recipe (`cache: "on"`), a
+  patched venv also auto-arms `INK2_RING_PREFIX_CACHE=1` — the exact-tail
+  single-slot ring prefix cache verified in cookbook v1.22.0 — only when one
+  site-packages dir carries both `vllm_inkling2_xpu/ring_prefix_worker.py`
+  and the `INK2_RING_PREFIX_CACHE` hook in
+  `vllm/v1/core/kv_cache_manager.py`, and the launch is single-slot. An
+  unpatched venv or `slots > 1` leaves the flag off and warns that the stock
+  prefix-cache path is unverified on this stack (vllm#53912); an explicit
+  `INK2_RING_PREFIX_CACHE=0` opts out cleanly, `=1` force-arms. Editable
+  installs cannot be probed and are never auto-armed.
 
 Every `vllm*` kind passes `--enable-prefix-caching` by default and
 `--no-enable-prefix-caching` when the recipe sets `prefix_caching: false` or the

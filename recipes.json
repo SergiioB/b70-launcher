@@ -1609,7 +1609,7 @@
           "swa_mbt_profiles": true,
           "power": 230,
           "prefix_caching": false,
-          "prefix_caching_note": "Prefix caching stays off on vLLM XPU speculative/packed stacks until multi-turn corruption checks pass.",
+          "prefix_caching_note": "Off by default: the stock vLLM XPU prefix-cache path is unverified on this stack. --cache on auto-arms INK2_RING_PREFIX_CACHE=1 — the verified exact-tail single-slot ring cache (cookbook v1.22.0) — when the patched venv is detected at 1 slot; unpatched or multi-slot stays off with a warning.",
           "speculative": {
             "method": "dspark",
             "num_speculative_tokens": 7
@@ -1626,7 +1626,7 @@
             "--tool-call-parser",
             "inkling"
           ],
-          "perf": "1\u00d7 B70 (230 W, cookbook v1.21.0): opt-in INK2_HYBRID_PREFIX_SDPA + INK2_ESIMD_DECODE_ATTN, Vision + fp8 KV + DSpark k=7 \u2014 68.0 / 76.1 / 56.6 tok/s decode & 3,048 / 2,575 / 2,023 tok/s cold prefill @ 64K/128K/245K (\u221222%..\u221234% J/tok at depth). Stock Triton BF16-KV baseline: 80.4->55.3 tok/s & 3,920->2,891 tok/s prefill (0-104K card sampling); no-spec 54.5->26.3 (0-198K), 256K @ 23.1.",
+          "perf": "1\u00d7 B70 (230 W, cookbook v1.21.0): opt-in INK2_HYBRID_PREFIX_SDPA + INK2_ESIMD_DECODE_ATTN, Vision + fp8 KV + DSpark k=7 \u2014 68.0 / 76.1 / 56.6 tok/s decode & 3,048 / 2,575 / 2,023 tok/s cold prefill @ 64K/128K/245K (\u221222%..\u221234% J/tok at depth). Stock Triton BF16-KV baseline: 80.4->55.3 tok/s & 3,920->2,891 tok/s prefill (0-104K card sampling); no-spec 54.5->26.3 (0-198K), 256K @ 23.1. --cache on + patched venv @ 1 slot arms INK2_RING_PREFIX_CACHE=1 (cookbook v1.22.0): 5.35->0.05 s @ 18K, 25.4->0.14 s @ 75K, 49.6->0.21 s @ 128K prompt resends (50\u00d7\u2013236\u00d7 warm TTFT); 0.35\u20130.38 s per growing turn in a 5-turn 75K session.",
           "download": {
             "kind": "snapshot",
             "repo": "thinkingmachines/Inkling-2-Mini",
@@ -1639,8 +1639,8 @@
             "dest": "Inkling-2-Mini-native-ed40e7da",
             "quant": "Native NVFP4 (L0-19) / MXFP8 (L20-23) + BF16 dense/KV (~18.4 GB)"
           },
-          "recipe_ver": "2026-11-23",
-          "recipe_note": "Requires local vllm_venv (vLLM XPU + vllm-inkling2-xpu + PR #69186; optional INK2_CUTLASS_MOE=1). Patched-venv accelerators auto-arm on detection: INK2_HYBRID_PREFIX_SDPA=1 when plugin sources read it, INK2_ESIMD_DECODE_ATTN=1 (+SWA_SPLITS=16, FULL_SPLITS=128) when _inkling_esimd_attn_xe2*.so is installed; stock venvs keep stock Triton — force or disable any flag via env. See cookbook docs/inkling2-mini/INKLING2-MINI-VLLM-XPU.md.",
+          "recipe_ver": "2026-11-24",
+          "recipe_note": "Requires local vllm_venv (vLLM XPU + vllm-inkling2-xpu + PR #69186; optional INK2_CUTLASS_MOE=1). Patched-venv accelerators auto-arm on detection: INK2_HYBRID_PREFIX_SDPA=1 when plugin sources read it, INK2_ESIMD_DECODE_ATTN=1 (+SWA_SPLITS=16, FULL_SPLITS=128) when _inkling_esimd_attn_xe2*.so is installed; stock venvs keep stock Triton — force or disable any flag via env. --cache on also auto-arms INK2_RING_PREFIX_CACHE=1 (exact-tail single-slot ring prefix cache, cookbook v1.22.0: 50×–236× warm TTFT) when the venv carries ring_prefix_worker.py plus the kv_cache_manager hook and slots=1; otherwise prefix caching stays on the unverified stock path with a warning. See cookbook docs/inkling2-mini/INKLING2-MINI-VLLM-XPU.md.",
           "recipe_recommended": true
         }
       }

@@ -365,8 +365,19 @@ _NATIVE_RECIPE_ENV = re.compile(r"(INK2|VLLM|TRITON|ZE|ONEAPI|SYCL)_[A-Z0-9_]+")
 # on proof of support — an unread flag would silently misreport the stack —
 # and recipe env / caller extra_env are applied after these defaults, so an
 # explicit =0 disables and =1 force-arms a non-standard install.
+#
+# Cookbook v1.22.0 adds INK2_RING_PREFIX_CACHE: an exact-tail single-slot
+# ring prefix cache (hash_block_size 16, 128-aligned admitted hits, slack
+# 136). It is considered only when the caller enables prefix caching — the
+# recipe default stays --no-enable-prefix-caching — and auto-arms only on
+# proof of BOTH the plugin worker and the patched kv_cache_manager hook in
+# the same site-packages dir on a single-slot launch. Every other case keeps
+# the unverified stock prefix-cache path with a vllm#53912 warning naming
+# what is missing.
 _INK2_PLUGIN = "vllm_inkling2_xpu"
 _INK2_ESIMD_SO = "_inkling_esimd_attn_xe2*.so"
+_INK2_RING_WORKER = "ring_prefix_worker.py"
+_INK2_RING_HOOK = Path("vllm/v1/core/kv_cache_manager.py")
 
 
 def _inkling_plugin_dir(venv_path):
@@ -400,20 +411,76 @@ def _is_inkling2_recipe(model, recipe):
     return any(k.startswith("INK2_") for k in (recipe.get("env") or {}))
 
 
-def _inkling_auto_env(venv_path, warns, explicit_env=None):
+def _inkling_ring_prefix_probe(venv_path):
+    """(worker, hook) for the ring prefix cache patch. Both files must live in
+    the SAME site-packages dir to count; the union is reported for warnings."""
+    have_worker = have_hook = False
+    for sp in sorted(venv_path.glob("lib*/python*/site-packages")):
+        worker = (sp / _INK2_PLUGIN / _INK2_RING_WORKER).is_file()
+        hook = False
+        kv_mgr = sp / _INK2_RING_HOOK
+        try:
+            hook = kv_mgr.is_file() and \
+                "INK2_RING_PREFIX_CACHE" in kv_mgr.read_text(errors="replace")
+        except OSError:
+            pass
+        if worker and hook:
+            return True, True
+        have_worker = have_worker or worker
+        have_hook = have_hook or hook
+    return have_worker, have_hook
+
+
+def _inkling_ring_prefix_env(venv_path, slots, warns):
+    """Auto-env for the exact-tail single-slot ring prefix cache (cookbook
+    v1.22.0). Arms INK2_RING_PREFIX_CACHE=1 only on a single-slot launch when
+    one site-packages dir carries both the plugin worker and the patched
+    kv_cache_manager hook; anything else keeps the unverified stock path with
+    a vllm#53912 warning naming what is missing."""
+    if slots != 1:
+        warns.append(
+            f"prefix caching ON with slots={slots}: INK2_RING_PREFIX_CACHE is verified "
+            "single-slot only and stays off — stock vLLM XPU prefix caching on this "
+            "stack is unverified (vllm#53912).")
+        return {}
+    worker, hook = _inkling_ring_prefix_probe(venv_path)
+    if worker and hook:
+        warns.append(
+            "INK2_RING_PREFIX_CACHE=1 armed: exact-tail single-slot ring prefix cache "
+            "(verified cookbook v1.22.0 — 50×–236× warm TTFT at 18K–128K resends).")
+        return {"INK2_RING_PREFIX_CACHE": "1"}
+    missing = []
+    if not worker:
+        missing.append(f"{_INK2_PLUGIN}/{_INK2_RING_WORKER}")
+    if not hook:
+        missing.append(f"the INK2_RING_PREFIX_CACHE hook in {_INK2_RING_HOOK}")
+    warns.append(
+        "prefix caching ON but this venv lacks " + " and ".join(missing)
+        + " — INK2_RING_PREFIX_CACHE stays off and the stock vLLM XPU "
+        "prefix-cache path is unverified on this stack (vllm#53912).")
+    return {}
+
+
+def _inkling_auto_env(venv_path, warns, explicit_env=None, prefix_cache=False, slots=1):
     """Default env for the opt-in Inkling accelerators this venv supports."""
     explicit = explicit_env or {}
     pkg, is_editable = _inkling_plugin_dir(venv_path)
+    ring_unset = explicit.get("INK2_RING_PREFIX_CACHE") not in ("0", "1")
     if pkg is None:
-        if is_editable and not (
-            explicit.get("INK2_HYBRID_PREFIX_SDPA") in ("0", "1")
-            and explicit.get("INK2_ESIMD_DECODE_ATTN") in ("0", "1")
-        ):
-            warns.append(
-                "vllm-inkling2-xpu is installed in editable mode (.pth/__editable__) — "
-                "cannot auto-probe opt-in accel flags; set INK2_HYBRID_PREFIX_SDPA=1 and/or "
-                "INK2_ESIMD_DECODE_ATTN=1 explicitly if your editable checkout includes them."
-            )
+        if is_editable:
+            unprobed = [f for f in ("INK2_HYBRID_PREFIX_SDPA", "INK2_ESIMD_DECODE_ATTN")
+                        if explicit.get(f) not in ("0", "1")]
+            if prefix_cache and ring_unset:
+                unprobed.append("INK2_RING_PREFIX_CACHE")
+            if unprobed:
+                warns.append(
+                    "vllm-inkling2-xpu is installed in editable mode (.pth/__editable__) — "
+                    "cannot auto-probe opt-in accel flags; set "
+                    + " and/or ".join(f + "=1" for f in unprobed)
+                    + " explicitly if your editable checkout includes them."
+                )
+        elif prefix_cache and ring_unset:
+            _inkling_ring_prefix_env(venv_path, slots, warns)
         return {}
     env, missing = {}, []
     if explicit.get("INK2_HYBRID_PREFIX_SDPA") != "0":
@@ -432,6 +499,8 @@ def _inkling_auto_env(venv_path, warns, explicit_env=None):
         warns.append("vllm-inkling2-xpu without " + " and ".join(missing)
                      + " — opt-in accel stays off (stock Triton paths); force a flag "
                      "via env only if the install provides it elsewhere.")
+    if prefix_cache and ring_unset:
+        env.update(_inkling_ring_prefix_env(venv_path, slots, warns))
     return env
 
 
@@ -596,7 +665,8 @@ def build_native(b):
     explicit_env = {k: str(v) for k, v in recipe_env.items()}
     explicit_env.update(b.extra_env)
     if venv_path is not None and _is_inkling2_recipe(model, recipe):
-        env.update(_inkling_auto_env(venv_path, warns, explicit_env))
+        env.update(_inkling_auto_env(venv_path, warns, explicit_env,
+                                     prefix_cache=b.prefix_cache, slots=slots))
     env.update(explicit_env)
 
     _cache_warn(b, use_spec)

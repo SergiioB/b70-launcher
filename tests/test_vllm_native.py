@@ -39,6 +39,24 @@ def _inkling_plugin(td, hybrid=True, esimd=True):
     return pkg
 
 
+def _inkling_ring_patch(td, worker=True, hook=True):
+    """Fake the ring-prefix patch inside the fixture venv's site-packages:
+    vllm_inkling2_xpu/ring_prefix_worker.py and/or the INK2_RING_PREFIX_CACHE
+    hook in vllm/v1/core/kv_cache_manager.py (same site-packages dir)."""
+    sp = Path(td) / "venv" / "lib" / "python3.14" / "site-packages"
+    if worker:
+        pkg = sp / "vllm_inkling2_xpu"
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "ring_prefix_worker.py").write_text(
+            "class RingPrefixWorker:\n    pass\n")
+    if hook:
+        kv_mgr = sp / "vllm" / "v1" / "core" / "kv_cache_manager.py"
+        kv_mgr.parent.mkdir(parents=True, exist_ok=True)
+        kv_mgr.write_text(
+            'import os\nRING = os.environ.get("INK2_RING_PREFIX_CACHE", "0") == "1"\n')
+    return sp
+
+
 ACCEL_ENV = ("INK2_HYBRID_PREFIX_SDPA", "INK2_ESIMD_DECODE_ATTN",
              "INK2_ESIMD_SWA_SPLITS", "INK2_ESIMD_FULL_SPLITS")
 
@@ -312,6 +330,136 @@ class TestVllmNativeAndInklingRecipe(support_env.LauncherStateCase):
             bad = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
             self.assertIn("error", bad)
             self.assertIn("not an allowed", bad["error"])
+
+    def test_inkling_ring_prefix_cache_off_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            _inkling_ring_patch(td)
+            # fully patched venv, cache left at the recipe default (off):
+            # the flag is never armed and stock argv is unchanged
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1]})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b["env"])
+            self.assertIn("--no-enable-prefix-caching", b["tokens"][2])
+            self.assertFalse(any("armed" in w or "53912" in w for w in b["warnings"]))
+
+    def test_inkling_ring_prefix_cache_arms_on_patched_venv(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            _inkling_ring_patch(td)
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on"})
+            self.assertNotIn("error", b)
+            self.assertEqual(b["env"]["INK2_RING_PREFIX_CACHE"], "1")
+            self.assertIn(" --enable-prefix-caching ", b["tokens"][2] + " ")
+            self.assertNotIn("--no-enable-prefix-caching", b["tokens"][2])
+            self.assertTrue(any("INK2_RING_PREFIX_CACHE=1" in w and "armed" in w
+                                for w in b["warnings"]))
+            self.assertFalse(any("53912" in w for w in b["warnings"]))
+
+    def test_inkling_ring_prefix_cache_unpatched_venv_warns(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)  # plugin present but no ring files / hook
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on"})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b["env"])
+            self.assertIn(" --enable-prefix-caching ", b["tokens"][2] + " ")
+            warn = next(w for w in b["warnings"] if "53912" in w)
+            self.assertIn("ring_prefix_worker.py", warn)
+            self.assertIn("kv_cache_manager.py", warn)
+            # worker present but the kv_cache_manager hook missing: still off,
+            # warning names only the missing piece
+            sp = _inkling_ring_patch(td, worker=True, hook=False)
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "cache": "on"})
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b2["env"])
+            warn2 = next(w for w in b2["warnings"] if "53912" in w)
+            self.assertNotIn("ring_prefix_worker.py", warn2)
+            self.assertIn("kv_cache_manager.py", warn2)
+            # hook present but worker missing: symmetric
+            (sp / "vllm_inkling2_xpu" / "ring_prefix_worker.py").unlink()
+            _inkling_ring_patch(td, worker=False, hook=True)
+            b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "cache": "on"})
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b3["env"])
+            warn3 = next(w for w in b3["warnings"] if "53912" in w)
+            self.assertIn("ring_prefix_worker.py", warn3)
+
+    def test_inkling_ring_prefix_cache_single_slot_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            _inkling_ring_patch(td)
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on", "slots": 2})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b["env"])
+            self.assertIn("--max-num-seqs 2", b["tokens"][2])
+            warn = next(w for w in b["warnings"] if "53912" in w)
+            self.assertIn("single-slot", warn)
+            self.assertFalse(any("armed" in w for w in b["warnings"]))
+
+    def test_inkling_ring_prefix_cache_explicit_opt_out_and_overrides(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            # caller =0 on an unpatched venv: stays "0" and suppresses the
+            # missing-patch warning outright
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on", "extra_env": "INK2_RING_PREFIX_CACHE=0"})
+            self.assertNotIn("error", b)
+            self.assertEqual(b["env"]["INK2_RING_PREFIX_CACHE"], "0")
+            self.assertFalse(any("53912" in w or "armed" in w for w in b["warnings"]))
+            # recipe env =0 suppresses auto-arm + warning on a patched venv too
+            _inkling_ring_patch(td)
+            catalog._apply_recipe_overrides({"inkling2-mini": {"vllm": {"env": {
+                "INK2_RING_PREFIX_CACHE": "0"}}}})
+            b2 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "cache": "on"})
+            self.assertEqual(b2["env"]["INK2_RING_PREFIX_CACHE"], "0")
+            self.assertFalse(any("53912" in w or "armed" in w for w in b2["warnings"]))
+            # caller extra_env wins over recipe env — explicit =1 force-arms
+            b3 = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                 "cache": "on", "extra_env": "INK2_RING_PREFIX_CACHE=1"})
+            self.assertEqual(b3["env"]["INK2_RING_PREFIX_CACHE"], "1")
+
+    def test_inkling_ring_prefix_cache_no_leakage_to_other_native(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            _inkling_plugin(td)
+            _inkling_ring_patch(td)
+            other = {
+                "id": "custom-native-other", "name": "Custom Native Model",
+                "recipes": {"vllm": {"kind": "vllm-native", "ctx": 32768, "kv": "auto"}},
+            }
+            orig_find = catalog.find_model
+            catalog.find_model = lambda mid: other if mid == "custom-native-other" else orig_find(mid)
+            try:
+                b_other = builders.build({"model_id": "custom-native-other", "engine": "vllm",
+                                          "gpus": [1], "cache": "on", "dry_run": True})
+            finally:
+                catalog.find_model = orig_find
+            self.assertNotIn("error", b_other)
+            self.assertFalse(any(k.startswith("INK2_") for k in b_other["env"]))
+            self.assertFalse(any("53912" in w or "vllm-inkling2-xpu" in w
+                                 for w in b_other["warnings"]))
+
+    def test_inkling_ring_prefix_cache_editable_venv_not_armed(self):
+        with tempfile.TemporaryDirectory() as td:
+            _inkling_fixture(td)
+            sp = Path(td) / "venv" / "lib" / "python3.14" / "site-packages"
+            sp.mkdir(parents=True, exist_ok=True)
+            (sp / "__editable__.vllm_inkling2_xpu-0.1.0.pth").write_text("/tmp/src\n")
+            b = builders.build({"model_id": "inkling2-mini", "engine": "vllm", "gpus": [1],
+                                "cache": "on"})
+            self.assertNotIn("error", b)
+            self.assertNotIn("INK2_RING_PREFIX_CACHE", b["env"])
+            warn = next(w for w in b["warnings"] if "editable mode" in w)
+            self.assertIn("INK2_RING_PREFIX_CACHE", warn)
 
     def test_remote_overlay_cannot_overwrite_vllm_venv_or_env(self):
         before = dict(catalog.find_model("inkling2-mini")["recipes"]["vllm"])
